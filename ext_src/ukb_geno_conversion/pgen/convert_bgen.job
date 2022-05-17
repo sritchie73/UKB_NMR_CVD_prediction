@@ -1,0 +1,108 @@
+#!/bin/bash
+
+# Make sure job is submitted directly
+if [ ! -z ${SLURM_JOB_ID+x} ]; then
+   echo "This script should be executed directly, not with sbatch."
+   exit 1
+fi
+
+# allows user to specify a job to wait for completion before running any of these scripts
+if [ ! -z "$1" ]; then
+  previous_job=$1
+else
+  previous_job=1 # run first job immediately
+fi
+
+# Set target destination
+target=/rds/project/asb38/rds-asb38-ceu-ukbiobank/genetics/COMMON/post_qc_data/imputed/HRC_UK10K/plink_format/GRCh37/pgen
+
+# Create logging directory
+log_dir=$target/slurm_logs/
+mkdir -p $log_dir
+
+# Step 1: make a dummy .sample file, giving each person an ID 
+# corresponding to the row number in the UKB .sample files 
+# (application specific) starting after the two header rows.
+mksi_job=$(sbatch --dependency afterany:$previous_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Make dummy sample IDs" \
+                  --time 1:0:0 \
+                  --cpus-per-task 1 \
+                  --ntasks 1 \
+                  --output $log_dir/dummy_samples_%j.o \
+                  --error $log_dir/dummy_samples_%j.e \
+                  --partition skylake \
+                  --wrap "Rscript $target/00_make_dummy_sample.R")
+
+# Step 2: convert the BGEN files to plink pgen/pvar/pfam files.
+# These maintain the probabilistic dosage information, while also
+# separating the variant information into a separate file.
+conv_job=$(sbatch --dependency afterok:$mksi_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Convert bgen" \
+                  --time 12:0:0 \
+                  --array 1-24 \
+                  --mem 36000 \
+                  --output $log_dir/convert_bgen_%A_%a.o \
+                  --error $log_dir/convert_bgen_%A_%a.e \
+                  --partition skylake,skylake-himem \
+                  $target/01_convert_bgen.sh)
+
+# Step 3: Give variants unique identifiers and flag duplicates 
+# for removal
+flag_job=$(sbatch --dependency afterok:$conv_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Flag duplicates" \
+                  --array 1-24 \
+                  --time 1:0:0 \
+                  --mem 12000 \
+                  --output $log_dir/flag_duplicates_%A_%a.o \
+                  --error $log_dir/flag_duplicates_%A_%a.e \
+                  --partition skylake \
+                  --wrap "Rscript $target/02_flag_duplicates.R")
+
+# Step 3: Remove the variants flagged for removal
+flag_job=$previous_job
+rmdp_job=$(sbatch --dependency afterok:$flag_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Remove duplicates" \
+                  --time 12:0:0 \
+                  --array 1-24 \
+                  --mem 6000 \
+                  --output $log_dir/remove_duplicates_%A_%a.o \
+                  --error $log_dir/remove_duplicates_%A_%a.e \
+                  --partition skylake \
+                  $target/03_filter_duplicates.sh)
+
+# Step 4: Remove the extra crud in the variant identifiers now that
+# the deduplication process has happened.
+fvid_job=$(sbatch --dependency afterok:$rmdp_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Fix variant IDs" \
+                  --time 1:0:0 \
+                  --array 1-24 \
+                  --mem 6000 \
+                  --output $log_dir/fix_var_ids_%A_%a.o \
+                  --error $log_dir/fix_var_ids_%A_%a.e \
+                  --partition skylake \
+                  --wrap "Rscript $target/04_fix_var_ids.R")
+
+# Step 5: clean up left over files
+clup_job=$(sbatch --dependency afterok:$fvid_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "cleanup" \
+                  --time 1:0:0 \
+                  --mem 6000 \
+                  --output $log_dir/cleanup_%j.o \
+                  --error $log_dir/cleanup_%j.e \
+                  --partition skylake \
+                  $target/05_cleanup.sh)
+
+echo "Submitted jobs $mksi_job, $conv_job, $flag_job, $rmdp_job, $fvid_job, $clup_job"
+

@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --partition cclake
+#SBATCH --mem 60000
+#SBATCH --time 12:0:0
+
+if [[ -z $SLURM_CPUS_ON_NODE ]]; then
+  echo "Script should be executed with sbatch, not run as a bash script."
+  exit 1
+fi
+
+outdir=data/raw/ukbiobank/extracted
+indir=data/raw/ukbiobank/decoded
+
+mkdir -p $outdir
+
+# Extract fields for NMR data
+if [ ! -f $outdir/fields.txt ]; then
+  Rscript --vanilla src/01_curate_fields.R
+fi
+
+# Extract as csv
+./src/ukbtools/ukbconv $indir/ukb48061.enc_ukb csv \
+  -e"$indir/encoding.ukb" \
+  -o"$outdir/smoking" \
+  -i"$outdir/fields.txt"
+mv fields.ukb $outdir
+
+./src/ukbtools/ukbconv $indir/ukb48061.enc_ukb docs \
+  -e"$indir/encoding.ukb" \
+  -o"$outdir/smoking" \
+  -i"$outdir/fields.txt"
+rm fields.ukb
