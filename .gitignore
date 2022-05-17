@@ -1,1 +1,4 @@
-# Add folders and file extensions you want git to ignore to this file, e.g. data/
+data/
+analyses/
+*.*.swp
+.ipynb_checkpoints/

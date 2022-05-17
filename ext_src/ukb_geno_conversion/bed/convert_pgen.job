@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Make sure job is submitted directly
+if [ ! -z ${SLURM_JOB_ID+x} ]; then
+   echo "This script should be executed directly, not with sbatch."
+   exit 1
+fi
+
+# allows user to specify a job to wait for completion before running any of these scripts
+if [ ! -z "$1" ]; then
+  previous_job=$1
+else
+  previous_job=1 # run first job immediately
+fi
+
+# Set target destination
+target=/rds/project/asb38/rds-asb38-ceu-ukbiobank/genetics/COMMON/post_qc_data/imputed/HRC_UK10K/plink_format/GRCh37/bed
+
+# Create logging directory
+log_dir=$target/slurm_logs/
+mkdir -p $log_dir
+
+# Convert pgen files to bed/bim/fam files
+conv_job=$(sbatch --dependency afterok:$previous_job \
+                  --parsable \
+                  --account INOUYE-SL3-CPU \
+                  --job-name "Convert pgen" \
+                  --time 5:0:0 \
+                  --array 3,4 \
+                  --mem 32000 \
+                  --output $log_dir/convert_pgen_%A_%a.o \
+                  --error $log_dir/convert_pgen_%A_%a.e \
+                  --partition skylake,skylake-himem \
+                  $target/01_convert_pgen.sh)
+
+echo "Submitted jobs $conv_job"
+

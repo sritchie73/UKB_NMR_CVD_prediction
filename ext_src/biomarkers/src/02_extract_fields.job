@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --partition cclake
+#SBATCH --mem 60000
+#SBATCH --time 12:0:0
+
+if [[ -z $SLURM_CPUS_ON_NODE ]]; then
+  echo "Script should be executed with sbatch, not run as a bash script."
+  exit 1
+fi
+
+./src/ukb_tools/ukbconv data/raw/ukb48061.enc_ukb csv \
+  -e"data/raw/encoding.ukb" \
+  -o"data/extracted/biomarkers_extracted" \
+  -i"data/extracted/fields_to_extract.txt"
+
+./src/ukb_tools/ukbconv data/raw/ukb48061.enc_ukb docs \
+  -e"data/raw/encoding.ukb" \
+  -o"data/extracted/biomarkers_extracted" \
+  -i"data/extracted/fields_to_extract.txt"
+
+mv fields.ukb data/extracted/extracted_fields.txt
