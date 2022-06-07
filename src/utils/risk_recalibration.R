@@ -59,12 +59,10 @@ recalibrate_risk = function(cph, IID, age, sex, male="M") {
   dt[sex != male, sex := "female"]
   dt[sex == male, sex := "male"]
   
-  # Age- and sex-specific incidence rates (per 1000 person-years) of CVD 
-  # among CPRD participants (n=3,117,544) from the Appendix table of 
-  # Sun L, *et al*. Use of polygenic risk scores and other molecular 
-  # markers to enhance cardiovascular risk prediction: prospective 
-  # cohort study and modelling analysis. *bioRxiv* (2019). 
-  # doi: 10.1101/744565.
+  # Age- and sex-specific incidence rates (per 1000 person-years) of CVD
+  # among CPRD participants (n=2.1 million) from the Appendix table of
+  # Sun L, *et al*. Polygenic risk scores in cardiovascular risk
+  # prediction: A cohort study and modelling analyses. *PLOS Med* (2021).
   CPRD = data.table(
     age_at_risk_start = seq(40, 75, by=5),
     age_at_risk_end = seq(44, 79, by=5),
