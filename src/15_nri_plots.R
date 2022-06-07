@@ -3,7 +3,6 @@ library(ggplot2)
 
 # Load NRI estimates
 nri_estimates <- fread("analyses/public_health_modelling/net_reclassification/nri_estimates.txt")
-reclassified <- fread("analyses/public_health_modelling/net_reclassification/nri_reclassified.txt")
 
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
@@ -83,3 +82,15 @@ g <- ggplot(gg_dt[lambda != "Best model with fewest features"]) +
   theme_bw() + theme(legend.position="bottom")
 ggsave(g, width=13, height=7, units="in", file="analyses/public_health_modelling/net_reclassification/nri_compare.pdf")
 
+# Write out table for supp
+wide <- dcast(gg_dt[lambda != "Best model with fewest features"], long_name + biomarkers + compared_to ~ nri_type + metric, value.var=c("Estimate", "Lower", "Upper"))
+wide <- wide[order(-biomarkers)][order(compared_to)]
+wide <- wide[, .(long_name, biomarkers, compared_to, 
+  `ContNRI+`=`Estimate_Continuous NRI_NRI+`, `ContNRI+_L95`=`Lower_Continuous NRI_NRI+`, `ContNRI+_U95`=`Upper_Continuous NRI_NRI+`,
+  `ContNRI-`=`Estimate_Continuous NRI_NRI-`, `ContNRI-_L95`=`Lower_Continuous NRI_NRI-`, `ContNRI-_U95`=`Upper_Continuous NRI_NRI-`,
+  `ACCAHA_NRI+`=`Estimate_ACC/AHA 2019 Categorical NRI_NRI+`, `ACCAHA_NRI+_L95`=`Lower_ACC/AHA 2019 Categorical NRI_NRI+`, `ACCAHA_NRI+_U95`=`Upper_ACC/AHA 2019 Categorical NRI_NRI+`,
+  `ACCAHA_NRI-`=`Estimate_ACC/AHA 2019 Categorical NRI_NRI-`, `ACCAHA_NRI-_L95`=`Lower_ACC/AHA 2019 Categorical NRI_NRI-`, `ACCAHA_NRI-_U95`=`Upper_ACC/AHA 2019 Categorical NRI_NRI-`,
+  `NICE_NRI+`=`Estimate_NICE 2014 Categorical NRI_NRI+`, `NICE_NRI+_L95`=`Lower_NICE 2014 Categorical NRI_NRI+`, `NICE_NRI+_U95`=`Upper_NICE 2014 Categorical NRI_NRI+`,
+  `NICE_NRI-`=`Estimate_NICE 2014 Categorical NRI_NRI-`, `NICE_NRI-_L95`=`Lower_NICE 2014 Categorical NRI_NRI-`, `NICE_NRI-_U95`=`Upper_NICE 2014 Categorical NRI_NRI-`
+)]
+fwrite(wide, sep="\t", quote=FALSE, file="analyses/public_health_modelling/net_reclassification/nri_compare.txt")
