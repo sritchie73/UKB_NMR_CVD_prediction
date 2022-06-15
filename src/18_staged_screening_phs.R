@@ -215,7 +215,7 @@ fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statis
 phs <- phs[order(PGS)]
 phs[, name := factor(name, levels=rev(unique(name)))]
 phs[, long_name := factor(long_name, levels=rev(unique(long_name)))]
-phs_sumary <- phs[order(PGS)]
+phs_summary <- phs_summary[order(PGS)]
 phs_summary[, name := factor(name, levels=rev(unique(name)))]
 phs_summary[, long_name := factor(long_name, levels=rev(unique(long_name)))]
 

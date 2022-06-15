@@ -17,33 +17,39 @@ active <- fread("analyses/train/cox_lasso_features.txt")
 
 # Collate information about each model
 models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
-  foreach(model_name = c("Conventional RF", "CRP", "GlycA", "Blood", "Nightingale", "Blood + Nightingale"), .combine=rbind) %:%
+  foreach(model_name = c("Conventional RF", "CRP", "NMR", "Assays", "NMR + Assays"), .combine=rbind) %:%
       foreach(this_lambda = c("lambda.min", "lambda.1se"), .combine=rbind) %do% {
 
-        # Extract model coefficients
-        mcf <- active[coef_type %in% c("blood", "nightingale") & model == tolower(gsub(" ", "", model_name)) & PGS == with_pgs & lambda.fit == this_lambda]
+        # Extract lasso model coefficients (if relevant)
+        mcf <- active[coef_type %in% c("NMR", "Assays") & lambda.fit == this_lambda]
+        if (model_name == "NMR") {
+          mcf <- active[coef_type == "NMR" & lambda.fit == this_lambda]
+        } else if (model_name == "Assays") { 
+          mcf <- active[coef_type == "Assays" & lambda.fit == this_lambda]
+        } else if (model_name == "NMR + Assays") {
+          mcf <- active[coef_type %in% c("NMR", "Assays") & lambda.fit == this_lambda]
+        } else {
+          mcf <- active[0]
+        }
 
         # Build model formula
-        mf <- "Surv(incident_followup, incident_cvd) ~ strata(sex) + age + tchol + hdl + sbp + diabetes + smoking + family_history_cvd"
-        # mf <- paste(mf, "+ factor_by_size(assessment_centre) + factor_by_size(earliest_hospital_nation) + factor_by_size(latest_hospital_nation)")
+        mf <- "Surv(incident_followup, incident_cvd) ~ strata(sex) + age + sbp + diabetes + smoking + family_history_cvd"
+        if (!(model_name) %in% c("NMR", "NMR + Assays")) mf <- sprintf("%s + tchol + hdl", mf)
         if (with_pgs) mf <- sprintf("%s + CAD_metaGRS + Stroke_metaGRS", mf)
         if (model_name == "CRP") mf <- mf <- sprintf("%s + crp", mf)
-        if (model_name == "GlycA") mf <- mf <- sprintf("%s + GlycA", mf)
         if (nrow(mcf) > 0) mf <- sprintf("%s + %s", mf, paste(mcf[, coef], collapse=" + "))
 
         # Build long form model name
         n_bio <- mcf[,.N,by=coef_type]
-        n_bio[, coef_type := paste0(toupper(substr(coef_type, 1, 1)), substr(coef_type, 2, nchar(coef_type)))]
-        if (model_name %in% c("Blood", "Blood + Nightingale") & n_bio[coef_type == "Blood", .N == 0]) {
-          n_bio <- rbind(n_bio, data.table(coef_type = "Blood", N = 0))
-        } else if (model_name %in% c("Nightingale", "Blood + Nightingale") & n_bio[coef_type == "Nightingale", .N == 0]) {
-          n_bio <- rbind(n_bio, data.table(coef_type = "Nightingale", N = 0))
+        if (model_name %in% c("NMR", "NMR + Assays") & n_bio[coef_type == "NMR", .N == 0]) {
+          n_bio <- rbind(n_bio, data.table(coef_type = "NMR", N = 0))
+        } else if (model_name %in% c("Assays", "NMR + Assays") & n_bio[coef_type == "Assays", .N == 0]) {
+          n_bio <- rbind(n_bio, data.table(coef_type = "Assays", N = 0))
         }
-        n_bio[, coef_type := factor(coef_type, levels=c("Blood", "Nightingale"))]
+        n_bio[, coef_type := factor(coef_type, levels=c("NMR", "Assays"))]
         n_bio <- n_bio[order(n_bio)]
         bio_text <- n_bio[, paste(sprintf("%s %s biomarkers", N, coef_type), collapse=" + ")]
         if (model_name == "CRP") bio_text <- "CRP"
-        if (model_name == "GlycA") bio_text <- "GlycA"
 
         if (with_pgs) {
            long_name <- sprintf("Conventional RF + PGS + %s", bio_text)
@@ -115,22 +121,16 @@ active[var %in% c("age", "diabetes", "smoking", "sbp", "sex", "family_history_cv
 active[var %in% c("assessment_centre", "earliest_hospital_nation", "latest_hospital_nation"), platform := "Dataset-specific covariate"]
 active[var %in% nmr_info$Biomarker, platform := "NMR spectroscopy"]
 active[bio_info, on = .(var), platform := sprintf("%s method on %s instrument from %s", analysis_method, instrumentation, supplier)]
-active[var == "nonhdl", platform := "CHO-POD and Enzyme immunoinhibition methods on AU5800 instrument from Beckman Coulter"]
-active[var == "apobapoa1", platform := "Immunoturbidimetric method on AU5800 instrument from Beckman Coulter"]
 
 # Add in model information
 active[, model := fcase(
-  model == "blood", "Blood",
-  model == "nightingale", "Nightingale",
-  model == "blood+nightingale", "Blood + Nightingale"
+  model == "nmr", "NMR",
+  model == "assays", "Assays"
 )]
-active[models, on = .(lambda.fit=lambda, PGS, model=name), long_name := i.long_name]
+active[models, on = .(lambda.fit=lambda, model=name), long_name := i.long_name]
 
 # Reorder columns
-active <- active[,.(name=model, lambda=lambda.fit, PGS, coefficient, var, coef_name, coef_type, platform, beta)]
+active <- active[,.(name=model, lambda=lambda.fit, coefficient, var, coef_name, coef_type, platform, beta)]
 
 # Write out
 fwrite(active, sep="\t", quote=FALSE, file="analyses/train/lasso_coefficients.txt")
-
-
-

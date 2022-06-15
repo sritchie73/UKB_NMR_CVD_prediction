@@ -32,46 +32,50 @@ bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
 nmr_info <- fread("data/ukb/NMR_metabolomics/output/biomarker_information.txt")
 
 # Curate list of variables that define the different models
-standard_rf <- c("age", "sex", "tchol", "hdl", "sbp", "diabetes", "smoking", "family_history_cvd")
+conv_rf <- c("age", "sex", "sbp", "diabetes", "smoking", "family_history_cvd")
+conv_rf_lipids <- c(conv_rf, c("tchol", "hdl"))
+nmr <- nmr_info$Biomarker
 covariates <- c("assessment_centre", "earliest_hospital_nation", "latest_hospital_nation")
-night <- nmr_info$Biomarker
-blood_clin <- setdiff(intersect(bio_info$var, names(train)), standard_rf)
-pgs <- c("CAD_metaGRS", "Stroke_metaGRS")
+clin_add <- c("crp", "lpa", "vitd25", "rheuf", "alp", "calcium", "shbg",
+	"testos", "oest", "igf1", "cyst", "protein", "urea", "phos",
+	"uric", "dbili", "tbili", "ggt", "alt", "asp")
 
-# Run lasso regression to identify (1) clinical chemistry biomarkers that significantly add
-# to CVD prediction above and beyond standard clinical risk factors, (2) nightingale 
-# biomarkers that add to CVD prediction above and beyond clinical risk factors, and 
-# (3) nightingale and clinical chemistry biomarkers in conjunction, and (4-6) the above also 
-# with CAD and Stroke PGS added.
-active <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
-  foreach(model = c("blood", "nightingale", "blood+nightingale"), .combine=rbind) %do% {
+# We want to train two models with lasso regression:
+#
+# (1) Conventional risk factors + NMR biomarkers, allowing NMR to replace Total and HDL cholesterol
+# (2) Conventional risk factors + clinical chemistry biomarkers not measured on the NMR platform, so
+#     we can assess potential for improvement e.g. with mass-spec or proteomics technologies as they
+#     come down in cost.
+#
+active <- foreach(model = c("nmr", "assays"), .combine=rbind) %do% {
     # Extract event
     survdat <- train[, .(incident_followup, incident_cvd)]
     setnames(survdat, c("followup", "event"))
 
     # select columns
-    features <- c(covariates, standard_rf)
-    if (with_pgs) features <- c(features, pgs)
-    if (grepl("blood", model)) features <- c(features, blood_clin)
-    if (grepl("nightingale", model)) features <- c(features, night)
+    if (model == "nmr") {
+      features <- c(covariates, conv_rf, nmr)
+    } else if (model == "assays") {
+      features <- c(covariates, conv_rf_lipids, clin_add)
+    }
     inmat <- model.matrix(~ 0 + ., train[, .SD, .SDcols=features])
 
     # Create vector of penalties: 1 = apply elasticnet, 0 = always include
-    penalties <- rep(0, ncol(inmat))
+    penalties <- rep(1, ncol(inmat))
     names(penalties) <- colnames(inmat)
-    penalties[intersect(c(blood_clin, night), names(penalties))] <- 1 # always apply elasticnet to non-conventional risk factor biomarkers
-    for (cov in covariates) {
-      penalties[names(penalties) %like% cov] <- 1 # and too follow-up time related covaraties
+    if (model == "NMR") {
+      penalties[apply(sapply(conv_rf, function(x) { names(penalties) %like% x }), 1, any)] <- 0 
+    } else if (model == "clin_add") {
+      penalties[apply(sapply(conv_rf_lipids, function(x) { names(penalties) %like% x }), 1, any)] <- 0
     }
-
+     
     # Fit cox regression lasso for feature selection
     cv.coxnet <- cv.glmnet(inmat, Surv(survdat$followup, survdat$event), family="cox",
                            foldid = train$foldid, alpha = 1, penalty.factor = penalties,
                            trace.it=1, parallel=TRUE, standardize=FALSE)
 
     # Plot
-    pdf(width=12, height=5, file=sprintf("analyses/train/cox_lasso_feature_selection_%s%s.pdf",
-        model, ifelse(with_pgs, paste0("_", "PGS"), "")))
+    pdf(width=12, height=5, file=sprintf("analyses/train/cox_lasso_feature_selection_%s.pdf", model))
     plot(cv.coxnet)
     dev.off()
 
@@ -83,12 +87,11 @@ active <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
       setnames(active, c("coef", "beta"))
       active <- active[beta != 0]
       active[, coef_type := fcase(
-        coef %in% pgs, "pgs",
         coef %in% names(penalties[penalties == 0]), "conventional",
-        coef %in% blood_clin, "blood",
-        coef %in% nmr_info$Biomarker, "nightingale",
+        coef %in% clin_add, "Assays",
+        coef %in% nmr, "NMR",
         default = "Dataset-specific covariate")]
-      active <- cbind(data.table(endpoint = "CVD", model = model, PGS = with_pgs, lambda.fit = ss), active)
+      active <- cbind(data.table(endpoint = "CVD", model = model, lambda.fit = ss), active)
       return(active)
     }
 }
