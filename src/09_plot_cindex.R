@@ -20,7 +20,7 @@ g <- ggplot(ggdt) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="red", "Best model"="#00B050",
                      "Best model with fewest features"="#0070C0")) +
   labs(x = "C-index (95% confidence interval)", y = "") +
@@ -36,7 +36,7 @@ g <- ggplot(ggdt) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   labs(x = "C-index (95% confidence interval)", y = "") +
   theme_bw() +
@@ -47,11 +47,11 @@ ggsave(g, width=14, height=5, units="in", file="analyses/test/cindex_compare.pdf
 g <- ggplot(ggdt) +
   aes(x = deltaC, xmin = deltaC.L95, xmax = deltaC.U95, y = long_name, color=lambda, shape=name) +
   geom_vline(xintercept=0, linetype=2) +
-  geom_vline(xintercept=ggdt[lambda == "No feature selection" & PGS == "With CAD metaGRS + Stroke metaGRS", deltaC], linetype=2, color="orange") +
+  geom_vline(xintercept=ggdt[name == "Conventional RF" & lambda == "No feature selection" & PGS == "With CAD metaGRS + Stroke metaGRS", deltaC], linetype=2, color="orange") +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   labs(x = "Change in C-index (95% confidence interval)", y = "") +
   theme_bw() +
@@ -65,7 +65,7 @@ g <- ggplot(ggdt[PGS == "With CAD metaGRS + Stroke metaGRS"]) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   labs(x = "Change in C-index (95% confidence interval)", y = "") +
   theme_bw() +

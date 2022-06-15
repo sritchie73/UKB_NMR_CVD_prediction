@@ -40,7 +40,13 @@ nri_list <- list(
 	"Base + PGS to PGS + Blood + Nightingale (min)" = cvd.nri.test(risk[(PGS) & name == "Conventional RF"], risk[(PGS) & name == "Blood + Nightingale" & lambda == "lambda.min"]),
 	"Base to PGS + Blood (min)" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "Blood" & lambda == "lambda.min"]),
 	"Base to PGS + Nightingale (min)" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "Nightingale" & lambda == "lambda.min"]),
-	"Base to PGS + Blood + Nightingale (min)" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "Blood + Nightingale" & lambda == "lambda.min"])
+	"Base to PGS + Blood + Nightingale (min)" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "Blood + Nightingale" & lambda == "lambda.min"]),
+  "Base to CRP" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[!(PGS) & name == "CRP"]),
+  "Base to GlycA" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[!(PGS) & name == "GlycA"]),
+  "Base to PGS + CRP" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "CRP"]),
+  "Base to PGS + GlycA" = cvd.nri.test(risk[!(PGS) & name == "Conventional RF"], risk[(PGS) & name == "GlycA"]),
+  "Base + PGS to PGS + CRP" = cvd.nri.test(risk[(PGS) & name == "Conventional RF"], risk[(PGS) & name == "CRP"]),
+  "Base + PGS to PGS + GlycA" = cvd.nri.test(risk[(PGS) & name == "Conventional RF"], risk[(PGS) & name == "GlycA"])
 )
 saveRDS(nri_list, file="analyses/public_health_modelling/net_reclassification/nri.rds")
 

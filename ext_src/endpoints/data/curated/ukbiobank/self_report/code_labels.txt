@@ -1,0 +1,1741 @@
+field_id	code	label
+20001	1001	lung cancer
+20001	1002	breast cancer
+20001	1003	skin cancer
+20001	1004	cancer of lip/mouth/pharynx/oral cavity
+20001	1005	salivary gland cancer
+20001	1006	larynx/throat cancer
+20001	1007	nasal cavity cancer
+20001	1008	ear cancer
+20001	1009	sinus cancer
+20001	1010	lip cancer
+20001	1011	tongue cancer
+20001	1012	gum cancer
+20001	1015	parotid gland cancer
+20001	1016	other salivary gland cancer
+20001	1017	oesophageal cancer
+20001	1018	stomach cancer
+20001	1019	small intestine/small bowel cancer
+20001	1020	large bowel cancer/colorectal cancer
+20001	1021	anal cancer
+20001	1022	colon cancer/sigmoid cancer
+20001	1023	rectal cancer
+20001	1024	liver/hepatocellular cancer
+20001	1025	gallbladder/bile duct cancer
+20001	1026	pancreas cancer
+20001	1027	small cell lung cancer
+20001	1028	non-small cell lung cancer
+20001	1029	peripheral nerve/autonomic nerve cancer
+20001	1030	eye and/or adnexal cancer
+20001	1031	meningeal cancer / malignant meningioma
+20001	1032	brain cancer / primary malignant brain tumour
+20001	1033	spinal cord or cranial nerve cancer
+20001	1034	kidney/renal cell cancer
+20001	1035	bladder cancer
+20001	1036	other cancer of urinary tract
+20001	1037	female genital tract cancer
+20001	1038	male genital tract cancer
+20001	1039	ovarian cancer
+20001	1040	uterine/endometrial cancer
+20001	1041	cervical cancer
+20001	1042	vaginal cancer
+20001	1043	vulval cancer
+20001	1044	prostate cancer
+20001	1045	testicular cancer
+20001	1046	penis cancer
+20001	1047	lymphoma
+20001	1048	leukaemia
+20001	1050	multiple myeloma
+20001	1051	myelofibrosis or myelodysplasia
+20001	1052	hodgkins lymphoma / hodgkins disease
+20001	1053	non-hodgkins lymphoma
+20001	1055	chronic lymphocytic
+20001	1056	chronic myeloid
+20001	1058	other haematological malignancy
+20001	1059	malignant melanoma
+20001	1060	non-melanoma skin cancer
+20001	1061	basal cell carcinoma
+20001	1062	squamous cell carcinoma
+20001	1063	primary bone cancer
+20001	1064	mesothelioma
+20001	1065	thyroid cancer
+20001	1066	parathyroid cancer
+20001	1067	adrenal cancer
+20001	1068	sarcoma/fibrosarcoma
+20001	1070	malignant lymph node, unspecified
+20001	1071	metastatic cancer (unknown primary)
+20001	1072	cin/pre-cancer cells cervix
+20001	1073	rodent ulcer
+20001	1074	acute myeloid leukaemia
+20001	1075	retinoblastoma
+20001	1076	kaposis sarcoma
+20001	1077	mouth cancer
+20001	1078	tonsil cancer
+20001	1079	oropharynx / oropharyngeal cancer
+20001	1080	trachea cancer
+20001	1081	thymus cancer / malignant thymoma
+20001	1082	heart / mediastinum cancer
+20001	1084	respiratory / intrathoracic cancer
+20001	1085	bone metastases / bony secondaries
+20001	1086	appendix cancer
+20001	1087	fallopian tube cancer
+20001	1088	malignant insulinoma
+20001	99999	unclassifiable
+20001	-1	Do not know
+20001	-3	Prefer not to answer
+20001	-7	None of the above
+20002	1065	hypertension
+20002	1066	heart/cardiac problem
+20002	1067	peripheral vascular disease
+20002	1068	venous thromboembolic disease
+20002	1072	essential hypertension
+20002	1073	gestational hypertension/pre-eclampsia
+20002	1074	angina
+20002	1075	heart attack/myocardial infarction
+20002	1076	heart failure/pulmonary odema
+20002	1077	heart arrhythmia
+20002	1078	heart valve problem/heart murmur
+20002	1079	cardiomyopathy
+20002	1080	pericardial problem
+20002	1081	stroke
+20002	1082	transient ischaemic attack (tia)
+20002	1083	subdural haemorrhage/haematoma
+20002	1086	subarachnoid haemorrhage
+20002	1087	leg claudication/ intermittent claudication
+20002	1088	arterial embolism
+20002	1093	pulmonary embolism +/- dvt
+20002	1094	deep venous thrombosis (dvt)
+20002	1111	asthma
+20002	1112	chronic obstructive airways disease/copd
+20002	1113	emphysema/chronic bronchitis
+20002	1114	bronchiectasis
+20002	1115	interstitial lung disease
+20002	1117	other respiratory problems
+20002	1120	asbestosis
+20002	1121	pulmonary fibrosis
+20002	1122	fibrosing alveolitis/unspecified alveolitis
+20002	1123	sleep apnoea
+20002	1124	respiratory failure
+20002	1125	pleurisy
+20002	1126	spontaneous pneumothorax/recurrent pneumothorax
+20002	1134	oesophageal disorder
+20002	1135	stomach disorder
+20002	1136	liver/biliary/pancreas problem
+20002	1137	other abdominal problem
+20002	1138	gastro-oesophageal reflux (gord) / gastric reflux
+20002	1139	oesophagitis/barretts oesophagus
+20002	1140	oesophageal stricture
+20002	1141	oesophageal varicies
+20002	1142	gastric/stomach ulcers
+20002	1143	gastritis/gastric erosions
+20002	1154	irritable bowel syndrome
+20002	1155	hepatitis
+20002	1156	infective/viral hepatitis
+20002	1157	non-infective hepatitis
+20002	1158	liver failure/cirrhosis
+20002	1159	bile duct disease
+20002	1160	bile duct obstruction/ascending cholangitis
+20002	1161	gall bladder disease
+20002	1162	cholelithiasis/gall stones
+20002	1163	cholecystitis
+20002	1164	pancreatic disease
+20002	1165	pancreatitis
+20002	1190	peritonitis
+20002	1191	gastrointestinal bleeding
+20002	1192	renal/kidney failure
+20002	1193	renal failure requiring dialysis
+20002	1194	renal failure not requiring dialysis
+20002	1196	urinary tract infection/kidney infection
+20002	1197	kidney stone/ureter stone/bladder stone
+20002	1200	ureteric obstruction/hydronephrosis
+20002	1201	bladder problem (not cancer)
+20002	1202	urinary frequency / incontinence
+20002	1207	prostate problem (not cancer)
+20002	1210	scrotal problem (not cancer)
+20002	1214	testicular problems (not cancer)
+20002	1220	diabetes
+20002	1221	gestational diabetes
+20002	1222	type 1 diabetes
+20002	1223	type 2 diabetes
+20002	1224	thyroid problem (not cancer)
+20002	1225	hyperthyroidism/thyrotoxicosis
+20002	1226	hypothyroidism/myxoedema
+20002	1228	thyroid radioablation therapy
+20002	1229	parathyroid gland problem (not cancer)
+20002	1230	parathyroid hyperplasia/adenoma
+20002	1232	disorder of adrenal gland
+20002	1233	adrenal tumour
+20002	1234	adrenocortical insufficiency/addison's disease
+20002	1235	hyperaldosteronism/conn's syndrome
+20002	1236	phaeochromocytoma
+20002	1237	disorder or pituitary gland
+20002	1238	pituitary adenoma/tumour
+20002	1239	cushings syndrome
+20002	1240	neurological injury/trauma
+20002	1242	eye/eyelid problem
+20002	1243	psychological/psychiatric problem
+20002	1244	infection of nervous system
+20002	1245	brain abscess/intracranial abscess
+20002	1246	encephalitis
+20002	1247	meningitis
+20002	1248	spinal abscess
+20002	1249	cranial nerve problem/palsy
+20002	1250	bell's palsy/facial nerve palsy
+20002	1251	spinal cord disorder
+20002	1252	paraplegia
+20002	1254	peripheral nerve disorder
+20002	1255	peripheral neuropathy
+20002	1256	acute infective polyneuritis/guillain-barre syndrome
+20002	1257	trapped nerve/compressed nerve
+20002	1258	chronic/degenerative neurological problem
+20002	1259	motor neurone disease
+20002	1260	myasthenia gravis
+20002	1261	multiple sclerosis
+20002	1262	parkinsons disease
+20002	1263	dementia/alzheimers/cognitive impairment
+20002	1264	epilepsy
+20002	1265	migraine
+20002	1266	head injury
+20002	1267	spinal injury
+20002	1274	eye infection
+20002	1275	retinal problem
+20002	1276	diabetic eye disease
+20002	1277	glaucoma
+20002	1278	cataract
+20002	1279	eye trauma
+20002	1281	retinal detachment
+20002	1282	retinal artery/vein occlusion
+20002	1286	depression
+20002	1287	anxiety/panic attacks
+20002	1288	nervous breakdown
+20002	1289	schizophrenia
+20002	1290	deliberate self-harm/suicide attempt
+20002	1291	mania/bipolar disorder/manic depression
+20002	1293	bone disorder
+20002	1294	back problem
+20002	1295	joint disorder
+20002	1297	muscle/soft tissue problem
+20002	1308	osteomyelitis
+20002	1309	osteoporosis
+20002	1310	paget's disease
+20002	1311	spine arthritis/spondylitis
+20002	1312	prolapsed disc/slipped disc
+20002	1313	ankylosing spondylitis
+20002	1322	myositis/myopathy
+20002	1327	low platelets/platelet disorder
+20002	1328	haemophilia
+20002	1330	iron deficiency anaemia
+20002	1331	pernicious anaemia
+20002	1332	aplastic anaemia
+20002	1339	sickle cell disease
+20002	1340	thalassaemia
+20002	1344	stevens johnson syndrome
+20002	1345	pemphigoid/pemphigus
+20002	1348	gynaecological disorder (not cancer)
+20002	1349	ovarian cyst or cysts
+20002	1350	polycystic ovaries/polycystic ovarian syndrome
+20002	1351	uterine fibroids
+20002	1352	uterine polyps
+20002	1353	vaginal prolapse/uterine prolapse
+20002	1364	breast disease (not cancer)
+20002	1366	fibrocystic disease
+20002	1367	breast cysts
+20002	1371	sarcoidosis
+20002	1372	vasculitis
+20002	1373	connective tissue disorder
+20002	1374	allergy/hypersensitivity/anaphylaxis
+20002	1376	giant cell/temporal arteritis
+20002	1377	polymyalgia rheumatica
+20002	1378	wegners granulmatosis
+20002	1379	microscopic polyarteritis
+20002	1380	polyartertis nodosa
+20002	1381	systemic lupus erythematosis/sle
+20002	1382	sjogren's syndrome/sicca syndrome
+20002	1383	dermatopolymyositis
+20002	1384	scleroderma/systemic sclerosis
+20002	1385	allergy or anaphylactic reaction to food
+20002	1386	allergy or anaphylactic reaction to drug
+20002	1387	hayfever/allergic rhinitis
+20002	1394	peripheral nerve injury
+20002	1396	enlarged prostate
+20002	1397	other demyelinating disease (not multiple sclerosis)
+20002	1398	pneumonia
+20002	1400	peptic ulcer
+20002	1402	endometriosis
+20002	1403	female infertility
+20002	1404	male infertility
+20002	1405	other renal/kidney problem
+20002	1406	muscle or soft tissue injuries
+20002	1407	burns
+20002	1408	alcohol dependency
+20002	1409	opioid dependency
+20002	1410	other substance abuse/dependency
+20002	1411	lung abscess
+20002	1412	bronchitis
+20002	1413	nasal/sinus disorder
+20002	1414	throat or larynx disorder
+20002	1415	ear/vestibular disorder
+20002	1416	chronic sinusitis
+20002	1417	nasal polyps
+20002	1418	chronic laryngitis
+20002	1419	vocal cord polyp
+20002	1420	otosclerosis
+20002	1421	meniere's disease
+20002	1425	cerebral aneurysm
+20002	1426	myocarditis
+20002	1427	polycystic kidney
+20002	1428	thyroiditis
+20002	1429	acromegaly
+20002	1430	hypopituitarism
+20002	1431	hyperprolactinaemia
+20002	1432	carcinoid syndrome/tumour
+20002	1433	cerebral palsy
+20002	1434	other neurological problem
+20002	1435	optic neuritis
+20002	1436	headaches (not migraine)
+20002	1437	myasthenia gravis
+20002	1438	polycythaemia vera
+20002	1445	clotting disorder/excessive bleeding
+20002	1446	anaemia
+20002	1447	pancytopenia
+20002	1448	neutropenia/lymphopenia
+20002	1449	myeloproliferative disorder
+20002	1450	monoclonal gammopathy/not myeloma
+20002	1451	hereditary/genetic haematological disorder
+20002	1452	eczema/dermatitis
+20002	1453	psoriasis
+20002	1454	blistering/desquamating skin disorder
+20002	1455	chronic skin ulcers
+20002	1456	malabsorption/coeliac disease
+20002	1457	duodenal ulcer
+20002	1458	diverticular disease/diverticulitis
+20002	1459	colitis/not crohns or ulcerative colitis
+20002	1460	rectal or colon adenoma/polyps
+20002	1461	inflammatory bowel disease
+20002	1462	crohns disease
+20002	1463	ulcerative colitis
+20002	1464	rheumatoid arthritis
+20002	1465	osteoarthritis
+20002	1466	gout
+20002	1467	other joint disorder
+20002	1468	diabetic neuropathy/ulcers
+20002	1469	post-traumatic stress disorder
+20002	1470	anorexia/bulimia/other eating disorder
+20002	1471	atrial fibrillation
+20002	1472	emphysema
+20002	1473	high cholesterol
+20002	1474	hiatus hernia
+20002	1475	sclerosing cholangitis
+20002	1476	sciatica
+20002	1477	psoriatic arthropathy
+20002	1478	cervical spondylosis
+20002	1479	rheumatic fever
+20002	1480	dermatomyositis
+20002	1481	polymyositis
+20002	1482	chronic fatigue syndrome
+20002	1483	atrial flutter
+20002	1484	wolff parkinson white / wpw syndrome
+20002	1485	irregular heart beat
+20002	1486	sick sinus syndrome
+20002	1487	svt / supraventricular tachycardia
+20002	1488	mitral valve prolapse
+20002	1489	mitral stenosis
+20002	1490	aortic stenosis
+20002	1491	brain haemorrhage
+20002	1492	aortic aneurysm
+20002	1493	other venous/lymphatic disease
+20002	1494	varicose veins
+20002	1495	lymphoedema
+20002	1496	alpha-1 antitrypsin deficiency
+20002	1497	pneumothorax
+20002	1498	empyema
+20002	1499	labyrinthitis
+20002	1500	vertigo
+20002	1501	pyloric stenosis
+20002	1502	appendicitis
+20002	1503	anal problem
+20002	1504	anal fissure
+20002	1505	haemorrhoids / piles
+20002	1506	primary biliary cirrhosis
+20002	1507	haemochromatosis
+20002	1508	jaundice (unknown cause)
+20002	1509	gastroenteritis/dysentry
+20002	1510	dyspepsia / indigestion
+20002	1511	abdominal hernia
+20002	1512	umbilical hernia
+20002	1513	inguinal hernia
+20002	1514	cystitis
+20002	1515	pyelonephritis
+20002	1516	bph / benign prostatic hypertrophy
+20002	1517	prostatitis
+20002	1518	erectile dysfunction / impotence
+20002	1519	kidney nephropathy
+20002	1520	iga nephropathy
+20002	1521	diabetes insipidus
+20002	1522	grave's disease
+20002	1523	trigemminal neuralgia
+20002	1524	spina bifida
+20002	1525	benign / essential tremor
+20002	1526	polio / poliomyelitis
+20002	1527	retinitis pigmentosa
+20002	1528	macular degeneration
+20002	1529	dry eyes
+20002	1530	iritis
+20002	1531	post-natal depression
+20002	1532	disc problem
+20002	1533	disc degeneration
+20002	1534	back pain
+20002	1535	scoliosis
+20002	1536	spinal stenosis
+20002	1537	joint pain
+20002	1538	arthritis (nos)
+20002	1540	plantar fascitis
+20002	1541	carpal tunnel syndrome
+20002	1542	fibromyalgia
+20002	1544	dupuytren's contracture
+20002	1545	neck problem/injury
+20002	1546	essential thrombocytosis
+20002	1548	acne/acne vulgaris
+20002	1549	lichen planus
+20002	1550	lichen sclerosis
+20002	1551	ovarian problem
+20002	1552	uterine problem
+20002	1553	cervical problem
+20002	1554	cervical intra-epithelial neoplasia (cin) / precancerous cells cervix
+20002	1555	cervical polyps
+20002	1556	menorrhagia (unknown cause)
+20002	1557	pelvic inflammatory disease/ pid
+20002	1558	ectopic pregnancy
+20002	1559	miscarriage
+20002	1560	breast fibroadenoma
+20002	1561	raynaud's phenomenon/disease
+20002	1562	food intolerance
+20002	1563	urticaria
+20002	1564	antiphospholipid syndrome
+20002	1578	hepatitis a
+20002	1579	hepatitis b
+20002	1580	hepatitis c
+20002	1581	hepatitis d
+20002	1582	hepatitis e
+20002	1583	ischaemic stroke
+20002	1584	mitral valve disease
+20002	1585	mitral regurgitation / incompetence
+20002	1586	aortic valve disease
+20002	1587	aortic regurgitation / incompetence
+20002	1588	hypertrophic cardiomyopathy (hcm / hocm)
+20002	1589	pericarditis
+20002	1590	pericardial effusion
+20002	1591	aortic aneurysm rupture
+20002	1592	aortic dissection
+20002	1593	varicose ulcer
+20002	1594	respiratory infection
+20002	1595	pleural plaques (not known asbestosis)
+20002	1596	pleural effusion
+20002	1597	tinnitus / tiniitis
+20002	1598	tonsiltis
+20002	1599	constipation
+20002	1600	bowel / intestinal perforation
+20002	1601	bowel / intestinal infarction
+20002	1602	bowel / intestinal obstruction
+20002	1603	rectal prolapse
+20002	1604	alcoholic liver disease / alcoholic cirrhosis
+20002	1605	femoral hernia
+20002	1606	incisional hernia
+20002	1607	diabetic nephropathy
+20002	1608	nephritis
+20002	1609	glomerulnephritis
+20002	1610	thyroid goitre
+20002	1611	hyperparathyroidism
+20002	1613	blepharitis / eyelid infection
+20002	1614	stress
+20002	1615	obsessive compulsive disorder (ocd)
+20002	1616	insomnia
+20002	1617	osteopenia
+20002	1618	soft tissue inflammation
+20002	1619	tendonitis / tendinitis / tenosynovitis
+20002	1620	bursitis
+20002	1621	synovitis
+20002	1622	epicondylitis
+20002	1623	tennis elbow / lateral epicondylitis
+20002	1624	housemaid's knee (prepatellar bursitis)
+20002	1625	cellulitis
+20002	1626	fracture skull / head
+20002	1627	fracture jaw
+20002	1628	fracture nose
+20002	1629	fracture face / orbit / eye socket
+20002	1630	fracture neck / cervical fracture
+20002	1631	fracture clavicle / collar bone
+20002	1632	fracture shoulder / scapula
+20002	1633	fracture upper arm / humerus / elbow
+20002	1634	fracture forearm / wrist
+20002	1635	fracture radius
+20002	1636	fracture ulna
+20002	1637	fracture wrist / colles fracture
+20002	1638	fracture hand
+20002	1639	fracture finger
+20002	1640	fracture thumb
+20002	1644	fracture rib
+20002	1645	fracture sternum
+20002	1646	fracture vertebra / crush fracture / vertebral collapse
+20002	1647	fracture pelvis
+20002	1648	fracture neck of femur / hip
+20002	1649	fracture shaft of femur
+20002	1650	fracture patella / knee
+20002	1651	fracture lower leg / ankle
+20002	1652	fracture tibia
+20002	1653	fracture fibula
+20002	1654	fracture foot
+20002	1655	fracture metatarsal
+20002	1656	fracture toe
+20002	1657	septicaemia / sepsis
+20002	1658	myelofibrosis
+20002	1659	meningioma / benign meningeal tumour
+20002	1660	rosacea
+20002	1661	vitiligo
+20002	1662	cervical erosion
+20002	1663	abnormal smear (cervix)
+20002	1664	dysmenorrhoea / dysmenorrhea
+20002	1665	menopausal symptoms / menopause
+20002	1666	benign breast lump
+20002	1667	alopecia / hair loss
+20002	1668	allergy to house dust mite
+20002	1669	contact dermatitis
+20002	1670	allergy to elastoplast
+20002	1671	allergy to nickel
+20002	1439	hiv/aids
+20002	1568	measles / morbillivirus
+20002	1570	rubella / german measles
+20002	1674	varicella zoster virus
+20002	1571	chickenpox
+20002	1573	shingles
+20002	1575	herpes simplex
+20002	1567	infectious mononucleosis / glandular fever / epstein barr virus (ebv)
+20002	1569	mumps / epidemic parotitis
+20002	1566	mrsa / methicillin resistant staphylococcus aureus
+20002	1442	helicobacter pylori
+20002	1440	tuberculosis (tb)
+20002	1441	malaria
+20002	1443	schistosomiasis/bilharzia
+20002	1576	dengue fever
+20002	1577	typhoid fever
+20002	1675	giardia / giardiasis
+20002	1574	diphtheria
+20002	1572	whooping cough / pertussis
+20002	1676	yellow fever
+20002	1677	scarlet fever / scarlatina
+20002	1678	chlamydia
+20002	1679	undescended testicle
+20002	1680	bowen's disease
+20002	1681	hydatiform mole
+20002	1682	benign insulinoma
+20002	1683	benign neuroma
+20002	99999	unclassifiable
+20002	-1	Do not know
+20002	-3	Prefer not to answer
+20002	-7	None of the above
+20004	1069	heart surgery
+20004	1070	coronary angioplasty (ptca) +/- stent
+20004	1071	other arterial surgery/revascularisation procedures
+20004	1095	coronary artery bypass grafts (cabg)
+20004	1096	pacemaker/defibrillator insertion
+20004	1097	heart valve surgery
+20004	1098	heart transplant
+20004	1099	aortic valve repair/replacement
+20004	1100	mitral valve repair/replacement
+20004	1101	other valve repair/replacement
+20004	1102	fem-pop bypass/leg artery bypass
+20004	1103	leg artery aneurysm repair
+20004	1104	aortic aneurysm/repair or stent
+20004	1105	carotid artery surgery/endarterectomy
+20004	1106	cerebral artery aneurysm surgery or clipping
+20004	1107	non-coronary artery angioplasty +/- stent
+20004	1108	leg artery angioplasty +/- stent
+20004	1109	carotid artery angioplasty +/- stent
+20004	1110	renal artery angioplasty +/- stent
+20004	1118	ent surgery
+20004	1127	ear surgery
+20004	1128	nasal/sinus/nose surgery
+20004	1129	throat/larynx surgery (incl tracheostomy)
+20004	1130	mouth/salivary gland surgery
+20004	1195	renal/kidney transplant
+20004	1197	percutaneous/open kidney stone surgery/lithotripsy
+20004	1199	ureteric surgery
+20004	1207	prostate operation
+20004	1208	radical prostatectomy
+20004	1209	transurethral resection of prostate (turp)
+20004	1216	testicular/scrotal operation
+20004	1217	removal of testicle/orchidectomy
+20004	1218	vasectomy
+20004	1219	other urological surgery
+20004	1224	thyroid surgery
+20004	1228	thyroid radioablation therapy
+20004	1229	parathyroidectomy
+20004	1232	adrenal surgery
+20004	1296	bone surgery/joint surgery
+20004	1297	muscle/soft tissue surgery
+20004	1318	hip replacement/revision
+20004	1319	knee replacement/revision
+20004	1320	spine or back surgery
+20004	1354	gynaecological surgery
+20004	1355	bilateral oophorectomy
+20004	1356	unilateral oophorectomy
+20004	1357	hysterectomy
+20004	1358	hysterectomy with oophorectomy
+20004	1359	hysterectomy with cervical sparing
+20004	1360	endometrial ablation
+20004	1361	vaginal prolapse/colposuspension
+20004	1362	sterilisation
+20004	1363	intrauterine contraceptive device insertion/removal
+20004	1365	breast surgery
+20004	1368	mastectomy
+20004	1369	lumpectomy
+20004	1370	mammoplasty/cosmetic operation on breast
+20004	1393	venous surgery/procedures
+20004	1402	hernia surgery
+20004	1403	inguinal/femoral hernia repair
+20004	1404	umbilical hernia repair
+20004	1405	incisional hernia repair
+20004	1427	bladder surgery
+20004	1428	transurethral resection bladder tumour (turbt)
+20004	1429	cystectomy
+20004	1431	urethral surgery
+20004	1432	thyroidectomy/partial thyroidectomy
+20004	1434	eye surgery
+20004	1435	cataract extraction/lens implant
+20004	1436	glaucoma surgery/trabeculectomy
+20004	1437	retinal operation/vitrectomy
+20004	1438	bone marrow transplant
+20004	1439	reduction or fixation of bone fracture
+20004	1440	amputation of leg
+20004	1441	amputation of foot
+20004	1442	amputation of toe
+20004	1443	other amputation
+20004	1444	lung removal/pneumonectomy/lobectomy
+20004	1445	bullaectomy/bullae removal
+20004	1446	lung transplant
+20004	1447	other thoracic surgery
+20004	1448	stomach surgery
+20004	1449	oesophageal surgery
+20004	1450	liver surgery
+20004	1451	biliary surgery
+20004	1452	pancreas surgery
+20004	1453	splenectomy
+20004	1454	liver transplant
+20004	1455	cholecystectomy/gall bladder removal
+20004	1456	bile duct surgery
+20004	1457	pancreatic transplant
+20004	1458	appendicectomy
+20004	1459	bowel resection
+20004	1460	anal surgery
+20004	1461	large bowel resection +/- colostomy
+20004	1462	small bowel resection
+20004	1463	rectal or colon polypectomy
+20004	1464	colectomy/hemicolectomy
+20004	1465	rectal/sigmoid resection
+20004	1466	other bowel surgery
+20004	1467	brain surgery
+20004	1468	intracranial haematoma drainage
+20004	1469	cerebroventricular shunt/shunt for hydrocephalus
+20004	1470	spinal cord surgery
+20004	1471	peripheral nerve surgery
+20004	1472	pituitary surgery
+20004	1473	pituitary transplant
+20004	1474	skin operation or plastic surgery
+20004	1475	fertility treatment procedures
+20004	1476	fistula for dialysis
+20004	1477	caesarean section / caesarian section
+20004	1478	tonsillectomy +/- adenoids
+20004	1479	varicose vein surgery
+20004	1480	wisdom teeth surgery
+20004	1481	maxillo-facial surgery
+20004	1482	oesphageal fundoplication/hiatus hernia surgery
+20004	1483	haemorroidectomy / piles surgery/ banding of piles
+20004	1484	pilonidal sinus surgery (anal)
+20004	1485	abdominal/pelvic adhesion surgery
+20004	1486	laparotomy nos
+20004	1487	nephrectomy/kidney removed
+20004	1488	anterior/posterior repair bladder/uterus
+20004	1489	testicular hydrocoele surgery / drainage
+20004	1490	male circumcision
+20004	1491	squint correction
+20004	1492	spinal laminectomy
+20004	1493	arthroscopy nos
+20004	1494	foot surgery
+20004	1495	lower limb surgery
+20004	1496	knee surgery (not replacement)
+20004	1497	hip surgery (not replacement)
+20004	1498	upper limb surgery
+20004	1499	shoulder surgery
+20004	1500	elbow surgery
+20004	1501	carpal tunnel surgery
+20004	1502	cruciate ligament surgery
+20004	1503	bunion/hallus valgus surgery
+20004	1504	removal of mole/skin lesion
+20004	1505	ovarian/tubal surgery
+20004	1506	ovarian cyst removal/surgery
+20004	1507	ectopic pregnancy surgery
+20004	1508	uterine surgery
+20004	1509	myomectomy/fibroids removed
+20004	1510	dilatation and curettage/d+c
+20004	1511	cervix surgery
+20004	1512	cone biopsy
+20004	1513	breast cyst/abscess removal
+20004	1514	coronary angiogram
+20004	1515	angiogram not coronary
+20004	1516	echocardiogram/transoesophageal echo
+20004	1517	endoscopy / gastroscopy
+20004	1518	ercp/endoscopic retrograde cholangiopancreatogram
+20004	1519	colonoscopy/sigmoidoscopy
+20004	1520	laparoscopy
+20004	1521	hysteroscopy +/- biopsy
+20004	1522	colposcopy +/- biopsy
+20004	1523	triple heart bypass
+20004	1524	cardioversion
+20004	1525	mastoidectomy/mastoid surgery
+20004	1526	stapedectomy
+20004	1527	dental/tooth surgery
+20004	1528	gallstones removed
+20004	1529	duodenal surgery
+20004	1530	ileostomy/colostomy surgery
+20004	1531	discectomy
+20004	1532	ankle surgery
+20004	1533	achilles tendon repair
+20004	1534	hand/finger surgery
+20004	1535	dupuytren's contracture surgery
+20004	1536	lipoma removed / excision of lipoma
+20004	1537	lymph node surgery
+20004	1538	salpingectomy
+20004	1539	uterine polypectomy/uterine polyps removed
+20004	1540	termination of pregnancy/top
+20004	1541	cervical polyps removed
+20004	1542	laser treatment cervix
+20004	1543	pelvic floor surgery
+20004	1544	breast biopsy
+20004	1545	ecg/electrocardiogram
+20004	1546	bronchoscopy
+20004	1547	cystoscopy
+20004	1548	pacemaker insertion
+20004	1549	pacemaker battery change
+20004	1550	defibrillator/icd insertion
+20004	1551	defibrillator/icd battery change
+20004	1552	electrophysiological studies (eps)
+20004	1553	cardiac ablation
+20004	1554	pericardial surgery
+20004	1555	femoral/popliteal/iliac aneurysm repair
+20004	1556	tympanic membrane surgery / ear drum repair
+20004	1557	rhinoplasty / nose surgery
+20004	1558	sinus surgery
+20004	1559	nasal polyp surgery / nasal polypectomy
+20004	1560	parotid surgery / parotidectomy
+20004	1561	tonsillectomy / tonsil surgery
+20004	1562	adenoid surgery / adenoidectomy
+20004	1563	inguinal hernia repair
+20004	1564	femoral hernia repair
+20004	1565	gastrectomy
+20004	1566	peptic ulcer surgery
+20004	1567	gastric ulcer surgery
+20004	1568	duodenal ulcer surgery
+20004	1570	ileostomy surgery
+20004	1571	ileostomy formation
+20004	1572	ileostomy reversal
+20004	1573	surgery for pyloric stenosis
+20004	1574	colostomy surgery
+20004	1575	colostomy formation
+20004	1576	colostomy reversal
+20004	1577	anterior resection
+20004	1578	abdomino-perineal resection / ap resection
+20004	1579	anal fissure surgery
+20004	1580	dialysis access surgery
+20004	1581	haemodialysis access / fistula surgery
+20004	1582	peritoneal dialysis (capd) access surgery
+20004	1583	urethral stricture surgery / dilatation
+20004	1584	testicular lump removal
+20004	1586	varicocoele / varicocele surgery
+20004	1587	removal of epididymal cyst
+20004	1588	orchidopexy
+20004	1589	reversal of vasectomy / vasectomy reversal
+20004	1590	spinal fusion
+20004	1591	eyelid surgery
+20004	1592	nasolacrimal / tear duct surgery
+20004	1593	removal of malignant melanoma
+20004	1594	removal of benign skin lesion
+20004	1595	removal of squamous cell carcinoma (scc)
+20004	1596	removal of rodent ulcer / basal cell carcinoma (bcc)
+20004	1597	skin graft
+20004	1598	nail surgery / nail removal
+20004	1599	exercise ecg
+20004	1600	mri / magnetic resonance imaging
+20004	1601	laryngoscopy
+20004	1602	nasal endoscopy
+20004	1603	scan / x-ray
+20004	1604	cardiac investigation
+20004	1605	gastrointestinal investigation
+20004	1606	genito-urinary investigation
+20004	1607	ct scan
+20004	1608	bone scan
+20004	1609	ultrasound scan
+20004	1610	pet scan
+20004	1611	barium meal / barium swallow
+20004	1612	barium enema
+20004	1613	ct colonoscopy
+20004	1614	biopsy
+20004	1615	bone marrow biopsy
+20004	1616	liver biopsy
+20004	1617	prostate biopsy
+20004	1618	renal biopsy / kidney biopsy
+20004	1619	lung biopsy
+20004	1620	lumbar puncture
+20004	1621	cystoscopy
+20004	99999	unclassifiable
+20004	-1	Do not know
+20004	-3	Prefer not to answer
+20004	-7	None of the above
+2443	1	Yes
+2443	0	No
+2443	-1	Do not know
+2443	-3	Prefer not to answer
+2986	1	Yes
+2986	0	No
+2986	-2	Not applicable
+2986	-1	Do not know
+2986	-3	Prefer not to answer
+4041	1	Yes
+4041	0	No
+4041	-2	Not applicable
+4041	-1	Do not know
+4041	-3	Prefer not to answer
+6150	1	Heart attack
+6150	2	Angina
+6150	3	Stroke
+6150	4	High blood pressure
+6150	-7	None of the above
+6150	-3	Prefer not to answer
+6152	5	Blood clot in the leg (DVT)
+6152	7	Blood clot in the lung
+6152	6	Emphysema/chronic bronchitis
+6152	8	Asthma
+6152	9	Hayfever, allergic rhinitis or eczema
+6152	-7	None of the above
+6152	-3	Prefer not to answer
+4728	1	Yes
+4728	0	No
+4728	-1	Do not know
+4728	-3	Prefer not to answer
+5452	1	Yes
+5452	0	No
+5452	-1	Do not know
+5452	-2	Not applicable
+5452	-3	Prefer not to answer
+5463	1	Yes
+5463	0	No
+5463	-1	Do not know
+5463	-2	Not applicable
+5463	-3	Prefer not to answer
+5474	1	Yes
+5474	0	No
+5474	-1	Do not know
+5474	-2	Not applicable
+5474	-3	Prefer not to answer
+5485	1	Yes
+5485	0	No
+5485	-1	Do not know
+5485	-2	Not applicable
+5485	-3	Prefer not to answer
+5496	1	Yes
+5496	0	No
+5496	-1	Do not know
+5496	-2	Not applicable
+5496	-3	Prefer not to answer
+5507	1	Stop
+5507	2	Slow down
+5507	3	Continue at same pace
+5507	-1	Do not know
+5507	-2	Not applicable
+5507	-3	Prefer not to answer
+5518	1	Pain usually continues for more than 10 minutes
+5518	2	Pain usually disappears in less than 10 minutes
+5518	-1	Do not know
+5518	-2	Not applicable
+5518	-3	Prefer not to answer
+5529	1	Yes
+5529	0	No
+5529	-1	Do not know
+5529	-2	Not applicable
+5529	-3	Prefer not to answer
+5540	0	No
+5540	1	Yes, toes
+5540	2	Yes, leg below the knee
+5540	3	Yes, leg above the knee
+5540	-1	Do not know
+5540	-2	Not applicable
+5540	-3	Prefer not to answer
+2463	1	Yes
+2463	0	No
+2463	-1	Do not know
+2463	-3	Prefer not to answer
+3005	1	Yes
+3005	0	No
+3005	-1	Do not know
+3005	-2	Not applicable
+3005	-3	Prefer not to answer
+6151	1	Ankle
+6151	2	Leg
+6151	3	Hip
+6151	4	Spine
+6151	5	Wrist
+6151	6	Arm
+6151	7	Other bones
+6151	-1	Do not know
+6151	-2	Not applicable
+6151	-3	Prefer not to answer
+20126	0	No Bipolar or Depression
+20126	1	Bipolar I Disorder
+20126	2	Bipolar II Disorder
+20126	3	Probable Recurrent major depression (severe)
+20126	4	Probable Recurrent major depression (moderate)
+20126	5	Single Probable major depression episode
+20122	1	Bipolar Type I (Mania)
+20122	2	Bipolar Type II (Hypomania)
+20122	0	No Bipolar
+20127	0	0
+20127	1	1
+20127	2	2
+20127	3	3
+20127	4	4
+20127	5	5
+20127	6	6
+20127	7	7
+20127	8	8
+20127	9	9
+20127	10	10
+20127	11	11
+20127	12	12
+20124	1	Yes
+20124	0	No
+20125	1	Yes
+20125	0	No
+20123	1	Yes
+20123	0	No
+1920	1	Yes
+1920	0	No
+1920	-1	Do not know
+1920	-3	Prefer not to answer
+1930	1	Yes
+1930	0	No
+1930	-1	Do not know
+1930	-3	Prefer not to answer
+1940	1	Yes
+1940	0	No
+1940	-1	Do not know
+1940	-3	Prefer not to answer
+1950	1	Yes
+1950	0	No
+1950	-1	Do not know
+1950	-3	Prefer not to answer
+1960	1	Yes
+1960	0	No
+1960	-1	Do not know
+1960	-3	Prefer not to answer
+1970	1	Yes
+1970	0	No
+1970	-1	Do not know
+1970	-3	Prefer not to answer
+1980	1	Yes
+1980	0	No
+1980	-1	Do not know
+1980	-3	Prefer not to answer
+1990	1	Yes
+1990	0	No
+1990	-1	Do not know
+1990	-3	Prefer not to answer
+2000	1	Yes
+2000	0	No
+2000	-1	Do not know
+2000	-3	Prefer not to answer
+2010	1	Yes
+2010	0	No
+2010	-1	Do not know
+2010	-3	Prefer not to answer
+2020	1	Yes
+2020	0	No
+2020	-1	Do not know
+2020	-3	Prefer not to answer
+2030	1	Yes
+2030	0	No
+2030	-1	Do not know
+2030	-3	Prefer not to answer
+2040	1	Yes
+2040	0	No
+2040	-1	Do not know
+2040	-3	Prefer not to answer
+4526	1	Extremely happy
+4526	2	Very happy
+4526	3	Moderately happy
+4526	4	Moderately unhappy
+4526	5	Very unhappy
+4526	6	Extremely unhappy
+4526	-1	Do not know
+4526	-3	Prefer not to answer
+4537	1	Extremely happy
+4537	2	Very happy
+4537	3	Moderately happy
+4537	4	Moderately unhappy
+4537	5	Very unhappy
+4537	6	Extremely unhappy
+4537	7	I am not employed
+4537	-1	Do not know
+4537	-3	Prefer not to answer
+4548	1	Extremely happy
+4548	2	Very happy
+4548	3	Moderately happy
+4548	4	Moderately unhappy
+4548	5	Very unhappy
+4548	6	Extremely unhappy
+4548	-1	Do not know
+4548	-3	Prefer not to answer
+4559	1	Extremely happy
+4559	2	Very happy
+4559	3	Moderately happy
+4559	4	Moderately unhappy
+4559	5	Very unhappy
+4559	6	Extremely unhappy
+4559	-1	Do not know
+4559	-3	Prefer not to answer
+4570	1	Extremely happy
+4570	2	Very happy
+4570	3	Moderately happy
+4570	4	Moderately unhappy
+4570	5	Very unhappy
+4570	6	Extremely unhappy
+4570	-1	Do not know
+4570	-3	Prefer not to answer
+4581	1	Extremely happy
+4581	2	Very happy
+4581	3	Moderately happy
+4581	4	Moderately unhappy
+4581	5	Very unhappy
+4581	6	Extremely unhappy
+4581	-1	Do not know
+4581	-3	Prefer not to answer
+2050	1	Not at all
+2050	2	Several days
+2050	3	More than half the days
+2050	4	Nearly every day
+2050	-1	Do not know
+2050	-3	Prefer not to answer
+2060	1	Not at all
+2060	2	Several days
+2060	3	More than half the days
+2060	4	Nearly every day
+2060	-1	Do not know
+2060	-3	Prefer not to answer
+2070	1	Not at all
+2070	2	Several days
+2070	3	More than half the days
+2070	4	Nearly every day
+2070	-1	Do not know
+2070	-3	Prefer not to answer
+2080	1	Not at all
+2080	2	Several days
+2080	3	More than half the days
+2080	4	Nearly every day
+2080	-1	Do not know
+2080	-3	Prefer not to answer
+2090	1	Yes
+2090	0	No
+2090	-1	Do not know
+2090	-3	Prefer not to answer
+2100	1	Yes
+2100	0	No
+2100	-1	Do not know
+2100	-3	Prefer not to answer
+4598	1	Yes
+4598	0	No
+4598	-1	Do not know
+4598	-3	Prefer not to answer
+4609	1	1
+4609	2	2
+4609	3	3
+4609	4	4
+4609	5	5
+4609	6	6
+4609	7	7
+4609	8	8
+4609	9	9
+4609	10	10
+4609	11	11
+4609	12	12
+4609	13	13
+4609	14	14
+4609	15	15
+4609	16	16
+4609	17	17
+4609	18	18
+4609	19	19
+4609	20	20
+4609	21	21
+4609	22	22
+4609	23	23
+4609	24	24
+4609	25	25
+4609	26	26
+4609	27	27
+4609	28	28
+4609	29	29
+4609	30	30
+4609	31	31
+4609	32	32
+4609	33	33
+4609	34	34
+4609	35	35
+4609	36	36
+4609	37	37
+4609	38	38
+4609	39	39
+4609	40	40
+4609	42	42
+4609	43	43
+4609	44	44
+4609	45	45
+4609	46	46
+4609	47	47
+4609	48	48
+4609	49	49
+4609	50	50
+4609	51	51
+4609	52	52
+4609	53	53
+4609	54	54
+4609	55	55
+4609	56	56
+4609	57	57
+4609	58	58
+4609	59	59
+4609	60	60
+4609	62	62
+4609	63	63
+4609	64	64
+4609	65	65
+4609	66	66
+4609	68	68
+4609	70	70
+4609	72	72
+4609	73	73
+4609	74	74
+4609	75	75
+4609	76	76
+4609	77	77
+4609	78	78
+4609	79	79
+4609	80	80
+4609	84	84
+4609	85	85
+4609	86	86
+4609	88	88
+4609	89	89
+4609	90	90
+4609	92	92
+4609	95	95
+4609	96	96
+4609	98	98
+4609	99	99
+4609	100	100
+4609	102	102
+4609	104	104
+4609	105	105
+4609	106	106
+4609	108	108
+4609	109	109
+4609	110	110
+4609	111	111
+4609	112	112
+4609	114	114
+4609	116	116
+4609	118	118
+4609	120	120
+4609	122	122
+4609	124	124
+4609	125	125
+4609	126	126
+4609	129	129
+4609	130	130
+4609	134	134
+4609	135	135
+4609	140	140
+4609	144	144
+4609	148	148
+4609	150	150
+4609	152	152
+4609	153	153
+4609	154	154
+4609	155	155
+4609	156	156
+4609	158	158
+4609	160	160
+4609	162	162
+4609	164	164
+4609	165	165
+4609	170	170
+4609	175	175
+4609	180	180
+4609	181	181
+4609	182	182
+4609	186	186
+4609	190	190
+4609	192	192
+4609	198	198
+4609	199	199
+4609	200	200
+4609	204	204
+4609	206	206
+4609	208	208
+4609	210	210
+4609	220	220
+4609	225	225
+4609	234	234
+4609	235	235
+4609	240	240
+4609	250	250
+4609	252	252
+4609	255	255
+4609	260	260
+4609	262	262
+4609	270	270
+4609	280	280
+4609	288	288
+4609	300	300
+4609	306	306
+4609	312	312
+4609	316	316
+4609	320	320
+4609	335	335
+4609	346	346
+4609	350	350
+4609	360	360
+4609	362	362
+4609	364	364
+4609	365	365
+4609	370	370
+4609	400	400
+4609	408	408
+4609	416	416
+4609	418	418
+4609	420	420
+4609	443	443
+4609	450	450
+4609	468	468
+4609	469	469
+4609	480	480
+4609	500	500
+4609	510	510
+4609	518	518
+4609	520	520
+4609	550	550
+4609	566	566
+4609	600	600
+4609	602	602
+4609	612	612
+4609	624	624
+4609	636	636
+4609	650	650
+4609	662	662
+4609	676	676
+4609	700	700
+4609	720	720
+4609	728	728
+4609	740	740
+4609	750	750
+4609	780	780
+4609	800	800
+4609	888	888
+4609	900	900
+4609	936	936
+4609	999	999
+4609	-1	Do not know
+4609	-3	Prefer not to answer
+4620	1	1
+4620	2	2
+4620	3	3
+4620	4	4
+4620	5	5
+4620	6	6
+4620	7	7
+4620	8	8
+4620	9	9
+4620	10	10
+4620	11	11
+4620	12	12
+4620	13	13
+4620	14	14
+4620	15	15
+4620	16	16
+4620	17	17
+4620	18	18
+4620	19	19
+4620	20	20
+4620	21	21
+4620	22	22
+4620	23	23
+4620	24	24
+4620	25	25
+4620	26	26
+4620	27	27
+4620	28	28
+4620	30	30
+4620	31	31
+4620	32	32
+4620	33	33
+4620	35	35
+4620	36	36
+4620	37	37
+4620	40	40
+4620	41	41
+4620	42	42
+4620	44	44
+4620	45	45
+4620	46	46
+4620	47	47
+4620	48	48
+4620	49	49
+4620	50	50
+4620	51	51
+4620	52	52
+4620	53	53
+4620	54	54
+4620	55	55
+4620	56	56
+4620	60	60
+4620	61	61
+4620	64	64
+4620	65	65
+4620	66	66
+4620	68	68
+4620	70	70
+4620	72	72
+4620	75	75
+4620	76	76
+4620	78	78
+4620	80	80
+4620	82	82
+4620	85	85
+4620	86	86
+4620	87	87
+4620	90	90
+4620	95	95
+4620	96	96
+4620	99	99
+4620	100	100
+4620	102	102
+4620	104	104
+4620	105	105
+4620	110	110
+4620	112	112
+4620	120	120
+4620	122	122
+4620	125	125
+4620	126	126
+4620	130	130
+4620	140	140
+4620	150	150
+4620	152	152
+4620	153	153
+4620	156	156
+4620	160	160
+4620	168	168
+4620	170	170
+4620	175	175
+4620	180	180
+4620	182	182
+4620	190	190
+4620	192	192
+4620	199	199
+4620	200	200
+4620	203	203
+4620	204	204
+4620	208	208
+4620	240	240
+4620	250	250
+4620	256	256
+4620	260	260
+4620	262	262
+4620	280	280
+4620	300	300
+4620	312	312
+4620	316	316
+4620	350	350
+4620	360	360
+4620	364	364
+4620	365	365
+4620	400	400
+4620	450	450
+4620	469	469
+4620	480	480
+4620	500	500
+4620	520	520
+4620	600	600
+4620	676	676
+4620	700	700
+4620	728	728
+4620	800	800
+4620	888	888
+4620	900	900
+4620	936	936
+4620	999	999
+4620	1000	1000
+4620	1236	1236
+4620	1400	1400
+4620	1995	1995
+4620	2052	2052
+4620	3000	3000
+4620	9999	9999
+4620	-1	Do not know
+4620	-3	Prefer not to answer
+4631	1	Yes
+4631	0	No
+4631	-1	Do not know
+4631	-3	Prefer not to answer
+5375	1	1
+5375	2	2
+5375	3	3
+5375	4	4
+5375	5	5
+5375	6	6
+5375	7	7
+5375	8	8
+5375	9	9
+5375	10	10
+5375	11	11
+5375	12	12
+5375	13	13
+5375	14	14
+5375	15	15
+5375	16	16
+5375	17	17
+5375	18	18
+5375	19	19
+5375	20	20
+5375	21	21
+5375	22	22
+5375	23	23
+5375	24	24
+5375	25	25
+5375	26	26
+5375	27	27
+5375	28	28
+5375	29	29
+5375	30	30
+5375	31	31
+5375	32	32
+5375	33	33
+5375	34	34
+5375	35	35
+5375	36	36
+5375	37	37
+5375	38	38
+5375	39	39
+5375	40	40
+5375	41	41
+5375	42	42
+5375	43	43
+5375	44	44
+5375	45	45
+5375	46	46
+5375	48	48
+5375	49	49
+5375	50	50
+5375	51	51
+5375	52	52
+5375	53	53
+5375	54	54
+5375	55	55
+5375	56	56
+5375	58	58
+5375	59	59
+5375	60	60
+5375	61	61
+5375	62	62
+5375	63	63
+5375	64	64
+5375	65	65
+5375	66	66
+5375	68	68
+5375	70	70
+5375	72	72
+5375	74	74
+5375	75	75
+5375	76	76
+5375	77	77
+5375	78	78
+5375	80	80
+5375	82	82
+5375	84	84
+5375	85	85
+5375	88	88
+5375	90	90
+5375	92	92
+5375	95	95
+5375	96	96
+5375	99	99
+5375	100	100
+5375	102	102
+5375	104	104
+5375	105	105
+5375	106	106
+5375	108	108
+5375	110	110
+5375	111	111
+5375	112	112
+5375	115	115
+5375	116	116
+5375	118	118
+5375	120	120
+5375	122	122
+5375	124	124
+5375	125	125
+5375	126	126
+5375	127	127
+5375	128	128
+5375	129	129
+5375	130	130
+5375	134	134
+5375	135	135
+5375	136	136
+5375	140	140
+5375	144	144
+5375	150	150
+5375	152	152
+5375	153	153
+5375	154	154
+5375	156	156
+5375	159	159
+5375	160	160
+5375	165	165
+5375	166	166
+5375	170	170
+5375	175	175
+5375	178	178
+5375	180	180
+5375	182	182
+5375	186	186
+5375	190	190
+5375	192	192
+5375	200	200
+5375	204	204
+5375	208	208
+5375	209	209
+5375	210	210
+5375	220	220
+5375	240	240
+5375	250	250
+5375	256	256
+5375	260	260
+5375	280	280
+5375	300	300
+5375	306	306
+5375	312	312
+5375	316	316
+5375	340	340
+5375	350	350
+5375	356	356
+5375	362	362
+5375	364	364
+5375	365	365
+5375	400	400
+5375	408	408
+5375	412	412
+5375	416	416
+5375	418	418
+5375	420	420
+5375	443	443
+5375	450	450
+5375	480	480
+5375	500	500
+5375	510	510
+5375	518	518
+5375	520	520
+5375	530	530
+5375	548	548
+5375	550	550
+5375	572	572
+5375	600	600
+5375	609	609
+5375	624	624
+5375	650	650
+5375	662	662
+5375	676	676
+5375	700	700
+5375	720	720
+5375	728	728
+5375	750	750
+5375	780	780
+5375	800	800
+5375	884	884
+5375	888	888
+5375	900	900
+5375	936	936
+5375	999	999
+5375	-1	Do not know
+5375	-3	Prefer not to answer
+5386	1	1
+5386	2	2
+5386	3	3
+5386	4	4
+5386	5	5
+5386	6	6
+5386	7	7
+5386	8	8
+5386	9	9
+5386	10	10
+5386	11	11
+5386	12	12
+5386	13	13
+5386	14	14
+5386	15	15
+5386	16	16
+5386	17	17
+5386	18	18
+5386	20	20
+5386	21	21
+5386	22	22
+5386	23	23
+5386	24	24
+5386	25	25
+5386	26	26
+5386	27	27
+5386	28	28
+5386	30	30
+5386	31	31
+5386	32	32
+5386	33	33
+5386	35	35
+5386	36	36
+5386	37	37
+5386	39	39
+5386	40	40
+5386	42	42
+5386	44	44
+5386	45	45
+5386	46	46
+5386	48	48
+5386	49	49
+5386	50	50
+5386	52	52
+5386	53	53
+5386	54	54
+5386	55	55
+5386	56	56
+5386	58	58
+5386	60	60
+5386	61	61
+5386	63	63
+5386	64	64
+5386	65	65
+5386	67	67
+5386	70	70
+5386	72	72
+5386	75	75
+5386	76	76
+5386	78	78
+5386	80	80
+5386	82	82
+5386	90	90
+5386	95	95
+5386	96	96
+5386	98	98
+5386	99	99
+5386	100	100
+5386	102	102
+5386	104	104
+5386	105	105
+5386	108	108
+5386	110	110
+5386	111	111
+5386	112	112
+5386	120	120
+5386	121	121
+5386	125	125
+5386	130	130
+5386	140	140
+5386	150	150
+5386	152	152
+5386	153	153
+5386	156	156
+5386	160	160
+5386	165	165
+5386	166	166
+5386	175	175
+5386	180	180
+5386	182	182
+5386	190	190
+5386	192	192
+5386	200	200
+5386	204	204
+5386	208	208
+5386	210	210
+5386	220	220
+5386	222	222
+5386	224	224
+5386	250	250
+5386	260	260
+5386	280	280
+5386	300	300
+5386	312	312
+5386	316	316
+5386	350	350
+5386	360	360
+5386	364	364
+5386	365	365
+5386	400	400
+5386	416	416
+5386	420	420
+5386	450	450
+5386	500	500
+5386	509	509
+5386	518	518
+5386	520	520
+5386	522	522
+5386	572	572
+5386	600	600
+5386	676	676
+5386	700	700
+5386	728	728
+5386	750	750
+5386	780	780
+5386	800	800
+5386	888	888
+5386	900	900
+5386	936	936
+5386	999	999
+5386	-1	Do not know
+5386	-3	Prefer not to answer
+4642	1	Yes
+4642	0	No
+4642	-1	Do not know
+4642	-3	Prefer not to answer
+4653	1	Yes
+4653	0	No
+4653	-1	Do not know
+4653	-3	Prefer not to answer
+6156	11	I was more active than usual
+6156	12	I was more talkative than usual
+6156	13	I needed less sleep than usual
+6156	14	I was more creative or had more ideas than usual
+6156	15	All of the above
+6156	-7	None of the above
+5663	11	At least two days, but less than a week
+5663	12	Less than a week
+5663	13	A week or more
+5663	-1	Do not know
+5663	-3	Prefer not to answer
+5674	11	No problems
+5674	12	Needed treatment or caused problems with work, relationships, finances, the law or other aspects of life
+5674	-1	Do not know
+5674	-3	Prefer not to answer
+6145	1	Serious illness, injury or assault to yourself
+6145	2	Serious illness, injury or assault of a close relative
+6145	3	Death of a close relative
+6145	4	Death of a spouse or partner
+6145	5	Marital separation/divorce
+6145	6	Financial difficulties
+6145	-7	None of the above
+6145	-3	Prefer not to answer
