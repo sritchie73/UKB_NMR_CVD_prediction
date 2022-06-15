@@ -14,13 +14,12 @@ model_info <- fread("analyses/train/cox_lasso_models.txt")
 for (midx in model_info[,.I]) {
   this_model <- model_info[midx]
   
-  hr_dt <- hrs[this_model, on = .(name, lambda, PGS), nomatch=0]
+  hr_dt <- hrs[this_model, on = .(name, lambda), nomatch=0]
   
   if (nrow(hr_dt) > 0) {
 		hr_dt <- hr_dt[order(-abs(beta))]
 		hr_dt[, coef_name := factor(coef_name, levels=unique(coef_name))]
 		hr_dt[coef_type == "Dataset-specific covariate", coef_type := "Covariate"]
-		hr_dt[coef_type == "Polygenic Risk Score", coef_type := "PGS"]
 
 		g <- ggplot(hr_dt) +
 			aes(x=coef_name, y = exp(beta)) +
@@ -32,16 +31,15 @@ for (midx in model_info[,.I]) {
 			theme_bw() +
 			theme(legend.position="bottom", legend.box="vertical", axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
 
-		ggsave(g, width=13, height=5, units="in", file=sprintf("analyses/train/hazard_ratios/%s%s%s.pdf", 
+		ggsave(g, width=13, height=5, units="in", file=sprintf("analyses/train/hazard_ratios/%s%s.pdf", 
 			tolower(gsub(" \\+? ?", "_", this_model[, name])),
-			ifelse(this_model[,PGS], "_PGS", ""),
 			ifelse(this_model[,lambda] == "", "", paste0("_", this_model[,lambda]))
 		))
   }
 }
 
 # Output sheet of coefficients in wide format
-hr_wide <- dcast(hrs, coef_name + coef_type ~ name + lambda + PGS, value.var="beta")
+hr_wide <- dcast(hrs, coef_name + coef_type ~ name + lambda, value.var="beta")
 fwrite(hr_wide, sep="\t", quote=FALSE, file="analyses/train/hazard_ratios/all_coef_wide.txt")
 
 
