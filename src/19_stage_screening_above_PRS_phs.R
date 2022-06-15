@@ -4,84 +4,12 @@ library(foreach)
 library(ggplot2)
 
 # Create output directory
-out_dir <- "analyses/public_health_modelling/UK_population_generalised"
+out_dir <- "analyses/public_health_modelling/UK_population_generalised/staged_screening_above_PRS"
 system(sprintf("mkdir -p %s", out_dir))
 
-# Load mid-2020 population estimates for the UK downloaded from ONS:
-# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/bulletins/annualmidyearpopulationestimates/mid2020
-ons_pop <- read.xlsx("data/ONS/datadownload.xlsx", sheet="2020")
-setDT(ons_pop)
-ons_pop <- ons_pop[geogname == "UNITED KINGDOM"] # filter to UK level summary
-ons_pop[, c("variable", "geogcode") := NULL]
-ons_pop <- melt(ons_pop, id.vars="geogname", value.name="N")
-ons_pop[, geogname := NULL]
-ons_pop <- ons_pop[!(variable %like% "_al$")] # Drop total counts (across all ages) for each sex
-ons_pop[, age := as.integer(gsub(".*_", "", variable))]
-ons_pop[, sex := ifelse(variable %like% "^m_", "Male", "Female")]
-
-# Get total numbers in each five year age group by sex for age groups 40-70
-ons_pop <- ons_pop[age >= 40 & age < 70]
-ons_pop[, age_group := age %/% 5 * 5]
-ons_pop <- ons_pop[, .(N=sum(N)), by=.(sex, age_group)]
-
-# Standardise population to 100,000 individuals
-total <- ons_pop[,sum(N)]
-ons_pop[, N := N/total * 100000] 
-
-# Note, hypothetical number of samples, cases, controls, and those allocated
-# to risk strata are all fractional throughout - if rounded to whole numbers
-# numbers don't add up to totals due to imbalance of rounding up/rounding down 
-# across groups. Final numbers should only be rounded when preparing flowchart
-# or inline text numbers - note this rounding sometimes will result in 
-# samples/cases/controls being off by one when comparing different steps of the
-# flowchart - you will have to manually add or subtract cases/controls at the
-# relevant steps to harmonise numbers across all steps of the flowchart (i.e. 
-# doing this at the minimum number of steps to harmonize numbers)
-
-# Age- and sex-specific incidence rates (per 1000 person-years) of CVD
-# among CPRD participants (n=2.1 million) from the Appendix table of
-# Sun L, *et al*. Polygenic risk scores in cardiovascular risk
-# prediction: A cohort study and modelling analyses. *PLOS Med* (2021).
-CPRD = data.table(
-	age_at_risk_start = seq(40, 75, by=5),
-	age_at_risk_end = seq(44, 79, by=5),
-	male_rate_per_1000py = c(1.578, 2.964, 5.141, 7.561, 10.848, 13.731, 19.271, 25.667),
-	female_rate_per_1000py = c(0.726, 1.309, 2.165, 2.969, 4.560, 7.007, 10.840, 17.007)
-)
-
-# Calculate annual CVD incidence in each age-at-risk group from the
-# 1000 person-year CVD rates:
-CPRD[, male_annual_incidence := male_rate_per_1000py / 1000]
-CPRD[, female_annual_incidence := female_rate_per_1000py / 1000]
-
-# The expected 10-year CVD risk is calculated for each age group
-# based on the mid-point of the next interval ahead, e.g. for the
-# 40-44 year age-group the expected 10-year risk is calculated based
-# on the annual incidence rates in the 45-49 year olds in CPRD:
-CPRD[, age_group_start := age_at_risk_start - 5]
-CPRD[, age_group_end := age_at_risk_end - 5]
-
-# The expected risk is calculated assuming exponential survival (i.e.
-# constant hazard) in the 10-years ahead.
-CPRD[, male_expected_risk := 1 - exp(-male_annual_incidence * 10)]
-CPRD[, female_expected_risk := 1 - exp(-female_annual_incidence * 10)]
-
-# Use expected risks to estimate number of cases in each age group and sex
-# In our standardised population
-CPRD <- melt(CPRD, id.vars="age_group_start", measure.vars=c("male_expected_risk", "female_expected_risk"),
-             value.name="expected_risk")
-CPRD[, sex := ifelse(variable %like% "^male", "Male", "Female")]
-
-# Estimate number of cases in ONS population
-ons_pop[CPRD, on = .(sex, age_group=age_group_start), cases := N * expected_risk]
-ons_pop[, controls := N - cases]
-
-# Summarise all to population totals
-ons_pop_summary <- ons_pop[, .(N=round(sum(N)), cases=round(sum(cases)), controls=round(sum(controls)))]
-
-# Write out hypothetical population
-fwrite(ons_pop, sep="\t", quote=FALSE, file=sprintf("%s/ONS_hypothetical_100k_pop_by_age_sex.txt", out_dir))
-fwrite(ons_pop_summary, sep="\t", quote=FALSE, file=sprintf("%s/ONS_hypothetical_100k_pop.txt", out_dir))
+# Load hypothetical population
+ons_pop <- fread("analyses/public_health_modelling/UK_population_generalised/ONS_hypothetical_100k_pop_by_age_sex.txt")
+ons_pop_summary <- fread("analyses/public_health_modelling/UK_population_generalised/ONS_hypothetical_100k_pop.txt")
 
 # Load in predicted risk levels for all models
 pred <- fread("analyses/public_health_modelling/risk_recalibration/absolute_risks.txt")
@@ -114,8 +42,8 @@ pred[test, on = .(eid), diabetes := i.diabetes]
 pred[test, on = .(eid), ldl := i.ldl] # from clinical chemistry
 
 # Extract recalibrated predicted risk for conventional risk factors alone vs. other models
-conv_rf <- pred[name == "Conventional RF" & !(PGS)]
-pred <- pred[name != "Conventional RF" | (PGS)]
+conv_rf <- pred[name == "Conventional RF" & (PGS)]
+pred <- pred[name != "Conventional RF" & (PGS)]
 pred[conv_rf, on = .(eid, guidelines), conv_rf_risk_group := i.risk_group]
 
 # Get total number of cases and controls in each age and sex group - this is the denominator when computing
@@ -149,12 +77,8 @@ ons_conv_rf <- ons_conv_rf[order(guidelines)]
 
 # Summarise to population totals for each risk group
 ons_conv_rf_summary <- ons_conv_rf[, 
-  .(N=round(sum(cases)) + round(sum(controls)), cases=round(sum(cases)), controls=round(sum(controls))), 
+  .(N=sum(cases) + sum(controls), cases=sum(cases), controls=sum(controls)), 
   by=.(guidelines, risk_group)]
-
-# Also summarise to population totals for sanity checking (i.e. checking for accumulation of differences due
-# to rounding numbers)
-ons_conv_rf_totals <- ons_conv_rf_summary[, .(N=sum(N), cases=sum(cases), controls=sum(controls)), by=guidelines]
 
 # Write out
 fwrite(ons_conv_rf, sep="\t", quote=FALSE, file=sprintf("%s/conventional_risk_stratified_by_age_sex.txt", out_dir))
@@ -179,12 +103,8 @@ ons_intermed_treat <- ons_intermed_treat[order(guidelines)]
 
 # Summarise to population totals for each risk group
 ons_intermed_treat_summary <- ons_intermed_treat[,
-  .(N=round(sum(cases)) + round(sum(controls)), cases=round(sum(cases)), controls=round(sum(controls))),
+  .(N=sum(cases) + sum(controls), cases=sum(cases), controls=sum(controls)), 
   by=.(guidelines, risk_group)]
-
-# Also summarise to population totals for sanity checking (i.e. checking for accumulation of differences due
-# to rounding numbers)
-ons_intermed_treat_totals <- ons_intermed_treat_summary[, .(N=sum(N), cases=sum(cases), controls=sum(controls)), by=guidelines]
 
 # Write out
 fwrite(ons_intermed_treat, sep="\t", quote=FALSE, file=sprintf("%s/intermediate_risk_treat_alloc_by_age_sex.txt", out_dir))
@@ -230,13 +150,8 @@ ons_pred <- ons_pred[order(guidelines)]
 
 # Summarise to population totals for each risk group
 ons_pred_summary <- ons_pred[,
-  .(N=round(sum(cases)) + round(sum(controls)), cases=round(sum(cases)), controls=round(sum(controls))),
+  .(N=sum(cases) + sum(controls), cases=sum(cases), controls=sum(controls)), 
   by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
-
-# Also summarise to population totals for sanity checking (i.e. checking for accumulation of differences due
-# to rounding numbers)
-ons_pred_totals <- ons_pred_summary[, .(N=sum(N), cases=sum(cases), controls=sum(controls)), 
-  by=.(name, lambda, PGS, long_name, guidelines)]
 
 # Write out
 fwrite(ons_pred, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
@@ -253,9 +168,9 @@ case_treat_prevent[is.na(pred_treat), pred_treat := 0]
 case_treat_prevent <- melt(case_treat_prevent, measure.vars=c("conv_rf", "intermed_treat", "pred_treat"),
                            variable.name="treatment_reason", value.name="cases_treated")
 case_treat_prevent[, treatment_reason := fcase(
-  treatment_reason == "conv_rf", "High risk due to conventional risk factors",
+  treatment_reason == "conv_rf", "High risk due to conventional risk factors and/or PRS", 
   treatment_reason == "intermed_treat", "Medium risk, diabetic or LDL-C >= 5 mmol/L",
-  treatment_reason == "pred_treat", "Reclassified as high risk from biomarkers/PRS"
+  treatment_reason == "pred_treat", "Reclassified as high risk from biomarkers"
 )]
 case_treat_prevent[, pct_cases_treated := cases_treated / ons_pop_summary$cases]
 
@@ -270,9 +185,9 @@ control_treat[is.na(pred_treat), pred_treat := 0]
 control_treat <- melt(control_treat, measure.vars=c("conv_rf", "intermed_treat", "pred_treat"),
                            variable.name="treatment_reason", value.name="controls_treated")
 control_treat[, treatment_reason := fcase(
-  treatment_reason == "conv_rf", "High risk due to conventional risk factors",
+  treatment_reason == "conv_rf", "High risk due to conventional risk factors and/or PRS",
   treatment_reason == "intermed_treat", "Medium risk, diabetic or LDL-C >= 5 mmol/L",
-  treatment_reason == "pred_treat", "Reclassified as high risk from biomarkers/PRS"
+  treatment_reason == "pred_treat", "Reclassified as high risk from biomarkers"
 )]
 control_treat[, pct_controls_treated := controls_treated / ons_pop_summary$controls]
 
@@ -290,26 +205,33 @@ phs_summary <- phs[, .(
   by=.(name, lambda, PGS, long_name, guidelines)]
 phs_summary[, events_prevented := cases_treated * 0.2]
 phs_summary[, NNT := total_treated / events_prevented]
-phs_summary[, events_prevented_floor := floor(events_prevented)] # Whole numbers, floor because you can't prevent a partial event
-phs_summary[, NNT_ceiling := ceiling(total_treated / events_prevented_floor)] # Whole numbers, ceiling because you can't treat a partial person
+phs_summary[, NNS := 100000 / events_prevented]
 
 # Write out
 fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics_by_treatment_reason.txt", out_dir))
 fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics.txt", out_dir))
+
+# Code factors for plot ordering
+phs <- phs[order(PGS)]
+phs[, name := factor(name, levels=rev(unique(name)))]
+phs[, long_name := factor(long_name, levels=rev(unique(long_name)))]
+phs_sumary <- phs[order(PGS)]
+phs_summary[, name := factor(name, levels=rev(unique(name)))]
+phs_summary[, long_name := factor(long_name, levels=rev(unique(long_name)))]
 
 # Generate plots for NICE 2014 guidelines for paper
 g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
   aes(x=cases_treated, y=long_name, fill=treatment_reason) +
   geom_col(position = position_stack(reverse = TRUE), color="black") +
   scale_fill_manual(name="Treatment reason", values=c(
-    "High risk due to conventional risk factors"="#92c5de",
+    "High risk due to conventional risk factors and/or PRS"="#92c5de",
     "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#4393c3",
-    "Reclassified as high risk from biomarkers/PRS"="#2166ac"
+    "Reclassified as high risk from biomarkers"="#2166ac"
   )) +
   ylab("") +
   scale_x_continuous(
     name="Cases treated per 100,000 screened", 
-    #limits=c(0, ons_pop_summary$cases),
+    limits=c(3100, 4100), oob=scales::oob_keep,
     sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% cases treated")
   ) +
   theme_bw() +
@@ -323,17 +245,41 @@ g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
 ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_cases_treated.pdf", out_dir))
 
 g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
+  aes(x=events_prevented, y=long_name, fill=treatment_reason) +
+  geom_col(position = position_stack(reverse = TRUE), color="black") +
+  scale_fill_manual(name="Treatment reason", values=c(
+    "High risk due to conventional risk factors and/or PRS"="#92c5de",
+    "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#4393c3",
+    "Reclassified as high risk from biomarkers"="#2166ac"
+  )) +
+  ylab("") +
+  scale_x_continuous(
+    name="Events prevented per 100,000 screened", 
+    limits=c(620, 820), oob=scales::oob_keep,
+    sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% events prevented")
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
+    axis.title=element_text(size=8), legend.title=element_text(size=8),
+    legend.text=element_text(size=8),
+    legend.position="bottom", legend.direction="vertical"
+  )
+ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_events_prevented.pdf", out_dir))
+
+g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
   aes(x=controls_treated, y=long_name, fill=treatment_reason) +
   geom_col(position = position_stack(reverse = TRUE), color="black") +
   scale_fill_manual(name="Treatment reason", values=c(
-    "High risk due to conventional risk factors"="#f4a582",
+    "High risk due to conventional risk factors and/or PRS"="#f4a582",
     "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#d6604d",
-    "Reclassified as high risk from biomarkers/PRS"="#b2182b"
+    "Reclassified as high risk from biomarkers"="#b2182b"
   )) +
   ylab("") +
   scale_x_continuous(
     name="Non-cases treated per 100,000 screened", 
-    #limits=c(0, ons_pop_summary$controls),
+    limits=c(15000, 22000), oob=scales::oob_keep,
     sec.axis = sec_axis( trans=~./ons_pop_summary$controls*100, name="% non-cases treated")
   ) +
   theme_bw() +
@@ -350,7 +296,7 @@ g <- ggplot(phs_summary[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
   aes(x=NNT, y=long_name) +
   geom_col(color="black", fill="#fff6d5") +
   ylab("") +
-  scale_x_continuous(name="Number Needed to Treat", limits=c(30, 35), oob=scales::oob_squish) +
+  scale_x_continuous(name="Number Needed to Treat", limits=c(28, 32), oob=scales::oob_squish) +
   theme_bw() +
   theme(
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
@@ -359,3 +305,16 @@ g <- ggplot(phs_summary[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
   )
 ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_treat.pdf", out_dir))
  
+g <- ggplot(phs_summary[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
+  aes(x=NNS, y=long_name) +
+  geom_col(color="black", fill="#fff6d5") +
+  ylab("") +
+  scale_x_continuous(name="Number Needed to Screen", limits=c(110, 160), oob=scales::oob_squish) +
+  theme_bw() +
+  theme(
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
+    axis.title=element_text(size=8), legend.title=element_text(size=8)
+  )
+ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_screen.pdf", out_dir))
+

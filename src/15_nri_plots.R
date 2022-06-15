@@ -35,10 +35,13 @@ gg_dt[biomarkers == "PGS + Blood + Nightingale" & lambda == "Best model",
       long_name := model_info[lambda == "lambda.min" & (PGS) & name == "Blood + Nightingale", long_name]]
 gg_dt[biomarkers == "PGS + Blood + Nightingale" & lambda == "Best model with fewest features",
       long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "Blood + Nightingale", long_name]]
+gg_dt[biomarkers %like% "CRP", long_name := paste("Conventional RF +", biomarkers)]
+gg_dt[biomarkers %like% "GlycA", long_name := paste("Conventional RF +", biomarkers)]
 gg_dt[, risk_categories := gsub(" Categorical NRI", "", nri_type)]
 gg_dt[, risk_categories := factor(risk_categories, levels=c("Continuous NRI", "ACC/AHA 2019", "NICE 2014"))]
 gg_dt[, nri_group := ifelse(metric == "NRI+", "cases", "controls")]
-gg_dt[, biomarkers := factor(biomarkers, levels=rev(c("Nightingale", "Blood", "Blood + Nightingale", "PGS", "PGS + Nightingale", "PGS + Blood", "PGS + Blood + Nightingale")))]
+gg_dt[, biomarkers := factor(biomarkers, levels=rev(c("CRP", "GlycA", "Nightingale", "Blood", "Blood + Nightingale", 
+  "PGS", "PGS + CRP", "PGS + GlycA", "PGS + Nightingale", "PGS + Blood", "PGS + Blood + Nightingale")))]
 gg_dt[, lambda := factor(lambda, levels=rev(c("No feature selection", "Best model with fewest features", "Best model")))]
 gg_dt <- gg_dt[order(lambda)][order(biomarkers)]
 gg_dt[, long_name := factor(long_name, levels=unique(long_name))]
@@ -56,8 +59,8 @@ g <- ggplot(gg_dt) +
   geom_point(size=2, fill="white", position=position_dodge(width=0.6)) +
   facet_grid(compared_to ~ nri_group + risk_categories, scales="free") +
   scale_shape_manual(name="Biomarkers", values=c(
-    "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22, "PGS"=17,
-    "PGS + Blood"=18, "PGS + Nightingale"=17, "PGS + Blood + Nightingale"=15
+    "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22, "PGS"=17,
+    "PGS + CRP"=18, "PGS + GlycA"=17, "PGS + Blood"=18, "PGS + Nightingale"=17, "PGS + Blood + Nightingale"=15
   )) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="red", "Best model"="#00B050",
                      "Best model with fewest features"="#0070C0")) +
@@ -74,8 +77,8 @@ g <- ggplot(gg_dt[lambda != "Best model with fewest features"]) +
   geom_point(size=2, fill="white") +
   facet_grid(compared_to ~ nri_group + risk_categories, scales="free") +
   scale_shape_manual(name="Biomarkers", values=c(
-    "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22, "PGS"=17,
-    "PGS + Blood"=18, "PGS + Nightingale"=17, "PGS + Blood + Nightingale"=15
+    "CRP"=23, "GlycA"=24, "Blood"=23, "Nightingale"=24, "Blood + Nightingale"=22, "PGS"=17,
+    "PGS + CRP"=18, "PGS + GlycA"=17, "PGS + Blood"=18, "PGS + Nightingale"=17, "PGS + Blood + Nightingale"=15
   )) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   ylab("") + xlab("Categorical NRI, % reclassified (95% CI)") +

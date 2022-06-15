@@ -17,7 +17,7 @@ active <- fread("analyses/train/cox_lasso_features.txt")
 
 # Collate information about each model
 models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
-  foreach(model_name = c("Conventional RF", "Blood", "Nightingale", "Blood + Nightingale"), .combine=rbind) %:%
+  foreach(model_name = c("Conventional RF", "CRP", "GlycA", "Blood", "Nightingale", "Blood + Nightingale"), .combine=rbind) %:%
       foreach(this_lambda = c("lambda.min", "lambda.1se"), .combine=rbind) %do% {
 
         # Extract model coefficients
@@ -26,7 +26,9 @@ models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
         # Build model formula
         mf <- "Surv(incident_followup, incident_cvd) ~ strata(sex) + age + tchol + hdl + sbp + diabetes + smoking + family_history_cvd"
         # mf <- paste(mf, "+ factor_by_size(assessment_centre) + factor_by_size(earliest_hospital_nation) + factor_by_size(latest_hospital_nation)")
-        if (with_pgs) mf <- sprintf("%s + %s", mf, paste(pgs, collapse = " + "))
+        if (with_pgs) mf <- sprintf("%s + CAD_metaGRS + Stroke_metaGRS", mf)
+        if (model_name == "CRP") mf <- mf <- sprintf("%s + crp", mf)
+        if (model_name == "GlycA") mf <- mf <- sprintf("%s + GlycA", mf)
         if (nrow(mcf) > 0) mf <- sprintf("%s + %s", mf, paste(mcf[, coef], collapse=" + "))
 
         # Build long form model name
@@ -40,6 +42,8 @@ models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
         n_bio[, coef_type := factor(coef_type, levels=c("Blood", "Nightingale"))]
         n_bio <- n_bio[order(n_bio)]
         bio_text <- n_bio[, paste(sprintf("%s %s biomarkers", N, coef_type), collapse=" + ")]
+        if (model_name == "CRP") bio_text <- "CRP"
+        if (model_name == "GlycA") bio_text <- "GlycA"
 
         if (with_pgs) {
            long_name <- sprintf("Conventional RF + PGS + %s", bio_text)
@@ -57,7 +61,7 @@ models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
         # Return model information and formula
         data.table(endpoint = "CVD", PGS = with_pgs, lambda = this_lambda, name = model_name, long_name = long_name, formula = mf)
 }
-models[name == "Conventional RF", lambda := NA]
+models[name %in% c("Conventional RF", "CRP", "GlycA"), lambda := NA]
 models <- unique(models)
 fwrite(models, sep="\t", quote=FALSE, file="analyses/train/cox_lasso_models.txt")
 
