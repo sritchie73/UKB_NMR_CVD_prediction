@@ -110,12 +110,12 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
 
   # Winsorize distribution at +/- 5SD
   lim[, lower_5sd := trans_mean - 5*trans_sd]
-  lim[, below_5sd := sum(values < lower_5sd)]
+  lim[, below_5sd := sum(values < lower_5sd, na.rm=TRUE)]
   lim[, below_5sd_pct := paste0(round(below_5sd/length(values)*100, digits=1), "%")]
   values[values < lim$lower_5sd] <- lim$lower_5sd
 
   lim[, upper_5sd := trans_mean + 5*trans_sd]
-  lim[, above_5sd := sum(values > upper_5sd)]
+  lim[, above_5sd := sum(values > upper_5sd, na.rm=TRUE)]
   lim[, above_5sd_pct := paste0(round(above_5sd/length(values)*100, digits=1), "%")]
   values[values > lim$upper_5sd] <- lim$upper_5sd
 

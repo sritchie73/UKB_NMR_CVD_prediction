@@ -22,8 +22,13 @@ train[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 
 # Split training data into 10-folds for elasticnet cross-validation
 # Balance split by case/control status, sex, prevalent diabetes, smoking status, recruitment centre, and nation
-train[, foldgrp := paste(incident_cvd, cvd_is_primary_cause, cvd_is_fatal, cvd_primarily_chd, cvd_primarily_stroke,
-                         earliest_hospital_nation, latest_hospital_nation, assessment_centre, sex, diabetes, smoking, family_history_cvd)]
+##  train[, foldgrp := paste(incident_cvd, cvd_is_primary_cause, cvd_is_fatal, cvd_primarily_chd, cvd_primarily_stroke,
+##                         earliest_hospital_nation, latest_hospital_nation, assessment_centre, sex, diabetes, smoking, family_history_cvd,
+##                         is.na(CAD_metaGRS), genetic_white_british, nmr_excess_miss, biochemistry_excess_miss)]
+
+# Balance split by case/control status, type, and sex. Any more factors (e.g. like above)
+# and the groups get too small to be meaningfully useful
+train[, foldgrp := paste(incident_cvd, cvd_primarily_stroke, cvd_is_fatal, cvd_is_primary_cause, sex)]
 train[, foldid := createFolds(foldgrp, k=10, list=FALSE)]
 fwrite(train[,.(eid, foldid)], sep="\t", file="analyses/train/training_folds.txt")
 
@@ -36,9 +41,7 @@ conv_rf <- c("age", "sex", "sbp", "diabetes", "smoking", "family_history_cvd")
 conv_rf_lipids <- c(conv_rf, c("tchol", "hdl"))
 nmr <- nmr_info$Biomarker
 covariates <- c("assessment_centre", "earliest_hospital_nation", "latest_hospital_nation")
-clin_add <- c("crp", "lpa", "vitd25", "rheuf", "alp", "calcium", "shbg",
-	"testos", "oest", "igf1", "cyst", "protein", "urea", "phos",
-	"uric", "dbili", "tbili", "ggt", "alt", "asp")
+clin_add <- setdiff(intersect(names(train), bio_info$var), c("tchol", "hdl", "ldl"))
 
 # We want to train two models with lasso regression:
 #
@@ -48,30 +51,37 @@ clin_add <- c("crp", "lpa", "vitd25", "rheuf", "alp", "calcium", "shbg",
 #     come down in cost.
 #
 active <- foreach(model = c("nmr", "assays"), .combine=rbind) %do% {
+    # Extract the samples who can be used for glmnet
+    if (model == "nmr") {
+      this_dat <- train[!(nmr_excess_miss)]
+    } else if (model == "assays") {
+      this_dat <- train[!(biochemistry_excess_miss) & !is.na(hdl) & !is.na(tchol)]
+    }
+
     # Extract event
-    survdat <- train[, .(incident_followup, incident_cvd)]
+    survdat <- this_dat[, .(incident_followup, incident_cvd)]
     setnames(survdat, c("followup", "event"))
 
-    # select columns
+    # select predictor columns
     if (model == "nmr") {
       features <- c(covariates, conv_rf, nmr)
     } else if (model == "assays") {
       features <- c(covariates, conv_rf_lipids, clin_add)
     }
-    inmat <- model.matrix(~ 0 + ., train[, .SD, .SDcols=features])
+    inmat <- model.matrix(~ 0 + ., this_dat[, .SD, .SDcols=features])
 
     # Create vector of penalties: 1 = apply elasticnet, 0 = always include
     penalties <- rep(1, ncol(inmat))
     names(penalties) <- colnames(inmat)
-    if (model == "NMR") {
+    if (model == "nmr") {
       penalties[apply(sapply(conv_rf, function(x) { names(penalties) %like% x }), 1, any)] <- 0 
-    } else if (model == "clin_add") {
+    } else if (model == "assays") {
       penalties[apply(sapply(conv_rf_lipids, function(x) { names(penalties) %like% x }), 1, any)] <- 0
     }
-     
+
     # Fit cox regression lasso for feature selection
     cv.coxnet <- cv.glmnet(inmat, Surv(survdat$followup, survdat$event), family="cox",
-                           foldid = train$foldid, alpha = 1, penalty.factor = penalties,
+                           alpha = 1, penalty.factor = penalties, foldid = this_dat$foldid,
                            trace.it=1, parallel=TRUE, standardize=FALSE)
 
     # Plot
@@ -91,7 +101,7 @@ active <- foreach(model = c("nmr", "assays"), .combine=rbind) %do% {
         coef %in% clin_add, "Assays",
         coef %in% nmr, "NMR",
         default = "Dataset-specific covariate")]
-      active <- cbind(data.table(endpoint = "CVD", model = model, lambda.fit = ss), active)
+      active <- cbind(data.table(endpoint = "CVD", samples = survdat[,.N], cases = survdat[, sum(event)], model = model, lambda.fit = ss), active)
       return(active)
     }
 }

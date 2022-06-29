@@ -30,13 +30,13 @@ sample_info <- data.table(step="Test dataset", samples=test[,.N], exited=0)
 # Risk recalibration works on five year age groups:
 #
 #    age_group    N
-# 1:        40 3078
-# 2:        45 3773
-# 3:        50 4249
-# 4:        55 4625
-# 5:        60 5352
-# 6:        65 3110
-# 7:        70   71
+# 1:        40 4749
+# 2:        45 5784
+# 3:        50 6123
+# 4:        55 6627
+# 5:        60 7275
+# 6:        65 4273
+# 7:        70   98
 #
 # We'll drop people aged >= 70 to prevent this small group skewing the 
 # model fit for recalibration
