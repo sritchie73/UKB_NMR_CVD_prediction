@@ -130,7 +130,7 @@ active[, model := fcase(
 active[models, on = .(lambda.fit=lambda, model=name), long_name := i.long_name]
 
 # Reorder columns
-active <- active[,.(name=model, lambda=lambda.fit, coefficient, var, coef_name, coef_type, platform, beta)]
+active <- active[,.(endpoint, samples, cases, name=model, lambda=lambda.fit, coefficient, var, coef_name, coef_type, platform, beta)]
 
 # Write out
 fwrite(active, sep="\t", quote=FALSE, file="analyses/train/lasso_coefficients.txt")

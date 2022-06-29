@@ -113,7 +113,7 @@ cinds[, deltaC.PGS.L95 := L95 - base_cind]
 cinds[, deltaC.PGS.U95 := U95 - base_cind]
 
 # Reorder columns
-cinds <- cinds[,.(name, lambda, PGS, long_name, C.index, SE, L95, U95, deltaC, deltaC.L95, 
+cinds <- cinds[,.(Samples, Cases, Missing, name, lambda, PGS, long_name, C.index, SE, L95, U95, deltaC, deltaC.L95, 
                   deltaC.U95, deltaC.PGS, deltaC.PGS.L95, deltaC.PGS.U95)]
 
 # Write out

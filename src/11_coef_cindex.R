@@ -22,8 +22,13 @@ coef <- fread("analyses/train/lasso_coefficients.txt")
 coef <- coef[, .(coefficient, var, coef_name, coef_type)]
 coef <- unique(coef)
 coef <- coef[coef_type != "Dataset-specific covariate"] # not of interest here
-#coef <- rbind(coef, data.table("bmi", "bmi", "Body Mass Index", "Conventional RF"), use.names=FALSE) # Add in BMI for comparison
 coef <- coef[!(var %in% c("age", "sex"))] # baseline model to compare to
+
+# Add in other risk factors not in models by default to compare to
+coef <- rbind(coef, use.names=FALSE,
+  data.table("CAD_metaGRS", "CAD_metaGRS", "CAD metaGRS", "PRS"),
+  data.table("Stroke_metaGRS", "Stroke_metaGRS", "Stroke metaGRS", "PRS")
+)
 
 # Build models
 mf1 <- "Surv(incident_followup, incident_cvd) ~ strata(sex) + age"
@@ -49,7 +54,7 @@ cinds[model == "reference", model_name := "Reference"]
 cinds[model == "reference", model_type := "Reference"]
 
 # Apply ordering
-cinds[, model_type := factor(model_type, levels=c("Reference", "Conventional RF", "Polygenic Risk Score", "NMR Metabolomics", "Clinical Biochemistry"))]
+cinds[, model_type := factor(model_type, levels=c("Reference", "Conventional RF", "PRS", "NMR Metabolomics", "Clinical Biochemistry"))]
 cinds <- cinds[order(C.index)][order(model_type)]
 cinds[, model_name := factor(model_name, levels=model_name)]
 

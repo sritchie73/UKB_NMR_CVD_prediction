@@ -37,9 +37,9 @@ pred <- melt(pred, measure.vars=c("ACC.AHA.2019", "NICE.2014"), variable.name="g
 
 # Get total number of cases and controls in each age and sex group - this is the denominator when computing
 # % of cases and controls allocated to risk strata for a given model and thresholds
-grp_totals <- pred[name == "Conventional RF" & !(PGS) & guidelines == "NICE.2014", 
+grp_totals <- pred[,
   .(.N, cases=sum(incident_cvd), controls=sum(!(incident_cvd))), 
-  by=.(sex, age_group)]
+  by=.(sex, age_group, name, lambda, PGS, guidelines)]
 grp_totals <- grp_totals[order(age_group)][order(sex)]
 
 # Build empty table of all possible groups - this allows us to fill in 0s for groups with no participants when computing % allocated
@@ -72,7 +72,7 @@ missing[, risk_group := "medium"]
 to_fill[missing, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group), 
   c("cases", "controls") := .(cases + i.cases, controls + i.controls)]
 
-to_fill[grp_totals, on = .(sex, age_group), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
+to_fill[grp_totals, on = .(sex, age_group, name, lambda, PGS, guidelines), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
 pred_strata_alloc[to_fill, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group),
   c("pct_cases", "pct_controls") := .(i.pct_cases, i.pct_controls)]
 
