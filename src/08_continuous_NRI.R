@@ -1,5 +1,6 @@
 library(data.table)
 library(nricens)
+source("src/utils/aki_absrisk.R")
 source("src/utils/factor_by_size.R")
 
 # Make output directory
@@ -25,16 +26,25 @@ nri.test <- function(base_model, new_model) {
   base_model <- as.formula(base_model)
   new_model <- as.formula(new_model)
 
-  # We need to fit twice - once to identify the participants with non-missing data in both formulae,
-  # then the second to be passed to nricens (which requires both models to be fit in the same participants
+  # Fit Cox proportional hazards models
   base_cph <- coxph(base_model, data=test, x=TRUE)
   new_cph <- coxph(new_model, data=test, x=TRUE)
 
-  shared_samples <- intersect(rownames(base_cph$x), rownames(new_cph$x))
-  base_cph <- coxph(base_model, data=test[as.integer(shared_samples)], x=TRUE)
-  new_cph <- coxph(new_model, data=test[as.integer(shared_samples)], x=TRUE)
+  # Extract predicted 10-year risk
+  pred_risk <- test[, .(eid, incident_cvd, incident_followup)]
+  pred_risk[as.integer(rownames(base_cph$x)), base_cph_risk := Coxar(base_cph, 10)]
+  pred_risk[as.integer(rownames(new_cph$x)), new_cph_risk := Coxar(new_cph, 10)]
   
-  nricens(mdl.std = base_cph, mdl.new = new_cph, updown = "diff", cut = 0, t0 = 10, niter = 1000) 
+  # Filter to samples that both models could be fit for
+  pred_risk <- pred_risk[!is.na(base_cph_risk) & !is.na(new_cph_risk)]
+
+  # Run NRI analysis
+  # Originally I tried passing the fitted Cox models directly here, but a tonne
+  # of warnings were generated and the bootstrap confidence intervals were very
+  # weird (e.g. looking like:  -o------ or ------o instead of ---o---). 
+  nricens(event = pred_risk$incident_cvd, time = pred_risk$incident_followup,
+          p.std = pred_risk$base_cph_risk, p.new = pred_risk$new_cph_risk,
+          updown = "diff", cut = 0, t0 = 10, niter = 1000) 
 }
 
 # Run NRI analysis with 1000 bootstraps:
