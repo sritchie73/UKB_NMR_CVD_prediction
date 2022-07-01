@@ -2,3 +2,4 @@ data/
 analyses/
 *.*.swp
 .ipynb_checkpoints/
+Rplots.pdf
