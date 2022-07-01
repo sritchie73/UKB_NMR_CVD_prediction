@@ -1,8 +1,28 @@
 library(data.table)
 library(ggplot2)
 
-# Load NRI estimates
+# Load NRI estimates computed from recalibrated risk
 nri_estimates <- fread("analyses/public_health_modelling/net_reclassification/nri_estimates.txt")
+
+# Load continuous NRI computed directly from Cox models
+nri_before_recalibration <- fread("analyses/test/nri_estimates.txt")
+
+# Compare 
+nri_before_recalibration <- rbind(idcol="recalibration", fill=TRUE,
+  "After"=nri_estimates[nri_type == "Continuous NRI"],
+  "Before"=nri_before_recalibration
+)
+
+g <- ggplot(nri_before_recalibration) + 
+  aes(x=Estimate, xmin=Lower, xmax=Upper, color=recalibration, y=model) +
+  geom_errorbarh(height=0, position=position_dodge(width=0.6)) +
+  geom_point(size=2, position=position_dodge(width=0.6)) +
+  facet_grid(~ metric, scales="free") +
+  scale_color_manual(name="Risk recalibration", values=c("Before"="black", "After"="red")) +
+  ylab("") + xlab("Continous NRI metric") +
+  theme_bw() + theme(legend.position="bottom")
+ggsave(g, width=13, height=7, units="in", file="analyses/public_health_modelling/net_reclassification/continuous_nri_before_and_after_recalibration.pdf")
+
 
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
