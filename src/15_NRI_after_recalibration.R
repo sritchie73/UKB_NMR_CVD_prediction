@@ -69,12 +69,12 @@ nri.test <- function(base_model, new_model) {
   # Calculate categorical NRI using NICE 2014 cutoffs
   niceNRI <- nricens(event = pred_risk$incident_cvd, time = pred_risk$incident_followup,
                      p.std = pred_risk$base_cph_recalibrated, p.new = pred_risk$new_cph_recalibrated,
-                     updown = "category", cut = c(0.05, 0.1), t0 = 10, niter = 1000)
+                     updown = "category", cut = c(0.1), t0 = 10, niter = 1000)
 
   # Calculate cotegorical NRI using AHA/ACC 2019 cutoffs
   ahaaccNRI <- nricens(event = pred_risk$incident_cvd, time = pred_risk$incident_followup,
                        p.std = pred_risk$base_cph_recalibrated, p.new = pred_risk$new_cph_recalibrated,
-                       updown = "category", cut = c(0.05, 0.075), t0 = 10, niter = 1000)
+                       updown = "category", cut = c(0.075), t0 = 10, niter = 1000)
 
   # Add in sample size and case numbers
   contNRI$n <- niceNRI$n <- ahaaccNRI$n <- pred_risk[,.N]
