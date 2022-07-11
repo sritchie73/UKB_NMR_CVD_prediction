@@ -102,7 +102,7 @@ g <- ggplot(gg_dt[lambda != "Best model with fewest features"]) +
   theme_bw() + theme(legend.position="bottom")
 ggsave(g, width=13, height=7, units="in", file="analyses/public_health_modelling/net_reclassification/nri_compare.pdf")
 
-# Write out table for supp
+# Build wide table for supp
 wide <- dcast(gg_dt[lambda != "Best model with fewest features"], long_name + biomarkers + compared_to ~ nri_type + metric, value.var=c("Estimate", "Lower", "Upper"))
 wide <- wide[order(-biomarkers)][order(compared_to)]
 wide <- wide[, .(long_name, biomarkers, compared_to, 
@@ -113,4 +113,62 @@ wide <- wide[, .(long_name, biomarkers, compared_to,
   `NICE_NRI+`=`Estimate_NICE 2014 Categorical NRI_NRI+`, `NICE_NRI+_L95`=`Lower_NICE 2014 Categorical NRI_NRI+`, `NICE_NRI+_U95`=`Upper_NICE 2014 Categorical NRI_NRI+`,
   `NICE_NRI-`=`Estimate_NICE 2014 Categorical NRI_NRI-`, `NICE_NRI-_L95`=`Lower_NICE 2014 Categorical NRI_NRI-`, `NICE_NRI-_U95`=`Upper_NICE 2014 Categorical NRI_NRI-`
 )]
+
+# Obtain sample, cases, and reclassification numbers
+reclassified <- fread("analyses/public_health_modelling/net_reclassification/nri_reclassified.txt")
+reclassified[, compared_to := "Conventional RF"]
+reclassified[, biomarkers := gsub(".*to ", "", model)]
+reclassified[, biomarkers := gsub(" \\(.*\\)", "", biomarkers)]
+reclassified[model_info[lambda == "lambda.min"], on = .(biomarkers=name), long_name := ifelse(lambda == "Best model", i.long_name, NA_character_)]
+reclassified[model_info[lambda == "lambda.1se"], on = .(biomarkers=name), long_name := ifelse(lambda == "Best model with fewest features", i.long_name, x.long_name)]
+reclassified[biomarkers == "PGS", long_name := "Conventional RF + PGS"]
+reclassified[biomarkers == "PGS + Assays" & lambda == "Best model", 
+      long_name := model_info[lambda == "lambda.min" & (PGS) & name == "Assays", long_name]]
+reclassified[biomarkers == "PGS + Assays" & lambda == "Best model with fewest features",
+      long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "Assays", long_name]]
+reclassified[biomarkers == "PGS + NMR" & lambda == "Best model", 
+      long_name := model_info[lambda == "lambda.min" & (PGS) & name == "NMR", long_name]]
+reclassified[biomarkers == "PGS + NMR" & lambda == "Best model with fewest features",
+      long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "NMR", long_name]]
+reclassified[biomarkers == "PGS + NMR + Assays" & lambda == "Best model", 
+      long_name := model_info[lambda == "lambda.min" & (PGS) & name == "NMR + Assays", long_name]]
+reclassified[biomarkers == "PGS + NMR + Assays" & lambda == "Best model with fewest features",
+      long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "NMR + Assays", long_name]]
+reclassified[biomarkers %like% "CRP", long_name := paste("Conventional RF +", biomarkers)]
+reclassified[, risk_categories := gsub(" Categorical NRI", "", nri_type)]
+reclassified[, risk_categories := factor(risk_categories, levels=c("Continuous NRI", "ACC/AHA 2019", "NICE 2014"))]
+reclassified[, biomarkers := factor(biomarkers, levels=rev(c("CRP", "NMR", "Assays", "NMR + Assays", 
+  "PGS", "PGS + CRP", "PGS + NMR", "PGS + Assays", "PGS + NMR + Assays")))]
+reclassified[, lambda := factor(lambda, levels=rev(c("No feature selection", "Best model with fewest features", "Best model")))]
+reclassified <- reclassified[order(lambda)][order(biomarkers)]
+reclassified[, long_name := factor(long_name, levels=unique(long_name))]
+reclassified[, Controls := All - Cases]
+
+# Add to wide table
+wide[reclassified, on = .(long_name), c("Samples", "Cases") := .(i.Total_Samples, i.Total_Cases)]
+wide[reclassified[Old == ">= 0.1", .(Cases=sum(Cases)), by=long_name], on = .(long_name), NICE_Old_Case_Correct := i.Cases]
+wide[reclassified[New == ">= 0.1", .(Cases=sum(Cases)), by=long_name], on = .(long_name), NICE_New_Case_Correct := i.Cases]
+wide[reclassified[Old == "< 0.1" & New == ">= 0.1", .(Cases=sum(Cases)), by=long_name], on = .(long_name), NICE_Case_Reclassified := i.Cases]
+wide[reclassified[Old == "< 0.1", .(Controls=sum(Controls)), by=long_name], on = .(long_name), NICE_Old_Control_Correct := i.Controls]
+wide[reclassified[New == "< 0.1", .(Controls=sum(Controls)), by=long_name], on = .(long_name), NICE_New_Control_Correct := i.Controls]
+wide[reclassified[Old == ">= 0.1" & New == "< 0.1", .(Controls=sum(Controls)), by=long_name], on = .(long_name), NICE_Control_Reclassified := i.Controls]
+wide[reclassified[Old == ">= 0.075", .(Cases=sum(Cases)), by=long_name], on = .(long_name), ACCAHA_Old_Case_Correct := i.Cases]
+wide[reclassified[New == ">= 0.075", .(Cases=sum(Cases)), by=long_name], on = .(long_name), ACCAHA_New_Case_Correct := i.Cases]
+wide[reclassified[Old == "< 0.075" & New == ">= 0.075", .(Cases=sum(Cases)), by=long_name], on = .(long_name), ACCAHA_Case_Reclassified := i.Cases]
+wide[reclassified[Old == "< 0.075", .(Controls=sum(Controls)), by=long_name], on = .(long_name), ACCAHA_Old_Control_Correct := i.Controls]
+wide[reclassified[New == "< 0.075", .(Controls=sum(Controls)), by=long_name], on = .(long_name), ACCAHA_New_Control_Correct := i.Controls]
+wide[reclassified[Old == ">= 0.075" & New == "< 0.075", .(Controls=sum(Controls)), by=long_name], on = .(long_name), ACCAHA_Control_Reclassified := i.Controls]
+
+# Organise columns
+wide <- wide[, .(long_name, biomarkers, compared_to, Samples, Cases,
+  `ContNRI+`, `ContNRI+_L95`, `ContNRI+_U95`, `ContNRI-`, `ContNRI-_L95`, `ContNRI-_U95`,
+  NICE_Old_Case_Correct, NICE_New_Case_Correct, NICE_Case_Reclassified, 
+  `NICE_NRI+`, `NICE_NRI+_L95`, `NICE_NRI+_U95`,
+  NICE_Old_Control_Correct, NICE_New_Control_Correct, NICE_Control_Reclassified, 
+  `NICE_NRI-`, `NICE_NRI-_L95`, `NICE_NRI-_U95`,
+  ACCAHA_Old_Case_Correct, ACCAHA_New_Case_Correct, ACCAHA_Case_Reclassified, 
+  `ACCAHA_NRI+`, `ACCAHA_NRI+_L95`, `ACCAHA_NRI+_U95`,
+  ACCAHA_Old_Control_Correct, ACCAHA_New_Control_Correct, ACCAHA_Control_Reclassified, 
+  `ACCAHA_NRI-`, `ACCAHA_NRI-_L95`, `ACCAHA_NRI-_U95`)]
+
 fwrite(wide, sep="\t", quote=FALSE, file="analyses/public_health_modelling/net_reclassification/nri_compare.txt")
