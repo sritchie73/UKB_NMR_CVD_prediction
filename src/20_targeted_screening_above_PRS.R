@@ -4,7 +4,7 @@ library(foreach)
 library(ggplot2)
 
 # Create output directory
-out_dir <- "analyses/public_health_modelling/UK_population_generalised/staged_screening_above_PRS"
+out_dir <- "analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS"
 system(sprintf("mkdir -p %s", out_dir))
 
 # Load hypothetical population
@@ -210,111 +210,4 @@ phs_summary[, NNS := 100000 / events_prevented]
 # Write out
 fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics_by_treatment_reason.txt", out_dir))
 fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics.txt", out_dir))
-
-# Code factors for plot ordering
-phs <- phs[order(PGS)]
-phs[, name := factor(name, levels=rev(unique(name)))]
-phs[, long_name := factor(long_name, levels=rev(unique(long_name)))]
-phs_sumary <- phs_summary[order(PGS)]
-phs_summary[, name := factor(name, levels=rev(unique(name)))]
-phs_summary[, long_name := factor(long_name, levels=rev(unique(long_name)))]
-
-# Generate plots for NICE 2014 guidelines for paper
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=cases_treated, y=long_name, fill=treatment_reason) +
-  geom_col(position = position_stack(reverse = TRUE), color="black") +
-  scale_fill_manual(name="Treatment reason", values=c(
-    "High risk due to conventional risk factors and/or PRS"="#92c5de",
-    "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#4393c3",
-    "Reclassified as high risk from biomarkers"="#2166ac"
-  )) +
-  ylab("") +
-  scale_x_continuous(
-    name="Cases treated per 100,000 screened", 
-    limits=c(3100, 4100), oob=scales::oob_keep,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% cases treated")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8),
-    legend.text=element_text(size=8),
-    legend.position="bottom", legend.direction="vertical"
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_cases_treated.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=events_prevented, y=long_name, fill=treatment_reason) +
-  geom_col(position = position_stack(reverse = TRUE), color="black") +
-  scale_fill_manual(name="Treatment reason", values=c(
-    "High risk due to conventional risk factors and/or PRS"="#92c5de",
-    "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#4393c3",
-    "Reclassified as high risk from biomarkers"="#2166ac"
-  )) +
-  ylab("") +
-  scale_x_continuous(
-    name="Events prevented per 100,000 screened", 
-    limits=c(620, 820), oob=scales::oob_keep,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% events prevented")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8),
-    legend.text=element_text(size=8),
-    legend.position="bottom", legend.direction="vertical"
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_events_prevented.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=controls_treated, y=long_name, fill=treatment_reason) +
-  geom_col(position = position_stack(reverse = TRUE), color="black") +
-  scale_fill_manual(name="Treatment reason", values=c(
-    "High risk due to conventional risk factors and/or PRS"="#f4a582",
-    "Medium risk, diabetic or LDL-C >= 5 mmol/L"="#d6604d",
-    "Reclassified as high risk from biomarkers"="#b2182b"
-  )) +
-  ylab("") +
-  scale_x_continuous(
-    name="Non-cases treated per 100,000 screened", 
-    limits=c(15000, 22000), oob=scales::oob_keep,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$controls*100, name="% non-cases treated")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8),
-    legend.text=element_text(size=8),
-    legend.position="bottom", legend.direction="vertical"
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_controls_treated.pdf", out_dir))
-
-g <- ggplot(phs_summary[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
-  aes(x=NNT, y=long_name) +
-  geom_col(color="black", fill="#fff6d5") +
-  ylab("") +
-  scale_x_continuous(name="Number Needed to Treat", limits=c(28, 32), oob=scales::oob_squish) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_treat.pdf", out_dir))
- 
-g <- ggplot(phs_summary[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
-  aes(x=NNS, y=long_name) +
-  geom_col(color="black", fill="#fff6d5") +
-  ylab("") +
-  scale_x_continuous(name="Number Needed to Screen", limits=c(110, 160), oob=scales::oob_squish) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_screen.pdf", out_dir))
 
