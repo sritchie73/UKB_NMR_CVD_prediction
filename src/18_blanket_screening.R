@@ -3,7 +3,7 @@ library(foreach)
 library(ggplot2)
 
 # Create output directory
-out_dir <- "analyses/public_health_modelling/UK_population_generalised/single_stratification"
+out_dir <- "analyses/public_health_modelling/UK_population_generalised/blanket_screening"
 system(sprintf("mkdir -p %s", out_dir))
 
 # Load hypothetical population 
@@ -34,6 +34,11 @@ pred[, NICE.2014 := fcase(
 
 # Melt
 pred <- melt(pred, measure.vars=c("ACC.AHA.2019", "NICE.2014"), variable.name="guidelines", value.name="risk_group")
+
+# Add in LDL-C and diabetes status
+test <- fread("data/cleaned/test_data.txt")
+pred[test, on = .(eid), diabetes := i.diabetes]
+pred[test, on = .(eid), ldl := i.ldl] # from clinical chemistry
 
 # Get total number of cases and controls in each age and sex group - this is the denominator when computing
 # % of cases and controls allocated to risk strata for a given model and thresholds
@@ -92,112 +97,82 @@ ons_pred_summary <- ons_pred[,
 fwrite(ons_pred, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
 fwrite(ons_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
 
+# For people at intermediate risk, determine % of cases and controls that would be allocated treatment due to
+# having history of diabetes or elevated LDL-C (>= 5.0 mmol/L)
+intermed_treat <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
+  this_intermed_treat <- empty[risk_group != "low"]
+  this_pred <- pred[models[mIdx], on = .(name, lambda, PGS, long_name)]
+  this_grp_totals <- grp_totals[models[mIdx], on = .(name, lambda, PGS)][guidelines == "NICE.2014"] # group totals same regardless of guideline thresholds
+  to_fill <- this_pred[risk_group == "medium",
+    .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
+    by=.(name, lambda, PGS, sex, age_group, guidelines,
+         risk_group = ifelse(!(diabetes) & (is.na(ldl) | ldl < 5), "medium", "high"))]
+  to_fill[this_grp_totals, on = .(sex, age_group), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
+  intermed_treat[to_fill,  on = .(sex, age_group, guidelines, risk_group), c("pct_cases", "pct_controls") := .(i.pct_cases, i.pct_controls)]
+  cbind(models[mIdx], intermed_treat)
+}
+
+# Generalise to hypothetical ONS population
+ons_intermed_treat <- intermed_treat[ons_pop, on = .(sex, age_group),
+  .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group,
+    N = cases * pct_cases + controls * pct_controls,
+    cases = cases * pct_cases, controls = controls * pct_controls)]
+ons_intermed_treat <- ons_intermed_treat[order(guidelines)]
+
+# Summarise to population totals for each risk group
+ons_intermed_treat_summary <- ons_intermed_treat[,
+  .(N=sum(cases) + sum(controls), cases=sum(cases), controls=sum(controls)),
+  by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
+
+# Write out
+fwrite(ons_intermed_treat, sep="\t", quote=FALSE, file=sprintf("%s/intermediate_risk_treat_alloc_by_age_sex.txt", out_dir))
+fwrite(ons_intermed_treat_summary, sep="\t", quote=FALSE, file=sprintf("%s/intermediate_risk_treat_alloc.txt", out_dir))
+
 # Compute number of cases treated and prevented using the flowchart for each set of models
 case_treat_prevent <- copy(models)
 case_treat_prevent <- rbind(idcol="guidelines", "ACC.AHA.2019"=case_treat_prevent, "NICE.2014"=case_treat_prevent)
-case_treat_prevent[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), cases_treated := i.cases]
-case_treat_prevent[is.na(cases_treated), cases_treated := 0] 
+case_treat_prevent[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), pred_treat := i.cases]
+case_treat_prevent[ons_intermed_treat_summary[risk_group == "high"], on = .(guidelines), intermed_treat := i.cases]
+case_treat_prevent[is.na(pred_treat), pred_treat := 0]
+case_treat_prevent <- melt(case_treat_prevent, measure.vars=c("pred_treat", "intermed_treat"),
+                           variable.name="treatment_reason", value.name="cases_treated")
+case_treat_prevent[, treatment_reason := fcase(
+  treatment_reason == "pred_treat", "High risk due to conventional risk factors and biomarkers/PRS",
+  treatment_reason == "intermed_treat", "Medium risk, diabetic or LDL-C >= 5 mmol/L"
+)]
 case_treat_prevent[, pct_cases_treated := cases_treated / ons_pop_summary$cases]
 
 # Same for controls
 control_treat <- copy(models)
 control_treat <- rbind(idcol="guidelines", "ACC.AHA.2019"=control_treat, "NICE.2014"=control_treat)
-control_treat[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), controls_treated := i.controls]
-control_treat[is.na(controls_treated), controls_treated := 0]
+control_treat[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), pred_treat := i.controls]
+control_treat[ons_intermed_treat_summary[risk_group == "high"], on = .(guidelines), intermed_treat := i.controls]
+control_treat[is.na(pred_treat), pred_treat := 0]
+control_treat <- melt(control_treat, measure.vars=c("pred_treat", "intermed_treat"),
+                           variable.name="treatment_reason", value.name="controls_treated")
+control_treat[, treatment_reason := fcase(
+  treatment_reason == "pred_treat", "High risk due to conventional risk factors and biomarkers/PRS",
+  treatment_reason == "intermed_treat", "Medium risk, diabetic or LDL-C >= 5 mmol/L"
+)]
 control_treat[, pct_controls_treated := controls_treated / ons_pop_summary$controls]
 
 # Combine and compute other public health statistics for each treatment reason, model, and threshold guidelines
-phs <- case_treat_prevent[control_treat, on = .(name, lambda, PGS, long_name, guidelines)]
+phs <- case_treat_prevent[control_treat, on = .(name, lambda, PGS, long_name, guidelines, treatment_reason)]
 phs[, events_prevented := cases_treated * 0.2] # assuming 20% reduction in risk due to statins
 phs[, pct_events_prevented := pct_cases_treated * 0.2]
-phs[, total_treated := cases_treated + controls_treated]
-phs[, NNT := total_treated / events_prevented]
-phs[, NNS := 100000 / events_prevented]
+
+# Summarise to population level
+phs_summary <- phs[, .(
+  total_treated=sum(cases_treated) + sum(controls_treated),
+  pct_total_treated = (sum(cases_treated) + sum(controls_treated)) / 100000,
+  cases_treated=sum(cases_treated), pct_cases_treated=sum(pct_cases_treated),
+  controls_treated=sum(controls_treated), pct_controls_treated=sum(pct_controls_treated)),
+  by=.(name, lambda, PGS, long_name, guidelines)]
+phs_summary[, events_prevented := cases_treated * 0.2]
+phs_summary[, NNT := total_treated / events_prevented]
+phs_summary[, NNS := 100000 / events_prevented]
 
 # Write out
-fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics.txt", out_dir))
-
-# Code factors for plot ordering
-phs <- phs[order(PGS)]
-phs[, name := factor(name, levels=rev(unique(name)))]
-phs[, long_name := factor(long_name, levels=rev(unique(long_name)))]
-
-# Generate plots for NICE 2014 guidelines
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=cases_treated, y=long_name) +
-  geom_col(position = position_stack(reverse = TRUE), color="black", fill="#2166ac") +
-  ylab("") +
-  scale_x_continuous(
-    name="Cases treated per 100,000 screened", 
-    limits=c(2500, 3600), oob=scales::oob_squish,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% cases treated")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_cases_treated.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=events_prevented, y=long_name) +
-  geom_col(position = position_stack(reverse = TRUE), color="black", fill="#2166ac") +
-  ylab("") +
-  scale_x_continuous(
-    name="Events prevented per 100,000 screened", 
-    limits=c(500, 720), oob=scales::oob_squish,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$cases*100, name="% events prevented")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_events_prevented.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) + 
-  aes(x=controls_treated, y=long_name, fill=treatment_reason) +
-  geom_col(position = position_stack(reverse = TRUE), color="black", fill="#b2182b") +
-  ylab("") +
-  scale_x_continuous(
-    name="Non-cases treated per 100,000 screened", 
-    limits=c(12000, 17000), oob=scales::oob_squish,
-    sec.axis = sec_axis( trans=~./ons_pop_summary$controls*100, name="% non-cases treated")
-  ) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_controls_treated.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
-  aes(x=NNT, y=long_name) +
-  geom_col(color="black", fill="#fff6d5") +
-  ylab("") +
-  scale_x_continuous(name="Number Needed to Treat", limits=c(25, 33), oob=scales::oob_squish) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_treat.pdf", out_dir))
-
-g <- ggplot(phs[lambda != "lambda.1se" & guidelines == "NICE.2014"]) +
-  aes(x=NNS, y=long_name) +
-  geom_col(color="black", fill="#fff6d5") +
-  ylab("") +
-  scale_x_continuous(name="Number Needed to Screen", limits=c(125, 185), oob=scales::oob_squish) +
-  theme_bw() +
-  theme(
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    axis.text.y=element_text(size=8), axis.text.x=element_text(size=6),
-    axis.title=element_text(size=8), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=3.6, file=sprintf("%s/NICE_2014_number_needed_to_screen.pdf", out_dir))
-
+fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics_by_treatment_reason.txt", out_dir))
+fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics.txt", out_dir))
 
