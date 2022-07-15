@@ -1,6 +1,8 @@
 library(data.table)
 library(foreach)
-library(ggplot2)
+source("src/utils/aki_absrisk.R")
+source("src/utils/factor_by_size.R")
+source("src/utils/risk_recalibration.R")
 
 # Create output directory
 out_dir <- "analyses/public_health_modelling/UK_population_generalised/blanket_screening"
@@ -10,14 +12,56 @@ system(sprintf("mkdir -p %s", out_dir))
 ons_pop <- fread("analyses/public_health_modelling/UK_population_generalised/ONS_hypothetical_100k_pop_by_age_sex.txt")
 ons_pop_summary <- fread("analyses/public_health_modelling/UK_population_generalised/ONS_hypothetical_100k_pop.txt")
 
-# Load in predicted risk levels for all models
-pred <- fread("analyses/public_health_modelling/risk_recalibration/absolute_risks.txt")
+# Load test dataset - we need to refit models and recalibrate risk in subset of 
+# participants with complete data for each model. In this instance, this just
+# means dropping people missing LDL cholesterol, as this is used to stratify 
+# intermediate risk individuals.
+test <- fread("data/processed/test/processed_test_data.txt")
 
-# Drop columns we won't be using
-pred[, age := NULL] # five year age group already available as 'age_group'
-pred[, incident_followup := NULL]
-pred[, predicted_risk := NULL]
-pred[, CPRD_incidence := NULL]
+# Remove people missing LDL cholesterol
+test <- test[!is.na(ldl)]
+
+# Code factors, using non-risk/lower-risk group as reference
+test[, sex := factor(sex, levels=c("Female", "Male"))]
+test[, diabetes := factor(diabetes, levels=c("FALSE", "TRUE"))]
+test[, smoking := factor(smoking, levels=c("FALSE", "TRUE"))]
+test[, family_history_cvd := factor(family_history_cvd, levels=c("FALSE", "TRUE"))]
+test[, assessment_centre := factor_by_size(assessment_centre)]
+test[, earliest_hospital_nation := factor_by_size(earliest_hospital_nation)]
+test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
+
+# Reapply filtering used for risk recalibration
+test[, age_group := age %/% 5 * 5]
+test <- test[age >= 40 & age < 70]
+test <- test[(incident_cvd) | incident_followup == 10]
+
+# Load model information
+model_info <- fread("analyses/test/model_fit_information.txt")
+
+# Get recalibrated risk for each person and model
+pred <- foreach(midx = model_info[,.I], .combine=rbind) %do% {
+  this_model <- model_info[midx]
+
+  # Fit cox proportional hazards model
+  cph <- coxph(as.formula(this_model$formula), data=test, x=TRUE)
+
+  # Extract absolute risk
+  pred_risk <- Coxar(cph, 10)
+
+  # Extract individuals for which 10-year risk could be predicted
+  dt <- test[as.integer(rownames(cph$x)), .(eid, sex, age, age_group, ldl, diabetes, incident_cvd, pred_risk)]
+
+  # Recalibrate risk to sex-specific 5-year age group incidence rates from CPRD
+  dt[, recalibrated_risk := recalibrate_risk(pred_risk, eid, age, sex, male="Male")$recalibrated_risk]
+
+  # No longer need predicted risk (or age)
+  dt[, pred_risk := NULL]
+  dt[, age := NULL]
+
+  # Add in model information
+  this_info <- this_model[,.(name, lambda, PGS, long_name)]
+  cbind(this_info, dt)
+}
 
 # Stratify risk according to NICE and ACC/AHA guidelines
 pred[, ACC.AHA.2019 := fcase(
@@ -35,16 +79,11 @@ pred[, NICE.2014 := fcase(
 # Melt
 pred <- melt(pred, measure.vars=c("ACC.AHA.2019", "NICE.2014"), variable.name="guidelines", value.name="risk_group")
 
-# Add in LDL-C and diabetes status
-test <- fread("data/cleaned/test_data.txt")
-pred[test, on = .(eid), diabetes := i.diabetes]
-pred[test, on = .(eid), ldl := i.ldl] # from clinical chemistry
-
 # Get total number of cases and controls in each age and sex group - this is the denominator when computing
 # % of cases and controls allocated to risk strata for a given model and thresholds
-grp_totals <- pred[,
+grp_totals <- pred[guidelines == "NICE.2014", # group totals agnostic to thresholds chosen
   .(.N, cases=sum(incident_cvd), controls=sum(!(incident_cvd))), 
-  by=.(sex, age_group, name, lambda, PGS, guidelines)]
+  by=.(sex, age_group, name, lambda, PGS)]
 grp_totals <- grp_totals[order(age_group)][order(sex)]
 
 # Build empty table of all possible groups - this allows us to fill in 0s for groups with no participants when computing % allocated
@@ -61,23 +100,7 @@ pred_strata_alloc <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
 }
 to_fill <- pred[, .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
   by=.(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group)]
-
-# People with missing data in the relevant biomarkers are kept as the medium risk
-missing <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
-  this_pred <- pred[models[mIdx], on = .(name, lambda, PGS, long_name)]
-  this_pred_eid <- unique(this_pred$eid)
-  this_pred_missing <- pred[name == "Conventional RF" & !(PGS) & !(eid %in% this_pred_eid)]
-	this_pred_missing <- this_pred_missing[, .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))), 
-		by=.(sex, age_group, guidelines)]
-  if (nrow(this_pred_missing) > 0) {
-    return(cbind(models[mIdx], this_pred_missing))
-  }
-}
-missing[, risk_group := "medium"]
-to_fill[missing, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group), 
-  c("cases", "controls") := .(cases + i.cases, controls + i.controls)]
-
-to_fill[grp_totals, on = .(sex, age_group, name, lambda, PGS, guidelines), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
+to_fill[grp_totals, on = .(sex, age_group, name, lambda, PGS), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
 pred_strata_alloc[to_fill, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group),
   c("pct_cases", "pct_controls") := .(i.pct_cases, i.pct_controls)]
 
@@ -95,21 +118,21 @@ ons_pred_summary <- ons_pred[,
 
 # Write out
 fwrite(ons_pred, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
-fwrite(ons_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
+fwrite(ons_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/biomarker_prs_risk_stratified.txt", out_dir))
 
 # For people at intermediate risk, determine % of cases and controls that would be allocated treatment due to
 # having history of diabetes or elevated LDL-C (>= 5.0 mmol/L)
 intermed_treat <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
   this_intermed_treat <- empty[risk_group != "low"]
   this_pred <- pred[models[mIdx], on = .(name, lambda, PGS, long_name)]
-  this_grp_totals <- grp_totals[models[mIdx], on = .(name, lambda, PGS)][guidelines == "NICE.2014"] # group totals same regardless of guideline thresholds
+  this_grp_totals <- grp_totals[models[mIdx], on = .(name, lambda, PGS)]
   to_fill <- this_pred[risk_group == "medium",
     .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
     by=.(name, lambda, PGS, sex, age_group, guidelines,
-         risk_group = ifelse(!(diabetes) & (is.na(ldl) | ldl < 5), "medium", "high"))]
+         risk_group = ifelse(diabetes == FALSE & ldl < 5, "medium", "high"))]
   to_fill[this_grp_totals, on = .(sex, age_group), c("pct_cases", "pct_controls") := .(cases/i.cases, controls/i.controls)]
-  intermed_treat[to_fill,  on = .(sex, age_group, guidelines, risk_group), c("pct_cases", "pct_controls") := .(i.pct_cases, i.pct_controls)]
-  cbind(models[mIdx], intermed_treat)
+  this_intermed_treat[to_fill,  on = .(sex, age_group, guidelines, risk_group), c("pct_cases", "pct_controls") := .(i.pct_cases, i.pct_controls)]
+  cbind(models[mIdx], this_intermed_treat)
 }
 
 # Generalise to hypothetical ONS population
@@ -132,7 +155,7 @@ fwrite(ons_intermed_treat_summary, sep="\t", quote=FALSE, file=sprintf("%s/inter
 case_treat_prevent <- copy(models)
 case_treat_prevent <- rbind(idcol="guidelines", "ACC.AHA.2019"=case_treat_prevent, "NICE.2014"=case_treat_prevent)
 case_treat_prevent[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), pred_treat := i.cases]
-case_treat_prevent[ons_intermed_treat_summary[risk_group == "high"], on = .(guidelines), intermed_treat := i.cases]
+case_treat_prevent[ons_intermed_treat_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), intermed_treat := i.cases]
 case_treat_prevent[is.na(pred_treat), pred_treat := 0]
 case_treat_prevent <- melt(case_treat_prevent, measure.vars=c("pred_treat", "intermed_treat"),
                            variable.name="treatment_reason", value.name="cases_treated")
@@ -146,8 +169,8 @@ case_treat_prevent[, pct_cases_treated := cases_treated / ons_pop_summary$cases]
 control_treat <- copy(models)
 control_treat <- rbind(idcol="guidelines", "ACC.AHA.2019"=control_treat, "NICE.2014"=control_treat)
 control_treat[ons_pred_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), pred_treat := i.controls]
-control_treat[ons_intermed_treat_summary[risk_group == "high"], on = .(guidelines), intermed_treat := i.controls]
-control_treat[is.na(pred_treat), pred_treat := 0]
+control_treat[ons_intermed_treat_summary[risk_group == "high"], on = .(name, lambda, PGS, guidelines), intermed_treat := i.controls]
+control_treat[is.na(pred_treat), pred_treat := 0] 
 control_treat <- melt(control_treat, measure.vars=c("pred_treat", "intermed_treat"),
                            variable.name="treatment_reason", value.name="controls_treated")
 control_treat[, treatment_reason := fcase(
