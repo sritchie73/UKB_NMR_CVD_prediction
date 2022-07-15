@@ -115,5 +115,16 @@ g <- ggplot(nri) +
   theme_bw() + 
   theme(legend.position="bottom", legend.box="vertical", axis.text.y=element_text(size=8))
 ggsave(g, width=10, height=5, units="in", file="analyses/test/nri_compare.pdf")
-  
+
+# Create table for supp
+dt <- cinds[order(PGS), .(long_name, Samples, Cases, C.index, L95, U95, deltaC, deltaC.L95, deltaC.U95)]
+dt[nri[nri_group == "cases"], on  = .(long_name), 
+  c("NRI.samples", "NRI.cases", "CaseNRI", "CaseNRI.L95", "CaseNRI.U95") := 
+  .(i.samples, i.cases, Estimate, Lower, Upper)]
+dt[nri[nri_group == "controls"], on  = .(long_name), 
+  c("ControlNRI", "ControlNRI.L95", "ControlNRI.U95") := 
+  .(Estimate, Lower, Upper)]
+
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/cind_nri_compare.txt")
+
 
