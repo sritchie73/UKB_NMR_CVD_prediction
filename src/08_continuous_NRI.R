@@ -15,6 +15,10 @@ test[, assessment_centre := factor_by_size(assessment_centre)]
 test[, earliest_hospital_nation := factor_by_size(earliest_hospital_nation)]
 test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 
+# Remove people who were censored for non-CVD reasons prior to 10-years of
+# follow-up
+test <- test[(incident_cvd) | incident_followup == 10]
+
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
 
