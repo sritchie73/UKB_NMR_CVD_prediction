@@ -70,10 +70,10 @@ risk <- foreach(midx = model_info[,.I], .combine=rbind) %do% {
   dt <- test[as.integer(rownames(cph$x)), .(eid, sex, age, age_group, incident_cvd, incident_followup, predicted_risk=pred_risk)]
 
   # Recalibrate risk to sex-specific 5-year age group incidence rates from CPRD
-  dt[, recalibrated_risk := recalibrate_risk(pred_risk, eid, age, sex, male="Male")$recalibrated_risk]
+  dt[, recalibrated_risk := recalibrate_risk(predicted_risk, eid, age, sex, male="Male")$recalibrated_risk]
 
   # Also get incidence rates for each person's age group from CPRD
-  dt[, CPRD_incidence := recalibrate_risk(pred_risk, eid, age, sex, male="Male")$CPRD_risk]
+  dt[, CPRD_incidence := recalibrate_risk(predicted_risk, eid, age, sex, male="Male")$CPRD_risk]
 
   # Add in model information
   this_info <- this_model[,.(name, lambda, PGS, long_name)]
