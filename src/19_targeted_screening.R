@@ -117,6 +117,14 @@ grp_totals <- pred[guidelines == "NICE.2014", # group totals agnostic to thresho
   by=.(sex, age_group, name, lambda, PGS)]
 grp_totals <- grp_totals[order(age_group)][order(sex)]
 
+# Write out to document sample sizes in UKB
+grp_totals_summary <- grp_totals[,
+  .(N=sum(N), cases=sum(cases), controls=sum(controls)),
+  by=.(name, lambda, PGS)]
+
+fwrite(grp_totals, sep="\t", quote=FALSE, file=sprintf("%s/UKB_model_sample_size_by_age_sex.txt", out_dir))
+fwrite(grp_totals_summary, sep="\t", quote=FALSE, file=sprintf("%s/UKB_model_sample_size.txt", out_dir))
+
 # Build empty table of all possible groups - this allows us to fill in 0s for groups with no participants when computing % allocated
 empty <- expand.grid(sex=unique(pred$sex), age_group=unique(pred$age_group), guidelines=unique(pred$guidelines), risk_group=unique(pred$risk_group), stringsAsFactors=FALSE)
 setDT(empty)
@@ -150,8 +158,25 @@ ons_conv_rf_summary <- ons_conv_rf[,
   by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
 
 # Write out
-fwrite(ons_conv_rf, sep="\t", quote=FALSE, file=sprintf("%s/conv_rf_risk_stratified_by_age_sex.txt", out_dir))
-fwrite(ons_conv_rf_summary, sep="\t", quote=FALSE, file=sprintf("%s/conv_rf_risk_stratified.txt", out_dir))
+fwrite(ons_conv_rf, sep="\t", quote=FALSE, file=sprintf("%s/ONS_conv_rf_risk_stratified_by_age_sex.txt", out_dir))
+fwrite(ons_conv_rf_summary, sep="\t", quote=FALSE, file=sprintf("%s/ONS_conv_rf_risk_stratified.txt", out_dir))
+
+# Also document numbers in UKB
+ukb_conv_rf <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
+  cbind(models[mIdx], empty)
+}
+setnames(ukb_conv_rf, c("pct_cases", "pct_controls"), c("cases", "controls"))
+to_fill <- pred[, .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
+  by=.(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group=conv_rf_risk_group)]
+ukb_conv_rf[to_fill, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group),
+  c("cases", "controls") := .(i.cases, i.controls)]
+
+ukb_conv_rf_summary <- ukb_conv_rf[,
+  .(cases=sum(cases), controls=sum(controls)),
+  by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
+
+fwrite(ukb_conv_rf, sep="\t", quote=FALSE, file=sprintf("%s/UKB_conv_rf_risk_stratified_by_age_sex.txt", out_dir))
+fwrite(ukb_conv_rf_summary, sep="\t", quote=FALSE, file=sprintf("%s/UKB_conv_rf_risk_stratified.txt", out_dir))
 
 # For people at intermediate risk, determine % of cases and controls that would be allocated treatment due to
 # having history of diabetes or elevated LDL-C (>= 5.0 mmol/L)
@@ -181,8 +206,31 @@ ons_intermed_treat_summary <- ons_intermed_treat[,
   by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
 
 # Write out
-fwrite(ons_intermed_treat, sep="\t", quote=FALSE, file=sprintf("%s/intermediate_risk_treat_alloc_by_age_sex.txt", out_dir))
-fwrite(ons_intermed_treat_summary, sep="\t", quote=FALSE, file=sprintf("%s/intermediate_risk_treat_alloc.txt", out_dir))
+fwrite(ons_intermed_treat, sep="\t", quote=FALSE, file=sprintf("%s/ONS_intermediate_risk_treat_alloc_by_age_sex.txt", out_dir))
+fwrite(ons_intermed_treat_summary, sep="\t", quote=FALSE, file=sprintf("%s/ONS_intermediate_risk_treat_alloc.txt", out_dir))
+
+# Also document numbers in UKB
+ukb_intermed_treat <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
+  cbind(models[mIdx], empty[risk_group != "low"])
+}
+setnames(ukb_intermed_treat, c("pct_cases", "pct_controls"), c("cases", "controls"))
+to_fill <- rbind(idcol="risk_group",
+  medium = pred[conv_rf_risk_group == "medium" & diabetes == FALSE & ldl < 5,
+                .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
+                by=.(name, lambda, PGS, long_name, sex, age_group, guidelines)],
+  high   = pred[conv_rf_risk_group == "medium" & (diabetes == TRUE | ldl >= 5),
+                .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
+                by=.(name, lambda, PGS, long_name, sex, age_group, guidelines)]
+)
+ukb_intermed_treat[to_fill, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group),
+  c("cases", "controls") := .(i.cases, i.controls)]
+
+ukb_intermed_treat_summary <- ukb_intermed_treat[,
+  .(cases=sum(cases), controls=sum(controls)),
+  by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
+
+fwrite(ukb_intermed_treat, sep="\t", quote=FALSE, file=sprintf("%s/UKB_intermediate_risk_treat_alloc_by_age_sex.txt", out_dir))
+fwrite(ukb_intermed_treat_summary, sep="\t", quote=FALSE, file=sprintf("%s/UKB_intermediate_risk_treat_alloc.txt", out_dir))
 
 # Determine % of cases and controls allocated to each risk strata using the targeted assessment
 # subsequent to the above
@@ -209,8 +257,26 @@ ons_pred_summary <- ons_pred[,
   by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
 
 # Write out
-fwrite(ons_pred, sep="\t", quote=FALSE, file=sprintf("%s/targeted_biomarker_prs_stratified_by_age_sex.txt", out_dir))
-fwrite(ons_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/targeted_biomarker_prs_stratified.txt", out_dir))
+fwrite(ons_pred, sep="\t", quote=FALSE, file=sprintf("%s/ONS_targeted_biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
+fwrite(ons_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/ONS_targeted_biomarker_prs_risk_stratified.txt", out_dir))
+
+# Also document numbers in UKB
+ukb_pred <- foreach(mIdx = models[,.I], .combine=rbind) %do% {
+  cbind(models[mIdx], empty)
+}
+setnames(ukb_pred, c("pct_cases", "pct_controls"), c("cases", "controls"))
+to_fill <- pred[conv_rf_risk_group == "medium" & diabetes == FALSE & ldl < 5,
+  .(cases=sum(incident_cvd), controls=sum(!(incident_cvd))),
+  by=.(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group)]
+ukb_pred[to_fill, on = .(name, lambda, PGS, long_name, sex, age_group, guidelines, risk_group),
+  c("cases", "controls") := .(i.cases, i.controls)]
+
+ukb_pred_summary <- ukb_pred[,
+  .(cases=sum(cases), controls=sum(controls)),
+  by=.(name, lambda, PGS, long_name, guidelines, risk_group)]
+
+fwrite(ukb_pred, sep="\t", quote=FALSE, file=sprintf("%s/UKB_targeted_biomarker_prs_risk_stratified_by_age_sex.txt", out_dir))
+fwrite(ukb_pred_summary, sep="\t", quote=FALSE, file=sprintf("%s/UKB_targeted_biomarker_prs_risk_stratified.txt", out_dir))
 
 # Compute number of cases treated and prevented using the flowchart for each set of models
 case_treat_prevent <- copy(models)
@@ -261,6 +327,6 @@ phs_summary[, NNT := total_treated / events_prevented]
 phs_summary[, NNS := 100000 / events_prevented]
 
 # Write out
-fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics_by_treatment_reason.txt", out_dir))
-fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/public_health_statistics.txt", out_dir))
+fwrite(phs, sep="\t", quote=FALSE, file=sprintf("%s/ONS_public_health_statistics_by_treatment_reason.txt", out_dir))
+fwrite(phs_summary, sep="\t", quote=FALSE, file=sprintf("%s/ONS_public_health_statistics.txt", out_dir))
 
