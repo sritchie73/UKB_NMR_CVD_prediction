@@ -76,7 +76,7 @@ ons_pop[CPRD, on = .(sex, age_group=age_group_start), cases := N * expected_risk
 ons_pop[, controls := N - cases]
 
 # Summarise all to population totals
-ons_pop_summary <- ons_pop[, .(N=round(sum(N)), cases=round(sum(cases)), controls=round(sum(controls)))]
+ons_pop_summary <- ons_pop[, .(N=sum(N), cases=sum(cases), controls=sum(controls))]
 
 # Write out hypothetical population
 fwrite(ons_pop, sep="\t", quote=FALSE, file=sprintf("%s/ONS_hypothetical_100k_pop_by_age_sex.txt", out_dir))
