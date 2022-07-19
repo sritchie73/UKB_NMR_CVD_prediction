@@ -135,12 +135,12 @@ ukb_blanket_alloc <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/UKB_conv_rf_risk_stratified.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/UKB_conv_rf_prs_risk_stratified.txt")
 )
-wide[ukb_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_blanket_low_cases := i.cases]
-wide[ukb_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_blanket_low_controls := i.controls]
-wide[ukb_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_blanket_medium_cases := i.cases]
-wide[ukb_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_blanket_medium_controls := i.controls]
 wide[ukb_blanket_alloc[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_blanket_high_cases := i.cases]
 wide[ukb_blanket_alloc[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_blanket_high_controls := i.controls]
+wide[ukb_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_blanket_medium_cases := i.cases]
+wide[ukb_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_blanket_medium_controls := i.controls]
+wide[ukb_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_blanket_low_cases := i.cases]
+wide[ukb_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_blanket_low_controls := i.controls]
 
 # Add in number of UKB participants reclassified based on LDL and diabetes
 ukb_intermed_treat <- rbind(idcol="strategy",
@@ -148,22 +148,22 @@ ukb_intermed_treat <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/UKB_intermediate_risk_treat_alloc.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/UKB_intermediate_risk_treat_alloc.txt")
 )
-wide[ukb_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_intermed_medium_cases := i.cases]
-wide[ukb_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_intermed_medium_controls := i.controls]
 wide[ukb_intermed_treat[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_intermed_high_cases := i.cases]
 wide[ukb_intermed_treat[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_intermed_high_controls := i.controls]
+wide[ukb_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_intermed_medium_cases := i.cases]
+wide[ukb_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_intermed_medium_controls := i.controls]
 
 # Add in number of UKB participants reclassified in targeted assessment
 ukb_targeted <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/UKB_targeted_biomarker_prs_risk_stratified.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/UKB_targeted_biomarker_risk_stratified.txt")
 )
-wide[ukb_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_targeted_low_cases := i.cases]
-wide[ukb_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_targeted_low_controls := i.controls]
-wide[ukb_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_targeted_medium_cases := i.cases]
-wide[ukb_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_targeted_medium_controls := i.controls]
 wide[ukb_targeted[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_targeted_high_cases := i.cases]
 wide[ukb_targeted[risk_group == "high"], on = .(long_name, guidelines, strategy), UKB_targeted_high_controls := i.controls]
+wide[ukb_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_targeted_medium_cases := i.cases]
+wide[ukb_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), UKB_targeted_medium_controls := i.controls]
+wide[ukb_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_targeted_low_cases := i.cases]
+wide[ukb_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), UKB_targeted_low_controls := i.controls]
 
 # Compute relevant public health statistics
 wide[, UKB_high_risk_cases := UKB_blanket_high_cases + UKB_intermed_high_cases + ifelse(!is.na(UKB_targeted_high_cases), UKB_targeted_high_cases, 0)]
@@ -186,12 +186,12 @@ ons_blanket_alloc <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/ONS_conv_rf_risk_stratified.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/ONS_conv_rf_prs_risk_stratified.txt")
 )
-wide[ons_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_blanket_low_cases := i.cases]
-wide[ons_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_blanket_low_controls := i.controls]
-wide[ons_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_blanket_medium_cases := i.cases]
-wide[ons_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_blanket_medium_controls := i.controls]
 wide[ons_blanket_alloc[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_blanket_high_cases := i.cases]
 wide[ons_blanket_alloc[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_blanket_high_controls := i.controls]
+wide[ons_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_blanket_medium_cases := i.cases]
+wide[ons_blanket_alloc[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_blanket_medium_controls := i.controls]
+wide[ons_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_blanket_low_cases := i.cases]
+wide[ons_blanket_alloc[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_blanket_low_controls := i.controls]
 
 # Add in number of hypothetical 100K participants reclassified based on LDL and diabetes
 ons_intermed_treat <- rbind(idcol="strategy",
@@ -199,22 +199,22 @@ ons_intermed_treat <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/ONS_intermediate_risk_treat_alloc.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/ONS_intermediate_risk_treat_alloc.txt")
 )
-wide[ons_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_intermed_medium_cases := i.cases]
-wide[ons_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_intermed_medium_controls := i.controls]
 wide[ons_intermed_treat[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_intermed_high_cases := i.cases]
 wide[ons_intermed_treat[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_intermed_high_controls := i.controls]
+wide[ons_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_intermed_medium_cases := i.cases]
+wide[ons_intermed_treat[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_intermed_medium_controls := i.controls]
 
 # Add in number of hypothetical 100K participants reclassified in targeted assessment
 ons_targeted <- rbind(idcol="strategy",
   targeted = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening/ONS_targeted_biomarker_prs_risk_stratified.txt"),
   targeted_above_PRS = fread("analyses/public_health_modelling/UK_population_generalised/targeted_screening_above_PRS/ONS_targeted_biomarker_risk_stratified.txt")
 )
-wide[ons_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_targeted_low_cases := i.cases]
-wide[ons_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_targeted_low_controls := i.controls]
-wide[ons_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_targeted_medium_cases := i.cases]
-wide[ons_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_targeted_medium_controls := i.controls]
 wide[ons_targeted[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_targeted_high_cases := i.cases]
 wide[ons_targeted[risk_group == "high"], on = .(long_name, guidelines, strategy), ONS_targeted_high_controls := i.controls]
+wide[ons_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_targeted_medium_cases := i.cases]
+wide[ons_targeted[risk_group == "medium"], on = .(long_name, guidelines, strategy), ONS_targeted_medium_controls := i.controls]
+wide[ons_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_targeted_low_cases := i.cases]
+wide[ons_targeted[risk_group == "low"], on = .(long_name, guidelines, strategy), ONS_targeted_low_controls := i.controls]
 
 # Compute relevant public health statistics
 wide[, ONS_high_risk_cases := ONS_blanket_high_cases + ONS_intermed_high_cases + ifelse(!is.na(ONS_targeted_high_cases), ONS_targeted_high_cases, 0)]
