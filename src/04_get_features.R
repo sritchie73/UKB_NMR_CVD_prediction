@@ -1,4 +1,5 @@
 library(data.table)
+library(ukbnmr)
 library(foreach)
 library(survival)
 library(caret)
@@ -10,7 +11,7 @@ train <- fread("data/processed/training/processed_training_data.txt")
 
 # Load biomarker information sheets
 bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
-nmr_info <- fread("data/ukb/NMR_metabolomics/output/biomarker_information.txt")
+nmr_info <- ukbnmr::nmr_info
 
 # Load selected features in lasso
 active <- fread("analyses/train/cox_lasso_features.txt")

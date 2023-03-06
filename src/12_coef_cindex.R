@@ -1,4 +1,5 @@
 library(data.table)
+library(ukbnmr)
 library(foreach)
 library(survival)
 source("src/utils/cox_test.R")
@@ -6,7 +7,7 @@ source("src/utils/factor_by_size.R")
 
 # Load biomarker information sheets
 bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
-nmr_info <- fread("data/ukb/NMR_metabolomics/output/biomarker_information.txt")
+nmr_info <- ukbnmr::nmr_info
 
 # Load test dataset
 test <- fread("data/processed/test/processed_test_data.txt")

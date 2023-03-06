@@ -1,4 +1,5 @@
 library(data.table)
+library(ukbnmr)
 library(foreach)
 library(ggplot2)
 source("src/utils/logit.R")
@@ -14,7 +15,7 @@ train[, sbp := as.numeric(sbp)]
 
 # Load biomarker information sheets
 bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
-nmr_info <- fread("data/ukb/NMR_metabolomics/output/biomarker_information.txt")
+nmr_info <- ukbnmr::nmr_info
 
 # Examine distributions of continuous variables:
 cont <- c("CAD_metaGRS", "Stroke_metaGRS", "age", "sbp", "bmi", bio_info$var, nmr_info$Biomarker)
