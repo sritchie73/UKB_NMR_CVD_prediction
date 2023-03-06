@@ -119,11 +119,19 @@ dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)]
 update_sample_info("With EHR linkage")
 
 # Add in NMR data and filter to participants with that data
-nmr <- fread("data/ukb/NMR_metabolomics/output/nmr_techadj.txt")
-nmr <- nmr[visit_index == 0L] # baseline assessment only
-nmr[, visit_index := NULL]
+nmr <- fread("data/ukb/NMR_metabolomics/biomarker_measurements.txt")
+nmr <- nmr[visit == "Main Phase"] # baseline assessment only
+nmr[, visit := NULL]
+setnames(nmr, "eid_30418", "eid")
 dat <- dat[nmr, on = .(eid), nomatch=0]
 update_sample_info("With NMR data")
+
+# Add in NMR release phase
+nmr_sinfo <- fread("data/ukb/NMR_metabolomics/sample_information.txt")
+nmr_sinfo <- nmr_sinfo[visit == "Main Phase"]
+dat[nmr_sinfo, on = .(eid=eid_30418), NMR_release := fcase(
+  i.phase == 1, "Phase 1 public",
+  i.phase == 2, "Phase 2 pre-release")]
 
 # Add in (blood) biochemistry biomarker data
 bio <- fread("data/ukb/biomarkers/output/biomarkers.txt")
@@ -220,8 +228,8 @@ dat <- merge(dat, pcs, by="eid", all.x=TRUE)
 
 # Add PRSs
 PRSs <- rbind(idcol="PRS", fill=TRUE,
-  CAD_metaGRS = fread("data/ukb/PRS/CAD_metaGRS/CAD_metaGRS_PGS000018_b097e681_P7439_from_dosage.sscore.gz"),
-  Stroke_metaGRS = fread("data/ukb/PRS/Stroke_metaGRS/Stroke_metaGRS_PGS000039_6a7832a2_P7439_from_dosage.sscore.gz")
+  CAD_metaGRS = fread("data/ukb/PRS/CAD_metaGRS/CAD_metaGRS_PGS000018_7457de2d_UKBv3.sscore.gz"),
+  Stroke_metaGRS = fread("data/ukb/PRS/Stroke_metaGRS/Stroke_metaGRS_PGS000039_519864bc_UKBv3.sscore.gz")
 )
 PRSs <- dcast(PRSs, IID ~ PRS, value.var="score_sum")
 dat[PRSs, on = .(eid = IID), CAD_metaGRS := i.CAD_metaGRS]
@@ -271,26 +279,31 @@ update_sample_info("If filtering to PRS analysable", dat[!is.na(CAD_metaGRS)], d
 update_sample_info("If filtering to PRS analysable pruned for first-degree relatives", dat[!is.na(CAD_metaGRS) & !(kinship_remove)], dat)
 update_sample_info("If applying all extra filters", dat[!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)], dat)
 
-# Split into training and test data
+# With-hold phase 2 data for testing
+dat_p2 <- dat[NMR_release == "Phase 2 pre-release"]
+dat_p1 <- dat[NMR_release == "Phase 1 public"]
+
+# Split phase 1 data into training and test data
 # Balance split by case/control status, type, and sex. Any more factors
 # and the groups get too small to be meaningfully useful
-dat[, foldgrp := paste(incident_cvd, cvd_is_primary_cause, cvd_primarily_stroke, cvd_is_fatal, sex)]
-dat[, foldid := createFolds(foldgrp, k=2, list=FALSE)]
+dat_p1[, foldgrp := paste(incident_cvd, cvd_is_primary_cause, cvd_primarily_stroke, cvd_is_fatal, sex)]
+dat_p1[, foldid := createFolds(foldgrp, k=2, list=FALSE)]
 
-dat[, partition := ifelse(foldid == 1, "train", "test")]
+dat_p1[, partition := ifelse(foldid == 1, "train", "test")]
+dat_p1[, c("foldgrp", "foldid") := NULL]
+dat_p2[, partition := "test"]
 
-test <- dat[partition == "test"]
-train <- dat[partition == "train"]
+train <- dat_p1[partition == "train"]
+test <- rbind(dat_p1[partition == "test"], dat_p2)
+
+dat[dat_p1, on = .(eid), partition := i.partition]
+dat[dat_p2, on = .(eid), partition := i.partition]
 
 update_sample_info("Training data", train)
 sample_info[.N, c("exited", "exited_cases") := .(NA, NA)]
 update_sample_info("Test data", test)
 sample_info[.N, c("exited", "exited_cases") := .(NA, NA)]
 
-# Remove foldgrp columns
-train[, c("foldgrp", "foldid") := NULL]
-test[, c("foldgrp", "foldid") := NULL]
- 
 # Write out cleaned data
 fwrite(train, file="data/cleaned/training_data.txt")
 fwrite(test, file="data/cleaned/test_data.txt")
@@ -358,9 +371,9 @@ cohort_info <- dat[,.(
   PRS_no_relatives =  sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","), round(sum(!is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2)),
   All_filters_applied = sprintf("%s (%s%%)", format(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","),
                                              round(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2))
-), by=.(cohort=partition, sex)]
+), by=.(cohort=partition, NMR_release, sex)]
 
-cohort_info <- cohort_info[order(sex)][order(-cohort)]
+cohort_info <- cohort_info[order(sex)][order(NMR_release)][order(-cohort)]
 
 fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_sex.txt")
 
@@ -404,8 +417,8 @@ cohort_info <- dat[,.(
   PRS_no_relatives =  sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","), round(sum(!is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2)),
   All_filters_applied = sprintf("%s (%s%%)", format(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","),
                                              round(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2))
-), by=.(cohort=partition, case_status=ifelse(incident_cvd, "case", "control"))]
-cohort_info <- cohort_info[order(case_status)][order(-cohort)]
+), by=.(cohort=partition, NMR_release, case_status=ifelse(incident_cvd, "case", "control"))]
+cohort_info <- cohort_info[order(case_status)][order(NMR_release)][order(-cohort)]
 
 fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_case_status.txt")
 
