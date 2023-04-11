@@ -1,13 +1,10 @@
 # Endpoint curated to match the CEU's definition of incident CVD
 # and prevalent vascular disease. Incident disease follow-up is 
 # restricted to 10 years, as most risk prediction scores operate
-# on a 10-year time horizon, and truncated at 1st March 2020 to 
-# prevent potential confounding from COVID19, SARS-CoV2 exposure,
-# or environmental/behavioural changes due to lockdowns
+# on a 10-year time horizon.
 
 # Incident disease follow-up options
 Max follow years: 10 
-Max follow date: 2020-03-01
 
 # Incident CVD is incident CHD + Stroke:
 
