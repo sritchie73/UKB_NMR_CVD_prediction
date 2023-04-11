@@ -49,6 +49,7 @@ ggsave(g, width=plot_dim, height=plot_dim, units="in", file="data/processed/trai
 # information about the range of values present for each biomarker and any shifting/shrinking
 # applied
 var_info <- foreach(var = cont, .combine=rbind) %do% {
+  print(var)
   # This process only applies to biomarkers, we'll handle the other five manually
   if (var %in% c("CAD_metaGRS", "Stroke_metaGRS", "age", "bmi", "sbp")) {
     return(NULL)
@@ -58,7 +59,7 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
   values <- train[[var]]
 
   # Percentages are logit transformed whereas other biomarkers are log transformed
-  is_percentage <- var %in% nmr_info[Units == "%", Biomarker]
+  is_percentage <- var %in% c(nmr_info[Units == "%", Biomarker], bio_info[units == "%", var])
 
   # Get range of values for the biomarker, as well as the min/max values that are not 0 or 100% so we know 
   # what offset(s) need to be applied for log/logit transformation
@@ -107,12 +108,11 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
   lim[, missing := sum(is.na(values))]
   lim[, missing_pct := paste0(round(missing/length(values)*100, digits=1), "%")]
 
-  # Impute missing values as median (glmnet can't handle missing data) - but only do this 
-  # for people we aren't going to exclude for excess missingness
-  if (var %in% bio_info$var && !(var %in% c("tchol", "hdl", "ldl"))) {
-    values[is.na(values) & !(train$biochemistry_excess_miss)] <- lim$trans_median
+  # Impute missing values as median (glmnet can't handle missing data)
+  if (var %in% bio_info$var) {
+    values[is.na(values)] <- lim$trans_median
   } else if (var %in% nmr_info$Biomarker) {
-    values[is.na(values) & !(train$nmr_excess_miss)] <- lim$trans_median
+    values[is.na(values)] <- lim$trans_median
   }
 
   # Winsorize distribution at +/- 5SD
