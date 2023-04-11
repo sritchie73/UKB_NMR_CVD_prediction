@@ -18,34 +18,28 @@ active <- fread("analyses/train/cox_lasso_features.txt")
 
 # Collate information about each model
 models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
-  foreach(model_name = c("Conventional RF", "CRP", "NMR", "Assays", "NMR + Assays"), .combine=rbind) %:%
+  foreach(model_name = c("Conventional RF", "CRP", "NMR"), .combine=rbind) %:%
       foreach(this_lambda = c("lambda.min", "lambda.1se"), .combine=rbind) %do% {
 
         # Extract lasso model coefficients (if relevant)
-        mcf <- active[coef_type %in% c("NMR", "Assays") & lambda.fit == this_lambda]
+        mcf <- active[coef_type %in% "NMR" & lambda.fit == this_lambda]
         if (model_name == "NMR") {
           mcf <- active[coef_type == "NMR" & lambda.fit == this_lambda]
-        } else if (model_name == "Assays") { 
-          mcf <- active[coef_type == "Assays" & lambda.fit == this_lambda]
-        } else if (model_name == "NMR + Assays") {
-          mcf <- active[coef_type %in% c("NMR", "Assays") & lambda.fit == this_lambda]
         } else {
           mcf <- active[0]
         }
 
         # Build model formula
         mf <- "Surv(incident_followup, incident_cvd) ~ strata(sex) + age + sbp + diabetes + smoking + family_history_cvd"
-        if (!(model_name) %in% c("NMR", "NMR + Assays")) mf <- sprintf("%s + tchol + hdl", mf)
+        if (model_name != "NMR") mf <- sprintf("%s + tchol + hdl", mf)
         if (with_pgs) mf <- sprintf("%s + CAD_metaGRS + Stroke_metaGRS", mf)
         if (model_name == "CRP") mf <- mf <- sprintf("%s + crp", mf)
         if (nrow(mcf) > 0) mf <- sprintf("%s + %s", mf, paste(mcf[, coef], collapse=" + "))
 
         # Build long form model name
         n_bio <- mcf[,.N,by=coef_type]
-        if (model_name %in% c("NMR", "NMR + Assays") & n_bio[coef_type == "NMR", .N == 0]) {
+        if (model_name == "NMR" & n_bio[coef_type == "NMR", .N == 0]) {
           n_bio <- rbind(n_bio, data.table(coef_type = "NMR", N = 0))
-        } else if (model_name %in% c("Assays", "NMR + Assays") & n_bio[coef_type == "Assays", .N == 0]) {
-          n_bio <- rbind(n_bio, data.table(coef_type = "Assays", N = 0))
         }
         n_bio[, coef_type := factor(coef_type, levels=c("NMR", "Assays"))]
         n_bio <- n_bio[order(n_bio)]
@@ -68,7 +62,7 @@ models <- foreach(with_pgs = c(TRUE, FALSE), .combine=rbind) %:%
         # Return model information and formula
         data.table(endpoint = "CVD", PGS = with_pgs, lambda = this_lambda, name = model_name, long_name = long_name, formula = mf)
 }
-models[name %in% c("Conventional RF", "CRP", "GlycA"), lambda := NA]
+models[name %in% c("Conventional RF", "CRP"), lambda := NA]
 models <- unique(models)
 fwrite(models, sep="\t", quote=FALSE, file="analyses/train/cox_lasso_models.txt")
 
@@ -125,8 +119,7 @@ active[bio_info, on = .(var), platform := sprintf("%s method on %s instrument fr
 
 # Add in model information
 active[, model := fcase(
-  model == "nmr", "NMR",
-  model == "assays", "Assays"
+  model == "nmr", "NMR"
 )]
 active[models, on = .(lambda.fit=lambda, model=name), long_name := i.long_name]
 
