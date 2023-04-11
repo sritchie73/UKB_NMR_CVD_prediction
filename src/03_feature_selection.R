@@ -1,4 +1,5 @@
 library(data.table)
+library(ukbnmr)
 library(foreach)
 library(survival)
 library(caret)
@@ -20,13 +21,7 @@ train[, assessment_centre := factor_by_size(assessment_centre)]
 train[, earliest_hospital_nation := factor_by_size(earliest_hospital_nation)]
 train[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 
-# Split training data into 10-folds for elasticnet cross-validation
-# Balance split by case/control status, sex, prevalent diabetes, smoking status, recruitment centre, and nation
-##  train[, foldgrp := paste(incident_cvd, cvd_is_primary_cause, cvd_is_fatal, cvd_primarily_chd, cvd_primarily_stroke,
-##                         earliest_hospital_nation, latest_hospital_nation, assessment_centre, sex, diabetes, smoking, family_history_cvd,
-##                         is.na(CAD_metaGRS), genetic_white_british, nmr_excess_miss, biochemistry_excess_miss)]
-
-# Balance split by case/control status, type, and sex. Any more factors (e.g. like above)
+# Balance split by case/control status, type, and sex. Any more factors
 # and the groups get too small to be meaningfully useful
 train[, foldgrp := paste(incident_cvd, cvd_primarily_stroke, cvd_is_fatal, cvd_is_primary_cause, sex)]
 train[, foldid := createFolds(foldgrp, k=10, list=FALSE)]
@@ -34,7 +29,7 @@ fwrite(train[,.(eid, foldid)], sep="\t", file="analyses/train/training_folds.txt
 
 # Load biomarker information sheets
 bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
-nmr_info <- fread("data/ukb/NMR_metabolomics/output/biomarker_information.txt")
+nmr_info <- ukbnmr::nmr_info
 
 # Curate list of variables that define the different models
 conv_rf <- c("age", "sex", "sbp", "diabetes", "smoking", "family_history_cvd")
@@ -43,45 +38,26 @@ nmr <- nmr_info$Biomarker
 covariates <- c("assessment_centre", "earliest_hospital_nation", "latest_hospital_nation")
 clin_add <- setdiff(intersect(names(train), bio_info$var), c("tchol", "hdl", "ldl"))
 
-# We want to train two models with lasso regression:
-#
-# (1) Conventional risk factors + NMR biomarkers, allowing NMR to replace Total and HDL cholesterol
-# (2) Conventional risk factors + clinical chemistry biomarkers not measured on the NMR platform, so
-#     we can assess potential for improvement e.g. with mass-spec or proteomics technologies as they
-#     come down in cost.
-#
-active <- foreach(model = c("nmr", "assays"), .combine=rbind) %do% {
-    # Extract the samples who can be used for glmnet
-    if (model == "nmr") {
-      this_dat <- train[!(nmr_excess_miss)]
-    } else if (model == "assays") {
-      this_dat <- train[!(biochemistry_excess_miss) & !is.na(hdl) & !is.na(tchol)]
-    }
-
+# Train with lasso regression a model allowing NMR biomarkers to replace Total and HDL cholesterol
+# alongside conventional risk factors (which remain fixed in the model, i.e. always selected as 
+# important features)
+active <- foreach(model = "nmr", .combine=rbind) %do% {
     # Extract event
-    survdat <- this_dat[, .(incident_followup, incident_cvd)]
+    survdat <- train[, .(incident_followup, incident_cvd)]
     setnames(survdat, c("followup", "event"))
 
     # select predictor columns
-    if (model == "nmr") {
-      features <- c(covariates, conv_rf, nmr)
-    } else if (model == "assays") {
-      features <- c(covariates, conv_rf_lipids, clin_add)
-    }
-    inmat <- model.matrix(~ 0 + ., this_dat[, .SD, .SDcols=features])
+    features <- c(covariates, conv_rf, nmr)
+    inmat <- model.matrix(~ 0 + ., train[, .SD, .SDcols=features])
 
     # Create vector of penalties: 1 = apply elasticnet, 0 = always include
     penalties <- rep(1, ncol(inmat))
     names(penalties) <- colnames(inmat)
-    if (model == "nmr") {
-      penalties[apply(sapply(conv_rf, function(x) { names(penalties) %like% x }), 1, any)] <- 0 
-    } else if (model == "assays") {
-      penalties[apply(sapply(conv_rf_lipids, function(x) { names(penalties) %like% x }), 1, any)] <- 0
-    }
+    penalties[apply(sapply(conv_rf, function(x) { names(penalties) %like% x }), 1, any)] <- 0 
 
     # Fit cox regression lasso for feature selection
     cv.coxnet <- cv.glmnet(inmat, Surv(survdat$followup, survdat$event), family="cox",
-                           alpha = 1, penalty.factor = penalties, foldid = this_dat$foldid,
+                           alpha = 1, penalty.factor = penalties, foldid = train$foldid,
                            trace.it=1, parallel=TRUE, standardize=FALSE)
 
     # Plot
@@ -98,7 +74,6 @@ active <- foreach(model = c("nmr", "assays"), .combine=rbind) %do% {
       active <- active[beta != 0]
       active[, coef_type := fcase(
         coef %in% names(penalties[penalties == 0]), "conventional",
-        coef %in% clin_add, "Assays",
         coef %in% nmr, "NMR",
         default = "Dataset-specific covariate")]
       active <- cbind(data.table(endpoint = "CVD", samples = survdat[,.N], cases = survdat[, sum(event)], model = model, lambda.fit = ss), active)
