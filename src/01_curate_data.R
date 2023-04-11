@@ -19,6 +19,9 @@ dat <- dat[, .(eid, assessment_date, assessment_centre, age, age_decimal, sex, b
 withdrawals <- fread("data/ukb/latest_withdrawals/output/latest_withdrawals.txt")
 dat <- dat[!withdrawals, on = .(eid)]
 
+# Start building table of sample flowchart
+sample_info <- data.table(step="Baseline (excl. withdrawals)", samples=dat[,.N], CVD=NA_real_, exited=NA_real_, exited_cases=NA_real_)
+
 # Add in systolic blood pressure
 bp <- fread("data/ukb/blood_pressure/output/blood_pressure.txt")
 dat[bp[visit_index == 0], on = .(eid), sbp := i.sbp]
@@ -42,9 +45,6 @@ dat[famhist[visit_index == 0], on = .(eid), family_history_cvd := i.cardiovascul
 # Add in diabetes status
 diabetes <- fread("data/ukb/QDiabetes/output/qdiabetes.txt")
 dat[diabetes, on = .(eid), diabetes := i.prevalent_diabetes] # T2D, T1D, or uncertain
-
-# Start building table of sample flowchart
-sample_info <- data.table(step="Baseline (excl. withdrawals)", samples=dat[,.N], CVD=NA_real_, exited=NA_real_, exited_cases=NA_real_)
 
 # Add in prevalent vascular disease and incident CVD
 cvd <- fread("data/ukb/endpoints/endpoints/CEU_CVD_10year/events_and_followup.txt")
@@ -120,48 +120,24 @@ update_sample_info("With EHR linkage")
 
 # Add in NMR data and filter to participants with that data
 nmr <- fread("data/ukb/NMR_metabolomics/biomarker_measurements.txt")
-nmr <- nmr[visit == "Main Phase"] # baseline assessment only
-nmr[, visit := NULL]
-setnames(nmr, "eid_30418", "eid")
+nmr <- nmr[visit_index == 0] # baseline assessment only
+nmr[, visit_index := NULL]
 dat <- dat[nmr, on = .(eid), nomatch=0]
 update_sample_info("With NMR data")
 
 # Add in NMR release phase
-nmr_sinfo <- fread("data/ukb/NMR_metabolomics/sample_information.txt")
-nmr_sinfo <- nmr_sinfo[visit == "Main Phase"]
-dat[nmr_sinfo, on = .(eid=eid_30418), NMR_release := fcase(
+nmr_sinfo <- fread("data/ukb/NMR_metabolomics/sample_processing_information.txt")
+nmr_sinfo <- nmr_sinfo[visit_index == 0]
+nmr_sinfo[, phase := ifelse(Shipment.Batch %like% "Phase_2", 2, 1)]
+dat[nmr_sinfo, on = .(eid), NMR_release := fcase(
   i.phase == 1, "Phase 1 public",
   i.phase == 2, "Phase 2 pre-release")]
 
-# Add in (blood) biochemistry biomarker data
-bio <- fread("data/ukb/biomarkers/output/biomarkers.txt")
-bio <- bio[visit_index == 0L]
-bio[, visit_index := NULL]
-bio[, c("uriacc", "urianac", "uriamac", "uriakc") := NULL] # drop urine biomarkers
-dat <- merge(dat, bio, by="eid", all.x=TRUE)
-
-# Find people with no biochemistry data and flag
-dat[, no_biochemistry := FALSE]
-no_bio <- bio[apply(bio, 1, function(rr) { sum(is.na(rr)) == (ncol(bio)-1) })]
-dat[no_bio, on = .(eid), no_biochemistry := TRUE]
-
-# Filter to only the biochemistry biomarkers not present on the NMR platform
-# (keeping tchol, hdl, and ldl, which may be used in conventional risk factor analyses)
-dat[, c("trig", "apoa1", "apob", "glucose", "creat", "alb") := NULL]
-dat[, c("nonhdl", "apobapoa1") := NULL] # derived ratios of the above also on NMR
-dat[, c("fasting_glucose") := NULL] # derived, not relevant here
-dat[, c("hba1c_pct") := NULL] # using hba1c instead
-
-# Get information on sample missingness
-bio <- bio[, .SD, .SDcols=intersect(names(dat), names(bio))]
-bio[, c("tchol", "hdl", "ldl") := NULL] # not included in biomarker feature selection
-bio_miss <- apply(dat[,.SD,.SDcols=names(bio)[-1]], 1, function(rr) { sum(is.na(rr)) / (ncol(bio)-1) })
+# Get information on NMR data missingness
 nmr_miss <- apply(dat[,.SD,.SDcols=names(nmr)[-1]], 1, function(rr) { sum(is.na(rr)) / (ncol(nmr)-1) })
-miss <- dat[, .(eid, nmr_missingness=nmr_miss, biochemistry_missingness=bio_miss)]
-miss[dat[(no_biochemistry)], on = .(eid), biochemistry_missingness := NA]
+miss <- dat[, .(eid, nmr_missingness=nmr_miss)]
 
 ggdt <- rbind(
-  data.table(type="Clinical biochemistry", pct=miss$biochemistry_missingness),
   data.table(type="NMR metabolomics", pct=miss$nmr_missingness)
 )
 
@@ -171,55 +147,25 @@ g <- ggplot(ggdt, aes(x=pct, color=type)) +
   facet_wrap( ~ type, scales="free") +
   theme_bw() +
   theme(legend.position="bottom")
-ggsave(g, width=13, height=4, units="in", file="data/cleaned/sample_missingness.png")
+ggsave(g, width=6, height=4, units="in", file="data/cleaned/sample_missingness.png")
 
 # Flag samples with excess missingness
 dat[miss, on = .(eid), nmr_excess_miss := ifelse(nmr_missingness < 0.1, FALSE, TRUE)]
-dat[miss, on = .(eid), biochemistry_excess_miss := ifelse(biochemistry_missingness < 0.1, FALSE, TRUE)]
+dat <- dat[!(nmr_excess_miss)]
+update_sample_info("With <10% missing NMR data")
 
 # Drop people already at high risk for cardiovascular disease
 dat_cpy <- copy(dat) # for tracking sample and case exits aggregating multiple steps
-dat <- dat[!is.na(prevalent_vascular_disease)]
-update_sample_info("With known history for prevalent vascular disease")
-
-dat <- dat[!(prevalent_vascular_disease)]
+dat <- dat[!(prevalent_vascular_disease) | is.na(prevalent_vascular_disease)]
 update_sample_info("Without prevalent vascular disease")
 
-dat <- dat[!is.na(cholesterol_medication)]
-update_sample_info("With non-missing lipid lowering medication status")
-
-dat <- dat[!(cholesterol_medication)]
+dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)]
 update_sample_info("Not on lipid lowering medication")
 
-dat <- dat[!is.na(blood_pressure_medication)]
-update_sample_info("With non-missing blood pressure medication status")
-
-dat <- dat[!(blood_pressure_medication)]
+dat <- dat[!(blood_pressure_medication) | is.na(blood_pressure_medication)]
 update_sample_info("Not on blood pressure lowering medication")
 
 update_sample_info("Not had CVD or evaluated as having high risk of CVD", dat, dat_cpy)
-
-# Drop people missing conventional risk factors
-dat_cpy <- copy(dat)
-dat <- dat[!is.na(age)]
-update_sample_info("With known age")
-
-dat <- dat[!is.na(sex)]
-update_sample_info("With known sex")
-
-dat <- dat[!is.na(sbp)]
-update_sample_info("With known SBP")
-
-dat <- dat[!is.na(diabetes)]
-update_sample_info("With known diabetes status")
-
-dat <- dat[!is.na(smoking)]
-update_sample_info("With known smoking status")
-
-dat <- dat[!is.na(family_history_cvd)]
-update_sample_info("With known family history")
-
-update_sample_info("With non-missing anthropometric, demographic, and lifestyle risk factors", dat, dat_cpy)
 
 # Load and add PCs and add
 pcs <- fread("data/ukb/genetics/reference_files/ukb_sqc_v2.txt")
@@ -244,44 +190,73 @@ setnames(prs_training, "eid")
 dat[prs_training, on = .(eid), CAD_metaGRS := NA]
 dat[prs_training, on = .(eid), Stroke_metaGRS := NA]
 
-# Set PRS to missing for people not in white british ancestry subset
-dat[!(genetic_white_british), CAD_metaGRS := NA]
-dat[!(genetic_white_british), Stroke_metaGRS := NA]
-
 # Adjust PRS for PCs
 dat[!is.na(CAD_metaGRS), CAD_metaGRS := scale(lm(CAD_metaGRS ~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10)$residuals)]
 dat[!is.na(Stroke_metaGRS), Stroke_metaGRS := scale(lm(Stroke_metaGRS ~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10)$residuals)]
 
-# Flag first degree relatives (determined via genetics) in case we want to prune these
-# For each pair or first degree relatives, prioritise keeping the incident CVD case
-# (i.e. if one is a case, and one is a non-case)
-kinship <- fread("data/ukb/genetics/reference_files/kinship_relatedness.txt")
-kinship <- kinship[Kinship > 0.0884] # cutoff from KING manual http://people.virginia.edu/~wc9c/KING/manual.html
-kinship <- kinship[ID1 %in% dat$eid & ID2 %in% dat$eid]
-kinship[dat, on = .(ID1=eid), ID1_CVD := i.incident_cvd]
-kinship[dat, on = .(ID2=eid), ID2_CVD := i.incident_cvd]
-kinship[, to_drop := ifelse(ID1_CVD & !(ID2_CVD), "ID1", "ID2")]
-kinship[to_drop == "ID1", to_drop_eid := ID1]
-kinship[to_drop == "ID2", to_drop_eid := ID2]
+# Drop people who can't be jointly analysed with PRS
+dat_cpy <- copy(dat)
+dat <- dat[!is.na(PC1)]
+update_sample_info("With linked genotype information")
 
-dat[, kinship_remove := NA]
-dat[!is.na(PC1), kinship_remove := FALSE]
-dat[kinship, on = .(eid=to_drop_eid), kinship_remove := TRUE]
+dat <- dat[!is.na(CAD_metaGRS)]
+update_sample_info("Not used for PRS training")
+update_sample_info("Can be jointly analyzed with PRS", dat, dat_cpy)
 
-# Counterfactual sample information
-update_sample_info("If removing excess NMR missingness", dat[!(nmr_excess_miss)], dat)
-update_sample_info("If filtering to those with blood biochemistry assays", dat[!(no_biochemistry)], dat)
-update_sample_info("If removing excess biochemistry missingness", dat[!(no_biochemistry) & !(biochemistry_excess_miss)], dat)
-update_sample_info("If filtering to those with genetic data", dat[!is.na(PC1)], dat)
-update_sample_info("If pruning out first-degree relatives", dat[!(kinship_remove) & !is.na(PC1)], dat)
-update_sample_info("If filtering to white british genetics", dat[(genetic_white_british)], dat)
-update_sample_info("If filtering to PRS analysable", dat[!is.na(CAD_metaGRS)], dat)
-update_sample_info("If filtering to PRS analysable pruned for first-degree relatives", dat[!is.na(CAD_metaGRS) & !(kinship_remove)], dat)
-update_sample_info("If applying all extra filters", dat[!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)], dat)
+# Add in biochemistry biomarker data
+bio <- fread("data/ukb/biomarkers/output/biomarkers.txt")
+bio <- bio[visit_index == 0L]
+bio[, visit_index := NULL]
+dat <- merge(dat, bio, by="eid", all.x=TRUE)
+
+# Flag people missing blood biochemistry data
+bio_sinfo <- fread("data/ukb/biomarkers/output/samples_not_measured.txt")
+bio_sinfo <- bio_sinfo[visit_index == 0L]
+bio_sinfo[, visit_index := NULL]
+dat[, no_blood_sample := FALSE]
+dat[, no_urine_sample := FALSE]
+dat[bio_sinfo, on = .(eid), no_blood_sample := i.no_blood_sample]
+dat[bio_sinfo, on = .(eid), no_urine_sample := i.no_urine_sample]
+
+blood_bio <- setdiff(names(bio), c("eid", "uriacc", "urianac", "uriamac", "uriakc"))
+urine_bio <- setdiff(names(bio), c("eid", blood_bio))
+dat[, no_blood_biomarkers := apply(as.matrix(dat[,blood_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
+dat[, no_urine_biomarkers := apply(as.matrix(dat[,urine_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
+
+# Drop people missing quantitative conventional risk factors
+dat_cpy <- copy(dat)
+dat <- dat[!is.na(sbp)]
+update_sample_info("With known SBP")
+
+dat <- dat[!(no_blood_sample)]
+update_sample_info("With blood sample for biochemistry assays")
+
+dat <- dat[!(no_blood_biomarkers)]
+update_sample_info("With non-missing data for any blood biochemistry biomarkers")
+
+dat <- dat[!is.na(hdl)]
+update_sample_info("With known HDL cholesterol")
+
+dat <- dat[!is.na(tchol)]
+update_sample_info("With known total cholesterol")
+
+dat <- dat[!is.na(crp)]
+update_sample_info("With known CRP")
+
+update_sample_info("With non-missing quantitative clinical risk factors", dat, dat_cpy)
+
+# For survey-based clinical risk factors, set to FALSE those with missing data
+dat[is.na(smoking), smoking := FALSE]
+dat[is.na(family_history_cvd), family_history_cvd := FALSE]
 
 # With-hold phase 2 data for testing
 dat_p2 <- dat[NMR_release == "Phase 2 pre-release"]
 dat_p1 <- dat[NMR_release == "Phase 1 public"]
+
+update_sample_info("Phase 1 public release", dat_p1)
+sample_info[.N, c("exited", "exited_cases") := .(NA, NA)]
+update_sample_info("Phase 2 pre-release", dat_p2)
+sample_info[.N, c("exited", "exited_cases") := .(NA, NA)]
 
 # Split phase 1 data into training and test data
 # Balance split by case/control status, type, and sex. Any more factors
@@ -331,9 +306,10 @@ sample_info[, samples := ifelse(is.na(samples), NA_character_, format(samples, b
 # Write out sample information
 fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 
-# Tabulate cohort information by sex
+# Tabulate cohort information by CVD case status and phase 1 / phase 2 data release
 cohort_info <- dat[,.(
-  samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[partition == cohort, .N]*100, digits=1)),
+  samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[NMR_release == cohort, .N]*100, digits=1)),
+  men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=1)),
   age = sprintf("%s (%s)", round(median(age), digits=1), round(sd(age), digits=2)),
   BMI = sprintf("%s (%s)", round(median(na.omit(bmi)), digits=1), round(sd(na.omit(bmi)), digits=2)),
   SBP = sprintf("%s (%s)", round(median(sbp), digits=1), round(sd(sbp), digits=2)),
@@ -345,7 +321,6 @@ cohort_info <- dat[,.(
   CRP = sprintf("%s (%s)", round(median(crp, na.rm=TRUE), digits=2), round(sd(crp, na.rm=TRUE), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
-  CVD = sprintf("%s (%s%%)", format(sum(incident_cvd), big.mark=","), round(sum(incident_cvd)/.N*100, digits=2)),
   CVD_fatal = sprintf("%s (%s%%)", format(sum(cvd_is_fatal), big.mark=","), round(sum(cvd_is_fatal)/sum(incident_cvd)*100, digits=2)),
   primary_cause = sprintf("%s (%s%%)", format(sum(cvd_is_primary_cause), big.mark=","), round(sum(cvd_is_primary_cause)/sum(incident_cvd)*100, digits=2)),
   CHD = sprintf("%s (%s%%)", format(sum(cvd_primarily_chd), big.mark=","), round(sum(cvd_primarily_chd)/sum(incident_cvd)*100, digits=2)),
@@ -355,29 +330,16 @@ cohort_info <- dat[,.(
   Median_followup = sprintf("%s (%s)", round(median(incident_followup), digits=1), round(sd(incident_followup), digits=2)),
   Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_followup < 10), big.mark=","), round(sum(incident_followup < 10)/.N*100, digits=2)),
   Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_followup < 10)/.N*100, digits=2)),
-  Censored_pandemic = sprintf("%s (%s%%)", format(sum(incident_followup_date == "2020-03-01" & incident_followup < 10 & !all_cause_mortality), big.mark=","), 
-                                           round(sum(incident_followup_date == "2020-03-01" & incident_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
   Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality), big.mark=","), 
                                        round(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
   Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
-                                            round(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2)),
-  Excess_NMR_missing = sprintf("%s (%s%%)", format(sum(nmr_excess_miss), big.mark=","), round(sum(nmr_excess_miss)/.N*100, digits=2)),
-  No_biochemistry = sprintf("%s (%s%%)", format(sum(no_biochemistry), big.mark=","), round(sum(no_biochemistry)/.N*100, digits=2)),
-  Excess_biochem_missing = sprintf("%s (%s%%)", format(sum(biochemistry_excess_miss), big.mark=","), round(sum(biochemistry_excess_miss)/.N*100, digits=2)),
-  No_genetics = sprintf("%s (%s%%)", format(sum(is.na(PC1)), big.mark=","), round(sum(is.na(PC1))/.N*100, digits=2)),
-  First_degree_relatives = sprintf("%s (%s%%)", format(sum(kinship_remove, na.rm=TRUE), big.mark=","), round(sum(kinship_remove, na.rm=TRUE)/.N*100, digits=2)),
-  Genetic_White_British = sprintf("%s (%s%%)", format(sum(genetic_white_british, na.rm=TRUE), big.mark=","), round(sum(genetic_white_british, na.rm=TRUE)/.N*100, digits=2)),
-  PRS_analysable = sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS)), big.mark=","), round(sum(!is.na(CAD_metaGRS))/.N*100, digits=2)),
-  PRS_no_relatives =  sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","), round(sum(!is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2)),
-  All_filters_applied = sprintf("%s (%s%%)", format(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","),
-                                             round(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2))
-), by=.(cohort=partition, NMR_release, sex)]
+                                            round(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+), by=.(cohort=NMR_release, case_status=ifelse(incident_cvd, "case", "control"))]
+cohort_info <- cohort_info[order(case_status)][order(-cohort)]
 
-cohort_info <- cohort_info[order(sex)][order(NMR_release)][order(-cohort)]
+fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_case_status_and_NMR_release.txt")
 
-fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_sex.txt")
-
-# Also partition by CVD cases status
+# Tabulate cohort information by CVD case status and dataset split
 cohort_info <- dat[,.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[partition == cohort, .N]*100, digits=1)),
   men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=1)),
@@ -401,25 +363,44 @@ cohort_info <- dat[,.(
   Median_followup = sprintf("%s (%s)", round(median(incident_followup), digits=1), round(sd(incident_followup), digits=2)),
   Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_followup < 10), big.mark=","), round(sum(incident_followup < 10)/.N*100, digits=2)),
   Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_followup < 10)/.N*100, digits=2)),
-  Censored_pandemic = sprintf("%s (%s%%)", format(sum(incident_followup_date == "2020-03-01" & incident_followup < 10 & !all_cause_mortality), big.mark=","), 
-                                           round(sum(incident_followup_date == "2020-03-01" & incident_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
+  Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality), big.mark=","),
+                                       round(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
+  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
+                                            round(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+), by=.(cohort=partition, case_status=ifelse(incident_cvd, "case", "control"))]
+cohort_info <- cohort_info[order(case_status)][order(-cohort)]
+
+fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_case_status_and_dataset_split.txt")
+
+# Tabulate cohort information by CVD case status dateset split, and phase 1 / phase 2 data release
+cohort_info <- dat[,.(
+  samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[NMR_release == cohort2 & partition == cohort1, .N]*100, digits=1)),
+  men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=1)),
+  age = sprintf("%s (%s)", round(median(age), digits=1), round(sd(age), digits=2)),
+  BMI = sprintf("%s (%s)", round(median(na.omit(bmi)), digits=1), round(sd(na.omit(bmi)), digits=2)),
+  SBP = sprintf("%s (%s)", round(median(sbp), digits=1), round(sd(sbp), digits=2)),
+  diabetics = sprintf("%s (%s%%)", format(sum(diabetes), big.mark=","), round(sum(diabetes)/.N*100, digits=2)),
+  smokers = sprintf("%s (%s%%)", format(sum(smoking), big.mark=","), round(sum(smoking)/.N*100, digits=2)),
+  total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
+  hdl_cholesterol = sprintf("%s (%s)", round(median(hdl, na.rm=TRUE), digits=2), round(sd(hdl, na.rm=TRUE), digits=2)),
+  ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
+  CRP = sprintf("%s (%s)", round(median(crp, na.rm=TRUE), digits=2), round(sd(crp, na.rm=TRUE), digits=2)),
+  CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
+  Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
+  CVD_fatal = sprintf("%s (%s%%)", format(sum(cvd_is_fatal), big.mark=","), round(sum(cvd_is_fatal)/sum(incident_cvd)*100, digits=2)),
+  primary_cause = sprintf("%s (%s%%)", format(sum(cvd_is_primary_cause), big.mark=","), round(sum(cvd_is_primary_cause)/sum(incident_cvd)*100, digits=2)),
+  CHD = sprintf("%s (%s%%)", format(sum(cvd_primarily_chd), big.mark=","), round(sum(cvd_primarily_chd)/sum(incident_cvd)*100, digits=2)),
+  CHD_fatal = sprintf("%s (%s%%)", format(sum(cvd_primarily_chd & cvd_is_fatal), big.mark=","), round(sum(cvd_primarily_chd & cvd_is_fatal)/sum(cvd_primarily_chd)*100, digits=2)),
+  Stroke = sprintf("%s (%s%%)", format(sum(cvd_primarily_stroke), big.mark=","), round(sum(cvd_primarily_stroke)/sum(incident_cvd)*100, digits=2)),
+  Stroke_fatal = sprintf("%s (%s%%)", format(sum(cvd_primarily_stroke & cvd_is_fatal), big.mark=","), round(sum(cvd_primarily_stroke & cvd_is_fatal)/sum(cvd_primarily_stroke)*100, digits=2)),
+  Median_followup = sprintf("%s (%s)", round(median(incident_followup), digits=1), round(sd(incident_followup), digits=2)),
+  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_followup < 10), big.mark=","), round(sum(incident_followup < 10)/.N*100, digits=2)),
+  Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_followup < 10)/.N*100, digits=2)),
   Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality), big.mark=","), 
                                        round(sum(lost_to_followup != "" & incident_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
   Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
-                                            round(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2)),
-  Excess_NMR_missing = sprintf("%s (%s%%)", format(sum(nmr_excess_miss), big.mark=","), round(sum(nmr_excess_miss)/.N*100, digits=2)),
-  No_biochemistry = sprintf("%s (%s%%)", format(sum(no_biochemistry), big.mark=","), round(sum(no_biochemistry)/.N*100, digits=2)),
-  Excess_biochem_missing = sprintf("%s (%s%%)", format(sum(biochemistry_excess_miss), big.mark=","), round(sum(biochemistry_excess_miss)/.N*100, digits=2)),
-  No_genetics = sprintf("%s (%s%%)", format(sum(is.na(PC1)), big.mark=","), round(sum(is.na(PC1))/.N*100, digits=2)),
-  First_degree_relatives = sprintf("%s (%s%%)", format(sum(kinship_remove, na.rm=TRUE), big.mark=","), round(sum(kinship_remove, na.rm=TRUE)/.N*100, digits=2)),
-  Genetic_White_British = sprintf("%s (%s%%)", format(sum(genetic_white_british, na.rm=TRUE), big.mark=","), round(sum(genetic_white_british, na.rm=TRUE)/.N*100, digits=2)),
-  PRS_analysable = sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS)), big.mark=","), round(sum(!is.na(CAD_metaGRS))/.N*100, digits=2)),
-  PRS_no_relatives =  sprintf("%s (%s%%)", format(sum(!is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","), round(sum(!is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2)),
-  All_filters_applied = sprintf("%s (%s%%)", format(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove)), big.mark=","),
-                                             round(sum(!(nmr_excess_miss) & !(no_biochemistry) & !(biochemistry_excess_miss) & !is.na(CAD_metaGRS) & !(kinship_remove))/.N*100, digits=2))
-), by=.(cohort=partition, NMR_release, case_status=ifelse(incident_cvd, "case", "control"))]
-cohort_info <- cohort_info[order(case_status)][order(NMR_release)][order(-cohort)]
+                                            round(sum(latest_hospital_nation == "Wales" & incident_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+), by=.(cohort1=partition, cohort2=NMR_release, case_status=ifelse(incident_cvd, "case", "control"))]
+cohort_info <- cohort_info[order(case_status)][order(-cohort1)][order(cohort2)]
 
-fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_case_status.txt")
-
-
+fwrite(as.data.table(t(cohort_info), keep.rownames=TRUE), sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information_by_case_status_dataset_split_and_NMR_release.txt")
