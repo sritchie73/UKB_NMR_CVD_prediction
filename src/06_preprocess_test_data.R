@@ -10,6 +10,11 @@ system("mkdir -p data/processed/test")
 # Load test dataset
 test <- fread("data/cleaned/test_data.txt")
 
+# Flag complete data for selected biomarkers
+lasso_coef <- fread("analyses/train/lasso_coefficients.txt")
+selected_nmr <- lasso_coef[name == "NMR" & lambda == "lambda.min" & coef_type == "NMR Metabolomics", var]
+test[, complete_data := complete.cases(test[,.SD,.SDcols=selected_nmr])]
+
 # Convert SBP from integer to numeric
 test[, sbp := as.numeric(sbp)]
 
@@ -60,7 +65,7 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
   values <- test[[var]]
 
   # Percentages are logit transformed whereas other biomarkers are log transformed
-  is_percentage <- var %in% nmr_info[Units == "%", Biomarker]
+  is_percentage <- var %in% c(nmr_info[Units == "%", Biomarker], bio_info[units == "%", var])
 
   # Get range of values for the biomarker, as well as the min/max values that are not 0 or 100% so we know
   # what offset(s) need to be applied for log/logit transformation
