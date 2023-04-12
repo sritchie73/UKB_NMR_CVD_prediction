@@ -15,12 +15,11 @@ test[, assessment_centre := factor_by_size(assessment_centre)]
 test[, earliest_hospital_nation := factor_by_size(earliest_hospital_nation)]
 test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 
-# Remove people who were censored for non-CVD reasons prior to 10-years of
-# follow-up
-test <- test[(incident_cvd) | incident_followup == 10]
-
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
+
+# Filter to complete data so all model comparisons use the same samples
+test <- test[(complete_data)]
 
 # Wrapper function for continuous NRI test
 nri.test <- function(base_model, new_model) {
@@ -66,21 +65,11 @@ nri.test <- function(base_model, new_model) {
 
 # Run NRI analysis with 1000 bootstraps:
 nri_list <- list(
+  "Base to NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
   "Base to PGS" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Conventional RF", formula]),
   "Base to CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "CRP", formula]),
-  "Base to PGS + CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula]),
-  "Base to Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "Assays" & lambda == "lambda.1se", formula]),
-  "Base to NMR (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.1se", formula]),
-  "Base to NMR + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR + Assays" & lambda == "lambda.1se", formula]),
-  "Base to PGS + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Assays" & lambda == "lambda.1se", formula]),
-  "Base to PGS + NMR (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.1se", formula]),
-  "Base to PGS + NMR + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR + Assays" & lambda == "lambda.1se", formula]),
-  "Base to Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "Assays" & lambda == "lambda.min", formula]),
-  "Base to NMR (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
-  "Base to NMR + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR + Assays" & lambda == "lambda.min", formula]),
-  "Base to PGS + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Assays" & lambda == "lambda.min", formula]),
-  "Base to PGS + NMR (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
-  "Base to PGS + NMR + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR + Assays" & lambda == "lambda.min", formula])
+  "Base to PGS + NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
+  "Base to PGS + CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula])
 )
 
 saveRDS(nri_list, file="analyses/test/nri.rds")
@@ -93,7 +82,6 @@ nri_estimates <- rbindlist(idcol="model", fill=TRUE, lapply(nri_list, function(l
 # Add in feature selection lambda information
 nri_estimates[, lambda := fcase(
   model %like% "(min)", "Best model",
-  model %like% "(1se)", "Best model with fewest features",
   default = "No feature selection")]
 
 fwrite(nri_estimates, sep="\t", quote=FALSE, file="analyses/test/nri_estimates.txt")
