@@ -23,22 +23,13 @@ nri[, biomarkers := gsub(" \\(.*\\)", "", biomarkers)]
 nri[model_info[lambda == "lambda.min"], on = .(biomarkers=name), long_name := ifelse(lambda == "Best model", i.long_name, NA_character_)]
 nri[model_info[lambda == "lambda.1se"], on = .(biomarkers=name), long_name := ifelse(lambda == "Best model with fewest features", i.long_name, x.long_name)]
 nri[biomarkers == "PGS", long_name := "Conventional RF + PGS"]
-nri[biomarkers == "PGS + Assays" & lambda == "Best model",
-      long_name := model_info[lambda == "lambda.min" & (PGS) & name == "Assays", long_name]]
-nri[biomarkers == "PGS + Assays" & lambda == "Best model with fewest features",
-      long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "Assays", long_name]]
 nri[biomarkers == "PGS + NMR" & lambda == "Best model",
       long_name := model_info[lambda == "lambda.min" & (PGS) & name == "NMR", long_name]]
 nri[biomarkers == "PGS + NMR" & lambda == "Best model with fewest features",
       long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "NMR", long_name]]
-nri[biomarkers == "PGS + NMR + Assays" & lambda == "Best model",
-      long_name := model_info[lambda == "lambda.min" & (PGS) & name == "NMR + Assays", long_name]]
-nri[biomarkers == "PGS + NMR + Assays" & lambda == "Best model with fewest features",
-      long_name := model_info[lambda == "lambda.1se" & (PGS) & name == "NMR + Assays", long_name]]
 nri[biomarkers %like% "CRP", long_name := paste("Conventional RF +", biomarkers)]
 nri[, nri_group := ifelse(metric == "NRI+", "cases", "controls")]
-nri[, biomarkers := factor(biomarkers, levels=rev(c("CRP", "NMR", "Assays", "NMR + Assays",
-  "PGS", "PGS + CRP", "PGS + NMR", "PGS + Assays", "PGS + NMR + Assays")))]
+nri[, biomarkers := factor(biomarkers, levels=rev(c("CRP", "NMR", "PGS", "PGS + CRP", "PGS + NMR")))]
 nri[, lambda := factor(lambda, levels=rev(c("No feature selection", "Best model with fewest features", "Best model")))]
 nri <- nri[order(lambda)][order(biomarkers)]
 nri[, long_name := factor(long_name, levels=unique(long_name))]
@@ -51,7 +42,7 @@ g <- ggplot(cinds) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "Assays"=23, "NMR"=24, "NMR + Assays"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "NMR"=24)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="red", "Best model"="#00B050",
                      "Best model with fewest features"="#0070C0")) +
   labs(x = "C-index (95% confidence interval)", y = "") +
@@ -66,10 +57,7 @@ g <- ggplot(nri) +
   geom_errorbarh(height=0, position=position_dodge(width=0.6)) +
   geom_point(size=2, fill="white", position=position_dodge(width=0.6)) +
   facet_grid( ~ nri_group, scales="free") +
-  scale_shape_manual(name="Biomarkers", values=c(
-    "CRP"=23, "Assays"=23, "NMR"=24, "NMR + Assays"=22, "PGS"=17,
-    "PGS + CRP"=18, "PGS + Assays"=18, "PGS + NMR"=17, "PGS + NMR + Assays"=15
-  )) +
+  scale_shape_manual(name="Biomarkers", values=c("CRP"=23, "NMR"=24, "PGS"=17, "PGS + CRP"=18, "PGS + NMR"=17)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="red", "Best model"="#00B050",
                      "Best model with fewest features"="#0070C0")) +
   ylab("") + xlab("Continuous NRI, % reclassified (95% CI)") +
@@ -90,7 +78,7 @@ g <- ggplot(cinds) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_wrap(~ PGS, nrow=2, scales="free_y") +
-  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "Assays"=23, "NMR"=24, "NMR + Assays"=22)) +
+  scale_shape_manual(name="Biomarkers", values=c("Conventional RF"=17, "CRP"=23, "NMR"=24)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   scale_x_continuous(name="Change in C-index (95% confidence interval)", sec.axis=sec_axis(~ . + conv_rf_cind, name="C-index (95% confidence interval)")) +
   ylab("") +
@@ -105,10 +93,7 @@ g <- ggplot(nri) +
   geom_errorbarh(height=0) +
   geom_point(size=2, fill="white") +
   facet_grid(PGS ~ nri_group, scales="free") +
-  scale_shape_manual(name="Biomarkers", values=c(
-    "CRP"=23, "Assays"=23, "NMR"=24, "NMR + Assays"=22, "PGS"=17,
-    "PGS + CRP"=18, "PGS + Assays"=18, "PGS + NMR"=17, "PGS + NMR + Assays"=15
-  )) +
+  scale_shape_manual(name="Biomarkers", values=c("CRP"=23, "NMR"=24, "PGS"=17, "PGS + CRP"=18, "PGS + NMR"=17)) +
   scale_color_manual(name="Feature selection", values=c("No feature selection"="#d95f02", "Best model"="#7570b3")) +
   ylab("") + 
   xlab("Continuous NRI, % reclassified (95% CI)") +
