@@ -27,31 +27,32 @@ model_info <- fread("analyses/test/model_fit_information.txt")
 # Build information about sample exclusions required for analysis
 sample_info <- data.table(step="Test dataset", samples=test[,.N], exited=0)
 
+# Drop people without complete data for the 31 NMR bioamrkers
+test <- test[(complete_data)]
+sample_info <- rbind(sample_info, data.table(step="Complete data for 31 selected NMR biomarkers", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
+
 # Risk recalibration works on five year age groups:
-#
-#    age_group    N
-# 1:        40 4749
-# 2:        45 5784
-# 3:        50 6123
-# 4:        55 6627
-# 5:        60 7275
-# 6:        65 4273
-# 7:        70   98
-#
-# We'll drop people aged >= 70 to prevent this small group skewing the 
-# model fit for recalibration
 test[, age_group := age %/% 5 * 5]
 
+# Tabulation of numbers in each age group:
+#
+#    age_group     N
+# 1:        35     4
+# 2:        40 15191
+# 3:        45 18608
+# 4:        50 19579
+# 5:        55 20640
+# 6:        60 23537
+# 7:        65 14438
+# 8:        70   365
+#
+# We'll drop people aged >= 70 and < 40 to prevent the small group numbers from
+# skewing the model fit for recalibration
 test <- test[age >= 40]
 sample_info <- rbind(sample_info, data.table(step=">= 40 years of age", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
 
 test <- test[age < 70]
 sample_info <- rbind(sample_info, data.table(step="< 70 years of age", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
-
-# We also need to drop people censored before 10 years of follow-up for
-# non-CVD reasons
-test <- test[(incident_cvd) | incident_followup == 10]
-sample_info <- rbind(sample_info, data.table(step="Right censored before 10 years for non-CVD reasons", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
 
 # Write out sample information
 fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/public_health_modelling/sample_flowchart.txt")
