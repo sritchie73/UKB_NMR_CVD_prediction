@@ -81,7 +81,7 @@ nri_estimates <- rbindlist(idcol="model", fill=TRUE, lapply(nri_list, function(l
 
 # Add in feature selection lambda information
 nri_estimates[, lambda := fcase(
-  model %like% "(min)", "Best model",
+  model %like% "NMR", "Best model",
   default = "No feature selection")]
 
 fwrite(nri_estimates, sep="\t", quote=FALSE, file="analyses/test/nri_estimates.txt")
