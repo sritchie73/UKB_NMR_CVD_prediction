@@ -23,9 +23,9 @@ test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 # for pairwise comparisons after fitting Cox models in the subset of
 # samples with non-missing data for each pair of models being compared
 # in NRI analysis
+test <- test[(complete_data)]
 test[, age_group := age %/% 5 * 5]
 test <- test[age >= 40 & age < 70]
-test <- test[(incident_cvd) | incident_followup == 10]
 
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
@@ -87,19 +87,11 @@ nri.test <- function(base_model, new_model) {
 nri_list <- list(
   "Base to PGS" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Conventional RF", formula]),
   "Base to CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "CRP", formula]),
+  "Base to NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
   "Base to PGS + CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula]),
-  "Base to Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "Assays" & lambda == "lambda.1se", formula]),
-  "Base to NMR (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.1se", formula]),
-  "Base to NMR + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR + Assays" & lambda == "lambda.1se", formula]),
-  "Base to PGS + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Assays" & lambda == "lambda.1se", formula]),
-  "Base to PGS + NMR (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.1se", formula]),
-  "Base to PGS + NMR + Assays (1se)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR + Assays" & lambda == "lambda.1se", formula]),
-  "Base to Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "Assays" & lambda == "lambda.min", formula]),
-  "Base to NMR (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
-  "Base to NMR + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR + Assays" & lambda == "lambda.min", formula]),
-  "Base to PGS + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "Assays" & lambda == "lambda.min", formula]),
-  "Base to PGS + NMR (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
-  "Base to PGS + NMR + Assays (min)" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR + Assays" & lambda == "lambda.min", formula])
+  "Base to PGS + NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
+  "Base + PGS to CRP" = nri.test(model_info[(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula]),
+  "Base + PGS to NMR" = nri.test(model_info[(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula])
 )
 saveRDS(nri_list, file="analyses/public_health_modelling/net_reclassification/nri.rds")
 
@@ -130,13 +122,11 @@ setnames(reclassified, "Standard", "Old")
 
 # Add in feature selection lambda information
 nri_estimates[, lambda := fcase(
-  model %like% "(min)", "Best model",
-  model %like% "(1se)", "Best model with fewest features",
+  model %like% "NMR", "Best model",
   default = "No feature selection")]
 
 reclassified[, lambda := fcase(
-  model %like% "(min)", "Best model",
-  model %like% "(1se)", "Best model with fewest features",
+  model %like% "NMR", "Best model",
   default = "No feature selection")]
 
 # Add in total sample size and total cases to reclassified table
