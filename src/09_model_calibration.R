@@ -32,7 +32,7 @@ model_info <- fread("analyses/test/model_fit_information.txt")
 # Check model calibration
 for (midx in model_info[,.I]) {
   this_model <- model_info[midx]
-  ggdt <- calibration.fit(this_model$formula, test, 10)
+  ggdt <- calibration.fit(this_model$formula, test[(complete.data)], 10)
 
   g <- ggplot(ggdt) + 
     aes(x=obs.risk, xmin=obs.L95, xmax=obs.U95,
