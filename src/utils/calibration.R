@@ -13,13 +13,6 @@ calibration.fit <- function(formula, data, time, predicted_risk, byage=FALSE) {
   strata_terms <- depend_vars[depend_vars %like% "^strata\\("]
   strata_vars <- gsub("strata\\(", "", gsub("\\)", "", strata_terms))
 
-  # Drop censored individuals
-  non_censored <- copy(data)
-  setnames(non_censored, c(event_col, follow_col), c("event", "follow"))
-  non_censored <- non_censored[event == 1 | follow >= time]
-  setnames(non_censored, c("event", "follow"), c(event_col, follow_col))
-  data <- non_censored
-
   # Get predicted absolute risk
   if(missing(predicted_risk)) {
 		# Fit cox model
