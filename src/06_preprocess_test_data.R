@@ -79,9 +79,9 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
 
   # Determine offset for transformation
   lim[, log_offset := fcase(
-    !(is_percentage) & min == 0, non_zero_min / 2,  # right shift biomarkers with 0 values
     (is_percentage) & max == 100 & min > 0, (100 - non_100pct_max)/2*-1, # left shift % with 100% values
     (is_percentage) & max == 100 & min == 0, non_zero_min / 2, # right shift percentages with 0% and 100%
+    min == 0, non_zero_min / 2,  # right shift biomarkers with 0 values
     default = 0)]
 
   # When % have both 0% and 100%, we need to shrink the values slightly as well
