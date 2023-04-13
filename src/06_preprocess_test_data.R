@@ -15,6 +15,16 @@ lasso_coef <- fread("analyses/train/lasso_coefficients.txt")
 selected_nmr <- lasso_coef[name == "NMR" & lambda == "lambda.min" & coef_type == "NMR Metabolomics", var]
 test[, complete_data := complete.cases(test[,.SD,.SDcols=selected_nmr])]
 
+# Write out sample information
+sample_info <- data.table(
+  step=c("Test dataset", sprintf("Complete data for the %s selected NMR biomarkers", length(selected_nmr))),
+  samples=c(test[,.N], test[(complete_data), .N]),
+  cases=c(test[(incident_cvd), .N], test[(complete_data) & (incident_cvd), .N]),
+  exited=c(NA, test[,.N] - test[(complete_data), .N]),
+  exited_cases=c(NA, test[(incident_cvd), .N] - test[(complete_data) & (incident_cvd), .N])
+)
+fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/test/sample_flowchart.txt")
+
 # Convert SBP from integer to numeric
 test[, sbp := as.numeric(sbp)]
 
