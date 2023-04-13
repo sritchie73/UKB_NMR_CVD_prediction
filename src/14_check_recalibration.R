@@ -24,12 +24,11 @@ test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 # Load model information
 model_info <- fread("analyses/test/model_fit_information.txt")
 
-# Build information about sample exclusions required for analysis
-sample_info <- data.table(step="Test dataset", samples=test[,.N], exited=0)
+# Load sample flowchart so far
+sample_info <- fread("analyses/test/sample_flowchart.txt")
 
 # Drop people without complete data for the 31 NMR bioamrkers
 test <- test[(complete_data)]
-sample_info <- rbind(sample_info, data.table(step="Complete data for 31 selected NMR biomarkers", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
 
 # Risk recalibration works on five year age groups:
 test[, age_group := age %/% 5 * 5]
@@ -49,10 +48,12 @@ test[, age_group := age %/% 5 * 5]
 # We'll drop people aged >= 70 and < 40 to prevent the small group numbers from
 # skewing the model fit for recalibration
 test <- test[age >= 40]
-sample_info <- rbind(sample_info, data.table(step=">= 40 years of age", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
+sample_info <- rbind(sample_info, data.table(step=">= 40 years of age", samples=test[,.N], cases=test[(incident_cvd), .N], 
+  exited=sample_info[.N, samples] - test[,.N], exited_cases=sample_info[.N, cases] - test[(incident_cvd), .N]))
 
 test <- test[age < 70]
-sample_info <- rbind(sample_info, data.table(step="< 70 years of age", samples=test[,.N], exited=sample_info[.N, samples] - test[,.N]))
+sample_info <- rbind(sample_info, data.table(step="< 70 years of age", samples=test[,.N], cases=test[(incident_cvd), .N], 
+  exited=sample_info[.N, samples] - test[,.N], exited_cases=sample_info[.N, cases] - test[(incident_cvd), .N]))
 
 # Write out sample information
 fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/public_health_modelling/sample_flowchart.txt")
