@@ -25,17 +25,7 @@ ons_pop <- ons_pop[, .(N=sum(N)), by=.(sex, age_group)]
 
 # Standardise population to 100,000 individuals
 total <- ons_pop[,sum(N)]
-ons_pop[, N := N/total * 100000] 
-
-# Note, hypothetical number of samples, cases, controls, and those allocated
-# to risk strata are all fractional throughout - if rounded to whole numbers
-# numbers don't add up to totals due to imbalance of rounding up/rounding down 
-# across groups. Final numbers should only be rounded when preparing flowchart
-# or inline text numbers - note this rounding sometimes will result in 
-# samples/cases/controls being off by one when comparing different steps of the
-# flowchart - you will have to manually add or subtract cases/controls at the
-# relevant steps to harmonise numbers across all steps of the flowchart (i.e. 
-# doing this at the minimum number of steps to harmonize numbers)
+ons_pop[, N := round(N/total * 100000)]
 
 # Age- and sex-specific incidence rates (per 1000 person-years) of CVD
 # among CPRD participants (n=2.1 million) from the Appendix table of
@@ -72,7 +62,7 @@ CPRD <- melt(CPRD, id.vars="age_group_start", measure.vars=c("male_expected_risk
 CPRD[, sex := ifelse(variable %like% "^male", "Male", "Female")]
 
 # Estimate number of cases in ONS population
-ons_pop[CPRD, on = .(sex, age_group=age_group_start), cases := N * expected_risk]
+ons_pop[CPRD, on = .(sex, age_group=age_group_start), cases := round(N * expected_risk)]
 ons_pop[, controls := N - cases]
 
 # Summarise all to population totals
