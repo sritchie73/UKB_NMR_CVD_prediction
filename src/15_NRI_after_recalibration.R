@@ -89,9 +89,7 @@ nri_list <- list(
   "Base to CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "CRP", formula]),
   "Base to NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[!(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
   "Base to PGS + CRP" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula]),
-  "Base to PGS + NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula]),
-  "Base + PGS to CRP" = nri.test(model_info[(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "CRP", formula]),
-  "Base + PGS to NMR" = nri.test(model_info[(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula])
+  "Base to PGS + NMR" = nri.test(model_info[!(PGS) & name == "Conventional RF", formula], model_info[(PGS) & name == "NMR" & lambda == "lambda.min", formula])
 )
 saveRDS(nri_list, file="analyses/public_health_modelling/net_reclassification/nri.rds")
 
