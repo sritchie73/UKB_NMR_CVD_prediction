@@ -36,6 +36,10 @@ abs_risk[, risk_group := fcase(
 abs_risk[, risk_group2 := risk_group]
 abs_risk[risk_group == "medium" & (diabetes | ldl > 5), risk_group2 := "high"]
 
+# ----------------------------------------
+# generalise first step to ONS population
+# ----------------------------------------
+
 # Get total number of cases and controls in each age and sex group - this is the denominator when computing
 # % of cases and controls allocated to risk strata for a given model and thresholds
 grp_totals <- abs_risk[long_name == "Conventional RF",
@@ -194,7 +198,10 @@ ukb_abs_risk_summary2 <- ukb_abs_risk2[,
 fwrite(ukb_abs_risk2, sep="\t", quote=FALSE, file=sprintf("%s/UKB_screening_step_2_stratified_by_age_sex.txt", out_dir))
 fwrite(ukb_abs_risk_summary2, sep="\t", quote=FALSE, file=sprintf("%s/UKB_screening_step_2.txt", out_dir))
 
-# ----------------
+# ---------------------------------
+# Compute public health statistics
+# ---------------------------------
+
 # Compute number of cases treated and prevented using the flowchart for each set of models
 case_treat_prevent <- copy(models)
 case_treat_prevent[blanket_screening_summary[risk_group == "high"], on = .(name, PGS, long_name), step_1_treat := i.cases]
