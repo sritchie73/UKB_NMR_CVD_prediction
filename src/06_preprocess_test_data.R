@@ -113,12 +113,12 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
   }
 
   # Get a summary of the distribution after transformation
-  trans_summary <- as.data.table(as.list(summary(na.omit(values))))
+  trans_summary <- as.data.table(as.list(summary(values[is.finite(values)])))
   setnames(trans_summary, c("trans_min", "trans_L25", "trans_median", "trans_mean", "trans_U75", "trans_max"))
   lim <- cbind(lim, trans_summary)
 
   # Also get the standard deviation
-  lim[, trans_sd := sd(values, na.rm=TRUE)]
+  lim[, trans_sd := sd(is.finite(values), na.rm=TRUE)]
 
   # Get missingness
   lim[, missing := sum(is.na(values))]
