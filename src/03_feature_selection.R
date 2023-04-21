@@ -59,6 +59,9 @@ active <- foreach(model = "nmr", .combine=rbind) %do% {
     cv.coxnet <- cv.glmnet(inmat, Surv(survdat$followup, survdat$event), family="cox",
                            alpha = 1, penalty.factor = penalties, foldid = train$foldid,
                            trace.it=1, parallel=TRUE, standardize=FALSE)
+  
+    # Save
+    saveRDS(cv.coxnet, file=sprintf("analyses/train/cox_lasso_feature_selection_%s.rds", model))
 
     # Plot
     pdf(width=12, height=5, file=sprintf("analyses/train/cox_lasso_feature_selection_%s.pdf", model))
