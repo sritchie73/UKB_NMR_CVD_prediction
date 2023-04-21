@@ -118,7 +118,7 @@ var_info <- foreach(var = cont, .combine=rbind) %do% {
   lim <- cbind(lim, trans_summary)
 
   # Also get the standard deviation
-  lim[, trans_sd := sd(is.finite(values), na.rm=TRUE)]
+  lim[, trans_sd := sd(values[is.finite(values)])]
 
   # Get missingness
   lim[, missing := sum(is.na(values))]
