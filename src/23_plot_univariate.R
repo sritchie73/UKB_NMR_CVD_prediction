@@ -34,4 +34,34 @@ g <- ggplot(cind, aes(x=C.index, xmin=L95, xmax=U95, y=display_name)) +
 
 ggsave(g, width=2, height=28.8, file="analyses/test/univariate/cindex_compare.pdf")
 
+# Collate table
+cind[, type := factor(type, levels=c("demographics", "risk_factors", "PRS", "assays", "NMR"))]
+cind <- cind[order(type)]
+cind <- cind[name != "PRS"]
+cind <- rbind(cind[type != "assays" & type != "NMR"], cind[type == "assays" | type == "NMR"][order(-C.index)][order(type)])
+
+cind[, strata := ifelse(name %in% c("sex", "age"), "None", "Sex")]
+cind[, display_name := gsub("\\.2", "", display_name)]
+cind[, adjusted_for := fcase(
+  type == "demographics", "",
+  type == "risk_factors", "Age",
+  default = "Conventional risk factors")]
+cind[, reference_model := fcase(
+  type == "demographics", "",
+  type == "risk_factors", "Age + sex",
+  default = "Conventional risk factors")]
+
+hrs <- fread("analyses/test/univariate/hazard_ratios.txt")
+cind[hrs[name == var | name == "age+sex"], on = .(name), c("HR", "HR.L95", "HR.U95", "Pvalue") := .(i.HR, i.L95, i.U95, i.Pvalue)]
+
+cind <- cind[,.(group=type, strata, adjusted_for, variable=display_name, Samples, Cases, 
+  HR, HR.L95, HR.U95, Pvalue, C.index, L95, U95, reference_model, deltaC, deltaC.L95, deltaC.U95)]
+
+fwrite(cind, sep="\t", file="analyses/test/univariate/cind_compare.txt")
+
+
+  
+
+
+
 
