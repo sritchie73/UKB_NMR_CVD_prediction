@@ -1,4 +1,5 @@
 library(data.table)
+library(ggplot2)
 library(foreach)
 library(survival)
 source("src/utils/aki_absrisk.R")
@@ -142,12 +143,14 @@ for (midx in model_info[,.I]) {
     geom_point(shape = 19, position=position_dodge(width=0.4)) +
     scale_color_manual(name="", values=c("Observed risk"="#fdbf6f", "Predicted risk"="#fb9a99", "Recalibrated risk"="#e31a1c", "CPRD incidence"="black")) +
     xlab("5 year age group") +
-    ylab("10-year risk (95% CI)") +
-    facet_wrap(~ sex, scales="free") +
+    scale_y_continuous("10-year risk (95% CI)", limits=c(0, 0.45), oob=scales::oob_keep) +
+    facet_wrap(~ sex) +
     theme_bw() + theme(legend.position="bottom")
 
   ggsave(g, width=8, height=4, file=sprintf("analyses/public_health_modelling/risk_recalibration/%s%s%s.pdf",
     gsub(" \\+? ?", "_", this_model$name), ifelse(this_model$PGS, "_with_PGS", ""),
     ifelse(this_model$lambda == "", "", paste0("_", this_model$lambda))))
 }
+
+
 
