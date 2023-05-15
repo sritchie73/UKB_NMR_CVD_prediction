@@ -28,7 +28,7 @@ test[, latest_hospital_nation := factor_by_size(latest_hospital_nation)]
 models <- fread("analyses/train/cox_lasso_models.txt")
 
 # Fit cox proportional hazards models using selected features
-cox_list <- lapply(models$formula, cox.test, "incident_cvd", test[(complete_data)])
+cox_list <- lapply(models$formula, cox.test, "incident_cvd", test[(complete_data)], "foldid")
 
 # Extract hazard ratios
 hrs <- rbindlist(lapply(cox_list, `[[`, 1), idcol="model_idx")

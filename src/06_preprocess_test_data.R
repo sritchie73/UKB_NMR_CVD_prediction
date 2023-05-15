@@ -2,6 +2,7 @@ library(data.table)
 library(ukbnmr)
 library(foreach)
 library(ggplot2)
+library(caret)
 source("src/utils/logit.R")
 
 # Create output directory
@@ -14,6 +15,14 @@ test <- fread("data/cleaned/test_data.txt")
 lasso_coef <- fread("analyses/train/lasso_coefficients.txt")
 selected_nmr <- lasso_coef[name == "NMR" & lambda == "lambda.min" & coef_type == "NMR Metabolomics", var]
 test[, complete_data := complete.cases(test[,.SD,.SDcols=selected_nmr])]
+
+# Flag people between 40-70 suitable for risk recalibration
+test[, age_range_ok := age >= 40 & age < 70]
+
+# Split into cross-validation folds
+test[(complete_data), foldgrp := paste(incident_cvd, cvd_primarily_stroke, cvd_is_fatal, cvd_is_primary_cause, sex, age_range_ok)]
+test[(complete_data), foldid := createFolds(foldgrp, k=10, list=FALSE)]
+test[, foldgrp := NULL]
 
 # Write out sample information
 sample_info <- data.table(
