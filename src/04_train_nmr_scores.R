@@ -3,6 +3,7 @@ library(foreach)
 library(survival)
 library(glmnet)
 registerDoMC(10) # recommend requesting more cores than this in sbatch for memory reasons
+source("src/utils/SCORE2.R")
 
 # Setup array task information
 tasklist <- expand.grid(prediction_cv_testfold = 0:4, endpoint = c("CHD", "Stroke"), sex=c("Male", "Female"))
@@ -18,17 +19,24 @@ message(sprintf("Training NMR score for %s in %ss in prediction test fold %s\n",
 # Load imputed data
 dat <- fread("data/imputed/analysis_cohort.txt")
 
-# set up factor column for smoking
-dat[, smoking := factor(smoking, levels=c(FALSE, TRUE))]
+# Compute SCORE2 linear predictor to be held constant in model training
+dat[, SCORE2_LP := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
+
+# Extract columns required for model training
+dat <- dat[, .(eid, prediction_cv_foldid, elasticnet_cv_foldid, sex, age, SCORE2_LP,
+  incident_followup, incident_cvd, cvd_primarily_chd, cvd_primarily_stroke)] 
+
+# Convert age into 5-year age group centered at 60 years to match SCORE2 interaction terms
+dat[, age := (age - 60)/5]
+
+# Add in standardized NMR biomarker terms
+nmr_scaled <- fread("data/standardised/non_derived_nmr.txt")
+dat <- dat[nmr_scaled, on = .(eid)]
 
 # Set up model matrix formula
-mf <- as.formula(sprintf("~ %s + %s", 
-  "age*smoking + age*sbp + age*tchol + age*hdl", # SCORE2 formula
+mf <- as.formula(sprintf("~ 0 + offset(SCORE2_LP) + %s", 
   paste(sprintf("age*%s", ukbnmr::nmr_info[Type == "Non-derived", Biomarker]), collapse=" + ")
 ))
-
-# Set up SCORE2 terms we want to not apply the lasso penalty to
-score2_terms <- c("age", "smokingTRUE", "sbp", "tchol", "hdl", "age:smokingTRUE", "age:sbp", "age:tchol", "age:hdl")
 
 # Make output directory
 out_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
@@ -47,11 +55,6 @@ if (this_endpoint == "CHD") {
 # Create model matrix of predictor terms
 inmat <- model.matrix(mf, this_dat)
 
-# Create vector of penalties: 1 = apply elasticnet, 0 = always include
-penalties <- rep(1, ncol(inmat))
-names(penalties) <- colnames(inmat)
-penalties[match(score2_terms, colnames(inmat))] <- 0
-
 # Setup list of alpha mixing parameters to search across (controls balance of ridge vs. lasso)
 alphas <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1) # 0 = ridge, 1 = lasso
 
@@ -59,9 +62,9 @@ alphas <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1) # 0 = ridge, 1 = lasso
 cv.coxnet.list <- foreach(this_alpha = alphas, .inorder=TRUE) %do% {
   # Fit elastinet in 10-fold cross-validation with the given alpha penalty
   cv.coxnet <- cv.glmnet(inmat, Surv(survdat$followup, survdat$event), family="cox",
-                         alpha = this_alpha, penalty.factor = penalties, 
+                         alpha = this_alpha, offset=this_dat$SCORE2_LP,
                          foldid = this_dat$elasticnet_cv_foldid + 1, # Errors where foldid = 0
-                         trace.it=1, parallel=TRUE)
+                         trace.it=1, parallel=TRUE, standardize=FALSE)
 
   # Plot
   pdf(width=7.2, height=5, file=sprintf("%s/glmnet_alpha_%s.pdf", out_dir, this_alpha))
