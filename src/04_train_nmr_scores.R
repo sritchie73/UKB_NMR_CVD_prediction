@@ -33,11 +33,6 @@ dat[, age := (age - 60)/5]
 nmr_scaled <- fread("data/standardised/non_derived_nmr.txt")
 dat <- dat[nmr_scaled, on = .(eid)]
 
-# Set up model matrix formula
-mf <- as.formula(sprintf("~ 0 + offset(SCORE2_LP) + %s", 
-  paste(sprintf("age*%s", ukbnmr::nmr_info[Type == "Non-derived", Biomarker]), collapse=" + ")
-))
-
 # Make output directory
 out_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
 system(sprintf("mkdir -p %s", out_dir))
@@ -52,8 +47,17 @@ if (this_endpoint == "CHD") {
   survdat <- this_dat[,.(followup=incident_followup, event=cvd_primarily_stroke)]
 }
 
+# Set up model matrix formula
+mf <- as.formula(sprintf("~0 + %s", 
+  paste(sprintf("age*%s", ukbnmr::nmr_info[Type == "Non-derived", Biomarker]), collapse=" + ")
+))
+
 # Create model matrix of predictor terms
 inmat <- model.matrix(mf, this_dat)
+
+# Drop the age column created by the model matrix (due to the age interactions) -
+# age is captured in the SCORE2 linear predictor offset
+inmat <- inmat[, -which(colnames(inmat) == "age")]
 
 # Setup list of alpha mixing parameters to search across (controls balance of ridge vs. lasso)
 alphas <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1) # 0 = ridge, 1 = lasso
@@ -118,7 +122,6 @@ active_coef <- foreach(mIdx = bestbestfit[,.I], .combine=rbind) %do% {
   active <- as.data.table(active, keep.rownames=TRUE)
   setnames(active, c("coef", "beta"))
   active <- active[beta != 0]
-  active[, coef_type := ifelse(coef %in% score2_terms, "SCORE2", "NMR")]
   active <- cbind(model_info, alpha=this_alpha, lambda=this_lambda, lambda.fit=this_lambda_type, active)
   return(active)
 }
