@@ -6,7 +6,7 @@ registerDoMC(10) # recommend requesting more cores than this in sbatch for memor
 source("src/utils/SCORE2.R")
 
 # Setup array task information
-tasklist <- expand.grid(prediction_cv_testfold = 0:4, endpoint = c("CHD", "Stroke"), sex=c("Male", "Female"))
+tasklist <- expand.grid(prediction_cv_testfold = 0:4, endpoint = c("CHD", "Stroke"), sex=c("Male", "Female")) # 20 tasks
 setDT(tasklist)
 this_task <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 this_task <- tasklist[this_task]
