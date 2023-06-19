@@ -102,7 +102,7 @@ score2_absrisk <- function(sex, linear_predictor) {
 # recalibrate absolute risk to different European risk regions using SCORE2 paper scaling factors as
 # detailed in Supplementary Methods Table 3 (scaling factors) and Supplementary Methods Table 4 
 # (their application)
-score2_recalibration <- function(sex, absrisk, risk_region) {
+score2_recalibration <- function(sex, absrisk, risk_region="low") {
   stopifnot(all(sex %in% c("Male", "Female")))
   stopifnot(length(sex) == length(absrisk))
   risk_region <- match.arg(risk_region, c("low", "medium", "high", "very high"))
