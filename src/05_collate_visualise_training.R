@@ -46,7 +46,14 @@ bestcoef <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
   }
 }
 
-#c Write out collated stats
+# add sample sizes and case numbers
+minfo <- bestcoef[,.(prediction_cv_testfold, endpoint, sex, samples, cases)]
+minfo <- unique(minfo)
+fitdt <- minfo[fitdt, on = .(prediction_cv_testfold, endpoint, sex)]
+bestfit <- minfo[bestfit, on = .(prediction_cv_testfold, endpoint, sex)]
+bestbestfit <- minfo[bestbestfit, on = .(prediction_cv_testfold, endpoint, sex)]
+
+# Write out collated stats
 fwrite(fitdt, sep="\t", quote=FALSE, file="analyses/nmr_score_training/all_elasticnet_fits.txt")
 fwrite(bestfit, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits_per_alpha.txt")
 fwrite(bestbestfit, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits.txt")
