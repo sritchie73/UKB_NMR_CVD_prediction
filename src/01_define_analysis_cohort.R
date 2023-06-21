@@ -350,9 +350,9 @@ sample_info[, exited_stroke := ifelse(
 ))]
 
 sample_info[, exited := ifelse(
-  is.na(samples), NA_character_,
-  ifelse(samples == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(samples, big.mark=","), round(exited/(exited + samples)*100, digits=2))
+  is.na(exited), NA_character_,
+  ifelse(exited == 0L, "0 (-%)",
+  sprintf("%s (%s%%)", format(exited, big.mark=","), round(exited/(exited + samples)*100, digits=2))
 ))]
 
 sample_info[, CVD := ifelse(
@@ -382,7 +382,7 @@ fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 # We will later split each 4/5ths of the data into 10-folds for elasticnet cross-validation, balancing by CHD or 
 # Stroke case status.
 dat[, foldgrp := paste(incident_cvd, sex)]
-dat[, prediction_cv_foldid := createFolds(foldgrp, k=5, list=FALSE) - 1]
+dat[, prediction_cv_foldid := createFolds(foldgrp, k=5, list=FALSE)]
 dat[, foldgrp := NULL]
 
 # Write out analysis cohort
