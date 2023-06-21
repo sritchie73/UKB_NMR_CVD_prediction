@@ -4,7 +4,7 @@ library(ggplot2)
 library(ggh4x)
 
 # Load fits for all parameters
-fitdt <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
+fitdt <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
@@ -15,7 +15,7 @@ fitdt <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
 }
 
 # Load best fit per alpha
-bestfit <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
+bestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
@@ -26,7 +26,7 @@ bestfit <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
 }
 
 # Load optimal fit per trait, sex, and test-fold
-bestbestfit <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
+bestbestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
@@ -37,7 +37,7 @@ bestbestfit <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
 }
 
 # Load in non-zero coefficients
-bestcoef <- foreach(this_test_fold = 0:4, .combine=rbind) %do% {
+bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
@@ -60,7 +60,7 @@ fwrite(bestbestfit, sep="\t", quote=FALSE, file="analyses/nmr_score_training/bes
 fwrite(bestcoef, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits_coef.txt")
 
 # For each training independent 5-fold training, plot the model fits
-for (this_test_fold in 0:4) {
+for (this_test_fold in 1:5) {
   this_fitdt <- fitdt[prediction_cv_testfold == this_test_fold]
   this_bestfit <- bestfit[prediction_cv_testfold == this_test_fold]
   this_bestbestfit <- bestbestfit[prediction_cv_testfold == this_test_fold]
