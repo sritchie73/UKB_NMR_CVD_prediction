@@ -4,10 +4,11 @@
 ########################################################################################
 
 # Set the R package location directory to one with the R packages pre-installed.
-srcDir = "/rds/project/asb38/rds-asb38-ceu-ukbiobank/projects/P7439/inouyelab/share_space/curated_ukb_data/endpoints/"
+srcDir = "/rds/project/asb38/rds-asb38-ceu-ukbiobank/projects/P30418/curated_phenotypes/endpoints/"
 SoftwareDir = sprintf("%s/software_dependencies/", srcDir)
 RpackageDir = sprintf("%s/Rpackages/", SoftwareDir)
 RpackageDir = sprintf("%s/%s.%s/", RpackageDir, R.version$major, gsub("\\..*", "", R.version$minor))
+if (Sys.getenv("SLURM_JOB_PARTITION") %in% c("icelake", "icelake-himem")) RpackageDir = gsub("/$", "-icelake/", RpackageDir)
 .libPaths(RpackageDir)
 
 suppressMessages(library("data.table"))
@@ -116,6 +117,11 @@ valid_options <- c(
   "max follow years", "max follow date", "max follow age",
   "min follow years", "min follow date", "min follow age", "incident only where not prevalent"
 )
+
+valid_opcs3 <- c(valid_opcs3, paste("excluding", valid_opcs3))
+valid_opcs4 <- c(valid_opcs4, paste("excluding", valid_opcs4))
+valid_icd9 <- c(valid_icd9, paste("excluding", valid_icd9))
+valid_icd10 <- c(valid_icd10, paste("excluding", valid_icd10))
 
 valid <- c(valid_self_report, valid_opcs3, valid_opcs4, valid_icd9, valid_icd10, valid_options)
 
@@ -282,6 +288,15 @@ deaths <- deaths[
   cause_icd10 %starts_with% opts[["fatal incident icd-10 primary cause only"]] & (primary_cause)
 ]
 
+# Drop any exclusions
+deaths <- deaths[!(
+  cause_icd10 %starts_with% opts[["excluding icd-10"]] |
+  cause_icd10 %starts_with% opts[["excluding incident icd-10"]] |
+  cause_icd10 %starts_with% opts[["excluding incident icd-10 primary cause only"]] & (primary_cause) |
+  cause_icd10 %starts_with% opts[["excluding fatal incident icd-10"]] |
+  cause_icd10 %starts_with% opts[["excluding fatal incident icd-10 primary cause only"]] & (primary_cause)
+)]
+
 # Duplicate across UK Biobank visits so we can combine data later
 deaths <- deaths[follow[,.(eid, visit_index)], on = .(eid), nomatch=0]
 
@@ -333,6 +348,33 @@ inci_hes <- inci_hes[
   code_type == "OPCS-4" & code %starts_with% opts[["non-fatal incident opcs-4"]] & !(fatality_in_episode) |
   code_type == "OPCS-4" & code %starts_with% opts[["non-fatal incident opcs-4 primary cause only"]] & cause_type == "primary" & !(fatality_in_episode)
 ]
+
+# Remove any exclusions
+prev_hes <- prev_hes[!(
+  code_type == "ICD-9" & code %starts_with% opts[["excluding prevalent icd-9"]] |
+  code_type == "ICD-9" & code %starts_with% opts[["excluding prevalent icd-9 primary cause only"]] & cause_type == "primary" |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding icd-10"]] |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding prevalent icd-10"]] |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding prevalent icd-10 primary cause only"]] & cause_type == "primary" |
+  code_type == "OPCS-3" & code %starts_with% opts[["excluding prevalent opcs-3"]] |
+  code_type == "OPCS-3" & code %starts_with% opts[["excluding prevalent opcs-3 primary cause only"]] & cause_type == "primary" |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding opcs-4"]] |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding prevalent opcs-4"]] |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding prevalent opcs-4 primary cause only"]] & cause_type == "primary" 
+)]
+
+inci_hes <- inci_hes[!(
+  code_type == "ICD-10" & code %starts_with% opts[["excluding icd-10"]] |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding incident icd-10"]] |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding incident icd-10 primary cause only"]] & cause_type == "primary" |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding non-fatal incident icd-10"]] & !(fatality_in_episode) |
+  code_type == "ICD-10" & code %starts_with% opts[["excluding non-fatal incident icd-10 primary cause only"]] & cause_type == "primary" & !(fatality_in_episode) |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding opcs-4"]] |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding incident opcs-4"]] |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding incident opcs-4 primary cause only"]] & cause_type == "primary" |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding non-fatal incident opcs-4"]] & !(fatality_in_episode) |
+  code_type == "OPCS-4" & code %starts_with% opts[["excluding non-fatal incident opcs-4 primary cause only"]] & cause_type == "primary" & !(fatality_in_episode)
+)]
 
 # Remove big hes table to free up memory
 rm(hes)
