@@ -1,0 +1,5 @@
+Max follow years: 10 
+
+Incident ICD-10: I21, I22            # Myocardial infarction
+Fatal incident ICD-10: I21-I25       # Fatal CHD
+

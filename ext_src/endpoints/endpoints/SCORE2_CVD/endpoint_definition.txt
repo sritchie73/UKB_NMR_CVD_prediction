@@ -1,0 +1,31 @@
+Max follow years: 10 
+
+
+# As defined in Supplementary Table 5 of:
+# SCORE2 working group and ESC Cardiovascular risk collaboration (2021). SCORE2 risk 
+# prediction algorithms: new models to estimate 10-year risk of cardiovascular disease 
+# in Europe. Eur. Heart J. 42, 2439–2454.i
+
+Fatal incident ICD-10: I10-I16 # Fatal hypertensive disease
+Fatal incident ICD-10: I20-I25 # Fatal ischeamic heart disease
+Fatal incident ICD-10: I46-I52 # Fatal arrhythmias, heart failure
+Fatal incident ICD-10: I60-I69 # Fatal cerebrovascular disases
+Fatal incident ICD-10: I70-I73 # Fatal atherosclerosis/AAA
+Fatal incident ICD-10: R96     # Sudden death and death within 24h of symptom onset
+
+Excluding fatal incident ICD-10: I54.1 # Myocarditis, unspecified
+Excluding fatal incident ICD-10: I60   # Subarachnoid haemorrhage
+Excluding fatal incident ICD-10: I62   # Subdural haemorrhage  
+Excluding fatal incident ICD-10: I67.1 # Cerebral aneurysm
+Excluding fatal incident ICD-10: I68.2 # Cerebral arteritis
+Excluding fatal incident ICD-10: I67.5 # Moyamoya
+
+Non-fatal incident ICD-10: I21-I23 # Non-fatal myocardial infarction
+Non-fatal incident ICD-10: I60-I69 # Non-fatal stroke
+
+Excluding non-fatal incident ICD-10: I60   # Subarachnoid haemorrhage
+Excluding non-fatal incident ICD-10: I62   # Subdural haemorrhage  
+Excluding non-fatal incident ICD-10: I67.1 # Cerebral aneurysm
+Excluding non-fatal incident ICD-10: I68.2 # Cerebral arteritis
+Excluding non-fatal incident ICD-10: I67.5 # Moyamoya
+

@@ -90,6 +90,15 @@ codes I20-I25 or non-fatal event with codes I21 or I22. Note that in this defini
 I22 contribute to disease cases, even though we specify I20-I25 for fatal events, i.e. the listed options do not 
 override each other.
 
+Each of the above options can also be modified with the "Excluding" keyword, enabling one to exclude certain ICD codes,
+making it easier to define endpoints which don't cover full ranges:
+
+Incident ICD-10: I60-169                        # Range includes all stroke events plus some extras
+Excluding incident ICD-10: 167.1, 167.5, 168.2  # Exclude these event codes (and subcodes therein) from the above range
+
+The excluding keyword can be applied to all options for ICD-10, ICD-9, OPCS-3, and OPCS-4 codes, but not self-report
+fields.
+
 The definition file can also include comments starting with `#` which are ignored but can be useful documentation for 
 later viewing of definition files.
 
@@ -357,17 +366,20 @@ Prevalent disease case information:
                                      December 2020 data release, records go back to 27th July 1993 for hospitals in 
                                      England, 2nd December 1980 for hospitals in Scotland, and 18th April 1991 for 
                                      hospitals in Wales. Here, the date reflects the earliest possible date based on 
-                                     the historical most likely nation of residence, stored in
-                                     'earliest_hospital_nation'. See 'data/curated/ukbiobank/followup/README.txt' for 
-                                     additional details. 
+                                     the historical most likely nation of residence, stored in 'earliest_hospital_nation'. 
+                                     or estimated midpoint in the year of arrival (e.g. midpoint of the year, or midpoint
+                                     to earliest hospital record, or from start of hospital record follow-up, if they 
+                                     occurred in the same year of arrival). For more details see: 
+                                     'data/curated/ukbiobank/followup/README.txt'.
  - 'earliest_hospital_nation':       Historical nation of most likely residence, used to infer the hypothetical date at
                                      which the earliest hospital records could potentially be found for this person 
                                      ('earliest_hospital_date'). This is determined based on the nation of the 
                                      reporting hospital for the earliest available hospital records for each person, or
                                      nation at baseline UK Biobank assessment ('assessment_nation' where 'visit_index' 
                                      == 0) where a person had no hospital records (e.g. for people with no 
-                                     hospitalisations). In 98.9% of cases this field is identical to nation at UK 
-                                     Biobank assessment ('assessment_nation'). See also 
+                                     hospitalisations). This field contains "Immigrated" where the participant immigrated
+                                     to the UK after the start of hospital record follow-up. In 97.1% of cases this field 
+                                     is identical to nation at UK Biobank assessment ('assessment_nation'). See also
                                      'data/curated/ukbiobank/followup/README.txt' for additional details.
  - 'prevalent_event':                TRUE, FALSE, or NA. TRUE where the person had one or more event of the prevalent 
                                      ICD-10, ICD-9, OPCS-4, OPCS-3, or self-report codes in the provided endpoint 
