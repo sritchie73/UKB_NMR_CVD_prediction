@@ -19,14 +19,14 @@ if [ ! -f $outdir/fields.txt ]; then
 fi
 
 # Extract as csv
-./src/ukbtools/ukbconv $indir/ukb48061.enc_ukb csv \
-  -e"$indir/encoding.ukb" \
-  -o"$outdir/family_history" \
+./src/ukbtools/ukbconv $indir/ukb673159.enc_ukb csv \
+  -e"$indir/encoding.dat" \
+  -o"$outdir/algorithmically_derived_outcomes" \
   -i"$outdir/fields.txt"
 mv fields.ukb $outdir
 
-./src/ukbtools/ukbconv $indir/ukb48061.enc_ukb docs \
-  -e"$indir/encoding.ukb" \
-  -o"$outdir/family_history" \
+./src/ukbtools/ukbconv $indir/ukb673159.enc_ukb docs \
+  -e"$indir/encoding.dat" \
+  -o"$outdir/algorithmically_derived_outcomes" \
   -i"$outdir/fields.txt"
 rm fields.ukb

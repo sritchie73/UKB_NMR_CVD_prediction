@@ -1,0 +1,36 @@
+# For use in conjunction with LDL cholesterol levels for predicting familiar hypercholesterolemia
+# See Table 11 in Visseren et al., 2021 ESC Guidelines on cardiovascular disease prevention in 
+# clinical practice: Developed by the Task Force for cardiovascular disease prevention in clinical 
+# practice with representatives of the European Society of Cardiology and 12 medical societies 
+# With the special contribution of the European Association of Preventive Cardiology (EAPC). 
+# Rev. Esp. Cardiol. 75, 429. 2022
+
+earliest prevalent occurrence: true # We want earliest prevalent occurrence, not most recent
+prevalent date overrules missing: true # We want the earliest known event even if some dates cannot be inferred
+
+# History of stroke
+Prevalent ICD-10: I60-I69, F01
+Prevalent ICD-9: 430-434, 436-438, 290.4
+Self-report field 6150: 3 # "Stroke"
+Self-report field 20002: 1081 # "stroke" (verbal interview)
+Self-report field 20002: 1583 # "ischaemic stroke" (verbal interview)
+Self-report field 20002: 1086 # "subarachnoid haemorrhage" (verbal interview)
+Self-report field 20002: 1491 # "brain haemorrhage" (verbal interview)
+Self-report field 20002: 1425 # "cerebral aneurysm" (verbal interview)
+
+# Transient ischaemic attack
+Prevalent ICD-10: G45
+Prevalent ICD-9: 435
+Self-report field 20002: 1082
+
+# Peripheral vascular disease
+Prevalent ICD-10: I73, I74, I77, I78
+Prevalent ICD-9: 443, 444, 447, 448
+Self-report field 20002: 1067 # peripheral vascular disease
+Self-report field 20002: 1087 # leg claudication/ intermittent claudication
+Self-report field 20002: 1088 # arterial embolism
+Self-report field 20002: 1492 # aortic aneurysm
+Self-report field 20002: 1591 # aortic aneurysm rupture
+Self-report field 20002: 1592 # aortic dissection
+Self-report field 4728: 1     # "Yes" to touchscreen: "Do you get a pain in either leg on walking?"
+

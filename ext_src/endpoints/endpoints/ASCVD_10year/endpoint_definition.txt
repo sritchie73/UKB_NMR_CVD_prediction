@@ -1,0 +1,17 @@
+# ASCVD is broadly defined by the European Society of Cardiology as 
+# "established atherosclerotic cardiovascular disease". Here we'll use
+# the algorithmically defined myocardial infarction endpoint supplemented
+# by relevant coronary surgery codes, making this very similar to the 
+# MI definition used in the JACC 2018 metaGRS paper 
+
+Max follow years: 10
+Algorithmically defined outcome: mi # myocardial infarction
+ICD-10: Z95.1
+Prevalent ICD-9: V45.81
+OPCS-4: K40-K46, K49, K50.1, K75
+Prevalent OPCS-3: 309.4, 884
+Self-report field 20004: 1070 # coronary angioplasty (ptca) +/- stent
+Self-report field 20004: 1095 # coronary artery bypass grafts (cabg)
+Self-report field 20004: 1523 # triple heart bypass
+
+

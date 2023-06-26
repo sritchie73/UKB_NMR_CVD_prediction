@@ -283,6 +283,32 @@ Self-report field 20127: >5
 
 Will set as a prevalent event anyone with a neuroticism score 6 or higher.
 
+Endpoints may also incorporate UK Biobank's algorithmically defined outcomes https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=42:
+This field accepts short variable names as follows:
+
+Algorithmically defined outcome: mi              # UK Biobank's algorithmically defined myocardial infarction endpoint (fields 42000 and 42001)
+Algorithmically defined outcome: stemi           # UK Biobank's algorithmically defined STEMI endpoint (fields 42002 and 42003)
+Algorithmically defined outcome: nstemi          # UK Biobank's algorithmically defined NSTEMI endpoint (fields 42004 and 42005)
+Algorithmically defined outcome: stroke          # UK Biobank's algorithmically defined stroke endpoint (fields 42006 and 42007)
+Algorithmically defined outcome: stroke_is       # UK Biobank's algorithmically defined ischaemic stroke endpoint (fields 42008 and 42009)
+Algorithmically defined outcome: stroke_ih       # UK Biobank's algorithmically defined intracerebral haemorrhage endpoint (fields 42010 and 42011)
+Algorithmically defined outcome: stroke_sh       # UK Biobank's algorithmically defined subarachnoid haemorrhage endpoint (fields 42012 and 42013)
+Algorithmically defined outcome: asthma          # UK Biobank's algorithmically defined asthma endpoint (fields 42014 and 42015)
+Algorithmically defined outcome: copd            # UK Biobank's algorithmically defined COPD endpoint (fields 42016 and 42017)
+Algorithmically defined outcome: dementia        # UK Biobank's algorithmically defined all-cause dementia endpoint (fields 42018 and 42019)
+Algorithmically defined outcome: alzheimers      # UK Biobank's algorithmically defined alzheimers endpoint (fields 42020 and 42021)
+Algorithmically defined outcome: dementia_vasc   # UK Biobank's algorithmically defined vascular dementia endpoint (fields 42022 and 42023)
+Algorithmically defined outcome: dementia_ft     # UK Biobank's algorithmically defined frontotemporal dementia endpoint (fields 42024 and 42025)
+Algorithmically defined outcome: esrd            # UK Biobank's algorithmically defined end-stage renal disease endpoint (fields 42026 and 42027)
+Algorithmically defined outcome: mnd             # UK Biobank's algorithmically defined motor neurone disease endpoint (fields 42028 and 42029)
+Algorithmically defined outcome: parkinsonism    # UK Biobank's algorithmically defined all-cause parkinsonism endpoint (fields 42030 and 42031)
+Algorithmically defined outcome: parkinsons      # UK Biobank's algorithmically defined parkinsons endpoint (fields 42032 and 42033)
+Algorithmically defined outcome: palsy_ps        # UK Biobank's algorithmically defined progressive supranuclear palsy endpoint (fields 42034 and 42035)
+Algorithmically defined outcome: atrophy_ms      # UK Biobank's algorithmically defined multiple system atrophy endpoint (fields 42036 and 42037) 
+
+These can be used in endpoint definition files on their own, i.e. simply curating the follow-up time for the algorithimically
+defined outcome (only dates for called events are provided by UK Biobank), or combined or augmented with additional codes from above
+
 It is also possible to restrict the follow-up time when defining incident cases:
 
 max follow years:  # Restricts incident disease follow-up to end within a set time period, e.g. 10 years
@@ -313,8 +339,21 @@ case/control status with sufficient information for time-from-event ('prevalent_
 case/control status regardless with sufficient information for prevalent case exclusion ('prevalent_event') (see output
 section below for more details).
 
+Where the earliest prevalent event date is desired, instead of the most recent, then the following option can be set:
+
+earliest prevalent occurrence: true 
+
+Note in these cases the retrospective follow-up time won't be curated.
+
+Further, one may also set:
+
+prevalent date overrules missing: true 
+
+In which case the most recent/earliest prevalent event with known date will be returned, even when there are missing event
+dates in the self-report data requested in the endpoint. 
+
 It is also possible to restrict incident disease events to be considered cases only when there are no prevalent disease
- events (with or without follow-up time available) by setting:
+events (with or without follow-up time available) by setting:
 
 Incident only where not prevalent: true
 
@@ -457,6 +496,12 @@ Prevalent disease case information:
                                      prior to the earliest date at which time-from-event analysis can be conducted. As
                                      above, this field has been rounded to 2 decimal places to reflect approximate 
                                      nature of fractional age estimates.
+ - 'prevalent_has_missing_dates'     Logical; if the option "prevalent date overrules missing: true" was set in the 
+                                     endpoint definition file, then this column contains TRUE where the participant 
+                                     also had prevalent events in the requested self-report fields that did not have
+                                     an inferred event date, i.e. where its not possible to rule out that those events
+                                     occurred more recently than the dated one (or earlier in the case the option 
+                                     "earliest prevalent occurrence: true" was set in the endpoint definition file).
  - 'prevalent_event_type':           Type of the most-recent prevalent event case, determined by the data source. One
                                      of "hospitalisation", "operation", or "self-reported". In instances where multiple
                                      event types happened on this same date,the most severe / reliable event is 

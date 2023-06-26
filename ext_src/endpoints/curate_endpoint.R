@@ -115,7 +115,9 @@ valid_icd10 <- c(
 
 valid_options <- c(
   "max follow years", "max follow date", "max follow age",
-  "min follow years", "min follow date", "min follow age", "incident only where not prevalent"
+  "min follow years", "min follow date", "min follow age", "incident only where not prevalent",
+  "earliest prevalent occurrence", "prevalent date overrules missing"
+ 
 )
 
 valid_opcs3 <- c(valid_opcs3, paste("excluding", valid_opcs3))
@@ -123,7 +125,7 @@ valid_opcs4 <- c(valid_opcs4, paste("excluding", valid_opcs4))
 valid_icd9 <- c(valid_icd9, paste("excluding", valid_icd9))
 valid_icd10 <- c(valid_icd10, paste("excluding", valid_icd10))
 
-valid <- c(valid_self_report, valid_opcs3, valid_opcs4, valid_icd9, valid_icd10, valid_options)
+valid <- c(valid_self_report, valid_opcs3, valid_opcs4, valid_icd9, valid_icd10, valid_options, "algorithmically defined outcome")
 
 invalid <- setdiff(fields, valid)
 if (length(invalid) > 0) {
@@ -139,12 +141,12 @@ if (length(opts) == 0) {
 # Flags indicating whether endpoint includes prevalent or incident definitions
 def_has_prevalent <- any(fields %in% c(
  valid_self_report, valid_icd9, valid_opcs3, valid_icd10[valid_icd10 %like% "prevalent"],
- valid_opcs4[valid_opcs4 %like% "prevalent"], "icd-10", "opcs-4"
+ valid_opcs4[valid_opcs4 %like% "prevalent"], "icd-10", "opcs-4", "algorithmically defined outcome"
 ))
 
 def_has_incident <- any(fields %in% c(
   valid_icd10[valid_icd10 %like% "incident"], valid_opcs4[valid_opcs4 %like% "incident"], 
-  "icd-10", "opcs-4"
+  "icd-10", "opcs-4", "algorithmically defined outcome"
 ))
 
 if (!def_has_prevalent && !def_has_incident) {
@@ -503,6 +505,73 @@ if (length(srmap$field_id) > 0) {
 # Filter self report table
 self_report <- self_report[srmap, on = .(field_id, code), nomatch=0]
 
+# Load and filter algorithmically derived outcomes
+if (args[["--verbose"]]) {
+  message("Loading algorithmically defined outcomes...")
+}
+
+ado_info <- fread("data/curated/ukbiobank/algorithmically_defined_outcomes/algorithmically_defined_outcomes_info.txt")
+ado_info[, code := gsub("_date", "", gsub("_source", "", var))]
+ado_info[, field_type := gsub(".*_", "", var)]
+ado_info[, code_label := gsub(" report", "", gsub("Date of ", "", gsub("Source of ", "", name)))]
+ado_info <- dcast(ado_info, code + code_label ~ field_type, value.var='field.id')
+
+if (args[["--verbose"]]) {
+  message("Filtering algorithmically defined outcomes...")
+}
+
+ado <- fread("data/curated/ukbiobank/algorithmically_defined_outcomes/algorithmically_defined_outcomes.txt")
+if ("algorithmically defined outcome" %in% names(opts)) {
+  ado <- foreach(ado_code = opts[["algorithmically defined outcome"]], .combine=rbind) %do% {
+    if (!(ado_code %in% ado_info$code)) {
+      warning(sprintf("'%s' is not a recognised algorithmically defined outcome", ado_code))
+      return(NULL)
+    }
+    this_ado <- ado[,.SD,.SDcols=c("eid", paste0(ado_code, c("_date", "_source")))]
+    setnames(this_ado, c("eid", "event_date", "event_source"))
+
+    this_info <- ado_info[code == ado_code]
+
+    this_ado <- this_ado[!is.na(event_date) | event_source != ""]
+    this_ado[, code := ado_code]
+    this_ado[, code_type := sprintf("Algorithmically defined outcome fields %s and %s", this_info$date, this_info$source)]
+    return(this_ado)
+  }
+} else {
+  ado <- data.table(eid=character(0), event_date=as.IDate(character(0)), event_source=character(0), code=integer(0), label=character(0))
+}
+
+# Annotate
+ado[, event_type := fcase(
+  event_source %in% c("Death only", "Death primary", "Death contributory"), "death", 
+  event_source %in% c("Hospital admission", "Hospital primary", "Hospital secondary"), "hospitalisation",
+  event_source == "Self-reported only", "self-reported"
+)]
+ado[, cause_type := fcase(
+  event_source %in% c("Death primary", "Hospital primary"), "primary",
+  event_source %in% c("Death contributory", "Hospital secondary"), "secondary",
+  event_source == "Self-reported only", "self-reported",
+  default = NA_character_
+)]
+ado[, fatal_event := ifelse(event_type == "death", TRUE, FALSE)]
+
+# Order events
+ado <- ado[order(-event_date)]
+ado <- rbind(
+  ado[event_type == "death" & cause_type == "primary"],
+  ado[event_type == "death" & cause_type == "secondary"],
+  ado[event_type == "death" & is.na(cause_type)],
+  ado[event_type == "hospitalisation" & cause_type == "primary"],
+  ado[event_type == "hospitalisation" & cause_type == "secondary"],
+  ado[event_type == "hospitalisation" & is.na(cause_type)],
+  ado[event_type == "self-reported"]
+)
+ 
+# Split into prevalent and incident events
+ado <- follow[,.(eid, visit_index, assessment_date)][ado, on = .(eid), nomatch=0]
+prev_ado <- ado[event_date < assessment_date]
+inci_ado <- ado[event_date > assessment_date & cause_type != "self-reported"]
+
 ########################################################################################
 # Curate label tabel
 ########################################################################################
@@ -512,14 +581,14 @@ if (args[["--verbose"]]) {
 
 labels <- rbind(fill=TRUE,
   fread(sprintf("%s/data/curated/ukbiobank/self_report/code_labels.txt", srcDir))[,.(code_type=paste("self-report field", field_id), ukb_code=code, code, label)],
-	rbind(idcol="code_type",
+	rbind(idcol="code_type", 
 		"ICD-10"=fread(sprintf("%s/data/curated/ukbiobank/hospital_records/ICD10_codes.tsv", srcDir))[,.(ukb_code=coding, label=meaning)],
 		"ICD-9"=fread(sprintf("%s/data/curated/ukbiobank/hospital_records/ICD9_codes.tsv", srcDir))[,.(ukb_code=coding, label=meaning)],
 		"OPCS-4"=fread(sprintf("%s/data/curated/ukbiobank/hospital_records/OPCS4_codes.tsv", srcDir))[,.(ukb_code=coding, label=meaning)],
 		"OPCS-3"=fread(sprintf("%s/data/curated/ukbiobank/hospital_records/OPCS3_codes.tsv", srcDir))[!(coding %like% "Chapter"),.(ukb_code=coding, label=meaning)]
-	)
+	),
+  ado_info[, .(code_type=sprintf("Algorithmically defined outcome fields %s and %s", date, source), ukb_code=code, code, label=code_label)]
 )
-labels[, code := as.character(code)]
 
 # UKB codes don't have periods in the appropriate places, fix.
 labels[code_type == "ICD-10" & nchar(ukb_code) <= 3, code := ukb_code]
@@ -554,25 +623,42 @@ if (args[["--verbose"]]) {
   message("Getting first occurences of incident events...")
 }
 
-# Across all incident events, get the one that occurs first.
-# Due to row ordering, the primary cause will always be selected over the secondary and so on
-# if it is one of the codes of interest.
-if (nrow(deaths) > 0 && nrow(inci_hes) > 0) {
-	inci <- rbind(
-		deaths[,.(eid, visit_index, event_type="death", record_source=death_source, code_type="ICD-10", code=cause_icd10,
-							cause_type=ifelse(primary_cause, "primary", "secondary"), fatal_event=TRUE, event_date=date_of_death)],
-		inci_hes[, .(eid, visit_index, event_type, record_source=paste("NHS records from hospitals in", hospital_nation),
-								 code_type, code, cause_type, fatal_event, event_date)]
-	)
-} else if (nrow(deaths) > 0) {
-  inci <- deaths[,.(eid, visit_index, event_type="death", record_source=death_source, code_type="ICD-10", code=cause_icd10,
-                    cause_type=ifelse(primary_cause, "primary", "secondary"), fatal_event=TRUE, event_date=date_of_death)]
-} else if (nrow(inci_hes) > 0) {
-  inci <- inci_hes[, .(eid, visit_index, event_type, record_source=paste("NHS records from hospitals in", hospital_nation),
-                       code_type, code, cause_type, fatal_event, event_date)]
-} else {
-  inci <- inci_hes[, .(eid, visit_index, event_type, record_source=character(0), code_type, code, cause_type, fatal_event, event_date)]
+# Combine all sources of incident events
+inci <- data.table(
+  eid=integer(0), visit_index=integer(0), event_type=character(0), record_source=character(0), code_type=character(0),
+  code=character(0), cause_type=character(0), fatal_event=logical(0), event_date=as.IDate(character(0))
+)
+if (nrow(inci_ado) > 0) {
+  inci <- rbind(fill=TRUE, inci,
+    inci_ado[, .(eid, visit_index, event_type, record_source=event_source, code_type, code, cause_type, fatal_event, event_date)])
+} 
+if (nrow(deaths) > 0) {
+  inci <- rbind(fill=TRUE, inci,
+    deaths[,.(eid, visit_index, event_type="death", record_source=death_source, code_type="ICD-10", code=cause_icd10,
+              cause_type=ifelse(primary_cause, "primary", "secondary"), fatal_event=TRUE, event_date=date_of_death)])
 }
+if (nrow(inci_hes) > 0) {
+  inci <- rbind(fill=TRUE, inci,
+    inci_hes[, .(eid, visit_index, event_type, record_source=paste("NHS records from hospitals in", hospital_nation),
+                 code_type, code, cause_type, fatal_event, event_date)])
+}
+
+# Order rows so that when we select the first event, we choose by importance, e.g. primary over secondary,
+# death over non-fatal, algorithmically defined outcome over supplemental additions
+inci <- rbind(
+  inci[code_type %like% "Algorithmically defined outcome" & event_type == "death" & cause_type == "primary"],
+  inci[!(code_type %like% "Algorithmically defined outcome")  & event_type == "death" & cause_type == "primary"],
+  inci[code_type %like% "Algorithmically defined outcome" & event_type == "death" & cause_type == "secondary"],
+  inci[!(code_type %like% "Algorithmically defined outcome")  & event_type == "death" & cause_type == "secondary"],
+  inci[code_type %like% "Algorithmically defined outcome" & event_type == "death" & is.na(cause_type)],
+  inci[code_type %like% "Algorithmically defined outcome" & event_type != "death" & cause_type == "primary"],
+  inci[!(code_type %like% "Algorithmically defined outcome")  & event_type != "death" & cause_type == "primary"],
+  inci[code_type %like% "Algorithmically defined outcome" & event_type != "death" & cause_type == "secondary"],
+  inci[!(code_type %like% "Algorithmically defined outcome")  & event_type != "death" & cause_type == "secondary"],
+  inci[code_type %like% "Algorithmically defined outcome" & event_type != "death" & is.na(cause_type)]
+)
+
+# Select first occurence
 inci <- inci[, .SD[which.min(event_date)], by=.(eid, visit_index)]
 
 # Update codes and add labels in incident table
@@ -583,40 +669,87 @@ setnames(inci, paste0("incident_", names(inci)))
 setnames(inci, c("incident_eid", "incident_visit_index"), c("eid", "visit_index"))
 
 if (args[["--verbose"]]) {
-  message("Getting most recent occurences of prevalent events...")
+  if (!is.null(opts[["earliest prevalent occurrence"]]) &&
+       tolower(opts[["earliest prevalent occurrence"]]) == "true") {
+    message("Getting earliest occurences of prevalent events...")
+  } else {
+    message("Getting most recent occurences of prevalent events...")
+  }
 }
 
-# Across all prevalent events, get the one that occurs latest. This is a bit trickier than incident events
-# because there's missing data in the self-report, where either age/date of event could not be inferred, or
-# where a participant selected "don't know" or "prefer not to answer" for one or more fields.
-if (nrow(prev_hes) > 0 && nrow(self_report) > 0) {
-	prev <- rbind(
+# Combine all possible sources of prevalent events
+prev <- data.table(
+  eid=integer(0), visit_index=integer(0), event_type=character(0), record_source=character(0), code_type=character(0),
+  code=character(0), cause_type=character(0), event_date=as.IDate(character(0))
+)
+if (nrow(prev_ado) > 0) {
+  prev <- rbind(fill=TRUE, prev,
+    prev_ado[, .(eid, visit_index, event_type, record_source=event_source, code_type, code, cause_type, event_date)])
+}
+if (nrow(prev_hes) > 0) {
+  prev <- rbind(fill=TRUE, prev,
 		prev_hes[, .(eid, visit_index, event_type, record_source=paste("NHS records from hospitals in", hospital_nation),
-								 code_type, code, cause_type, event_date)],
+								 code_type, code, cause_type, event_date)])
+} 
+if (nrow(self_report) > 0) {
+  prev <- rbind(fill=TRUE, prev,
 		self_report[, .(eid, visit_index, event_type="self-reported", 
 										record_source=ifelse(field_id %in% c(20001, 20002, 20004), "Verbal interview with nurse", "Touchscreen survey"),
-										code_type=paste("self-report field", field_id), code, cause_type="self-reported", event_date=date)]
-	)
-} else if (nrow(prev_hes) > 0) {
-  prev <- prev_hes[, .(eid, visit_index, event_type, record_source=paste("NHS records from hospitals in", hospital_nation),
-                      code_type, code, cause_type, event_date)]
-} else if (nrow(self_report) > 0) {
-  prev <- self_report[, .(eid, visit_index, event_type="self-reported",
-			 									  record_source=ifelse(field_id %in% c(20001, 20002, 20004), "Verbal interview with nurse", "Touchscreen survey"),
-													code_type=paste("self-report field", field_id), code, cause_type="self-reported", event_date=date)]
-} else {
-  prev <- prev_hes[,.(eid, visit_index, event_type, record_source=character(0), code_type, code, cause_type, event_date)]
+										code_type=paste("self-report field", field_id), code, cause_type="self-reported", event_date=date)])
 }
 
+# Order rows so that when we select the latest occurring event, we choose by importance, e.g. primary over secondary,
+# hospital records over self-report, algorithmically defined outcome over supplemental additions. This is a bit 
+# trickier than incident events because there's missing data in the self-report, where either age/date of event
+# could not be inferred, or where a participant selected "don't know" or "prefer not to answer" for one or more fields.
+
 # First extract events with no event date attached, picking one representative event per participant/assessment visit
-prev_nodate <- prev[is.na(event_date), .SD[1], by=.(eid, visit_index)] # ordered by priority in README.txt
+prev_nodate <- rbind(
+  prev[is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "primary"],
+  prev[is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "primary"],
+  prev[is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "secondary"],
+  prev[is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "secondary"],
+  prev[is.na(event_date) & code_type %like% "Algorithmically defined outcome" & is.na(cause_type)],
+  prev[is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & is.na(cause_type)],
+  prev[is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "self-reported"],
+  prev[is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "self-reported"]
+)
+prev_nodate <- prev_nodate[, .SD[1], by=.(eid, visit_index)] # Pick first occuring row-wise, ordered by typing above
 
 # Next, get the most recent event for each participant/assessment among prevalent events with dates
-prev_wdate <- prev[!is.na(event_date),.SD[which.max(event_date)], by=.(eid, visit_index)]
+prev_wdate <- rbind(
+  prev[!is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "primary"],
+  prev[!is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "primary"],
+  prev[!is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "secondary"],
+  prev[!is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "secondary"],
+  prev[!is.na(event_date) & code_type %like% "Algorithmically defined outcome" & is.na(cause_type)],
+  prev[!is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & is.na(cause_type)],
+  prev[!is.na(event_date) & code_type %like% "Algorithmically defined outcome" & cause_type == "self-reported"],
+  prev[!is.na(event_date) & !(code_type %like% "Algorithmically defined outcome") & cause_type == "self-reported"]
+)
 
-# latest event cannot be inferred where some events have missing dates, so self-report without event date will ultimately
-# take priority in output
-prev_wdate <- prev_wdate[!prev_nodate, on = .(eid, visit_index)]
+# Determine if we want the most recent or earliest prevalent event
+if (!is.null(opts[["earliest prevalent occurrence"]]) &&
+     tolower(opts[["earliest prevalent occurrence"]]) == "true") {
+  prev_wdate <- prev[,.SD[which.min(event_date)], by=.(eid, visit_index)]
+} else {
+  prev_wdate <- prev[,.SD[which.max(event_date)], by=.(eid, visit_index)]
+}
+
+# In many cases the date or age of a prevalent event could not be inferred from the self-report data. Practically what
+# this means is retrospective follow-up time cannot be determined for many participants if self-report fields are used,
+# even where some events (e.g. from hospital records) have dates. The default is to set the date / age of event to NA 
+# in these cases, as retrospective follow-up time cannot be determined, but alternatively we allow the user to preferentially
+# return event dates if these are known.
+prev_nodate[, has_missing_dates := TRUE]
+prev_wdate[, has_missing_dates := FALSE]
+if (!is.null(opts[["prevalent date overrules missing"]]) &&
+     tolower(opts[["prevalent date overrules missing"]]) == "true") {
+  prev_wdate[prev_nodate, on = .(eid, visit_index), has_missing_dates := TRUE]
+  prev_nodate <- prev_nodate[!prev_wdate, on = .(eid, visit_index)]
+} else {
+  prev_wdate <- prev_wdate[!prev_nodate, on = .(eid, visit_index)]
+}
 
 # Recombine
 prev <- rbind(prev_nodate, prev_wdate)
@@ -650,7 +783,8 @@ if (!is.null(opts[["icd-10"]]) ||
     !is.null(opts[["incident opcs-4"]]) || 
     !is.null(opts[["incident opcs-4 primary cause only"]]) || 
     !is.null(opts[["non-fatal incident opcs-4"]]) || 
-    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]])) {
+    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]]) ||
+    !is.null(opts[["algorithmically defined outcome"]])) {
   follow[incident_event_date > latest_hospital_date, 
 		c("incident_event_type", "incident_record_source", "incident_code_type",
 			"incident_code", "incident_cause_type", "incident_fatal_event",
@@ -672,10 +806,13 @@ if (args[["--verbose"]]) {
 # Function to compute years between two dates - note this preserves
 # human notions of whole years, i.e:
 #
-#   2019-07-25 - 2009-07-25 = 10 years                                                                                                                                                                                                       #
-# At the expense of (potentially) leading to small inaccuracies in                                                                                                                                                                           # rank ordering due to leap days, i.e. in pure terms of days,
+#   2019-07-25 - 2009-07-25 = 10 years 
 #
-#   2019-07-25 - 2009-07-25 = 9.9986 years                                                                                                                                                                                                   #
+# At the expense of (potentially) leading to small inaccuracies in
+# rank ordering due to leap days, i.e. in pure terms of days,
+#
+#   2019-07-25 - 2009-07-25 = 9.9986 years
+#
 # As this makes it harder to accurately truncate follow-up (e.g.
 # for testing model calibration)
 years_between <- function(d1, d2) {
@@ -783,7 +920,8 @@ if (!is.null(opts[["min follow years"]])) {
   follow[prevalent_event_date > add_years(assessment_date, min_years),
       c("prevalent_event_type", "prevalent_record_source", "prevalent_code_type",
         "prevalent_code", "prevalent_cause_type", "prevalent_event_date", 
-        "prevalent_code_label") := .(NA, NA, NA, NA, NA, NA, NA)]
+        "prevalent_has_missing_dates", "prevalent_code_label") := 
+        .(NA, NA, NA, NA, NA, NA, NA, NA)]
 }
 
 if (!is.null(opts[["min follow date"]])) {
@@ -799,7 +937,8 @@ if (!is.null(opts[["min follow date"]])) {
   follow[prevalent_event_date > min_date,
       c("prevalent_event_type", "prevalent_record_source", "prevalent_code_type",
         "prevalent_code", "prevalent_cause_type", "prevalent_event_date", 
-        "prevalent_code_label") := .(NA, NA, NA, NA, NA, NA, NA)]
+        "prevalent_has_missing_dates", "prevalent_code_label") := 
+        .(NA, NA, NA, NA, NA, NA, NA, NA)]
 }
 
 if (!is.null(opts[["min follow age"]])) {
@@ -814,7 +953,8 @@ if (!is.null(opts[["min follow age"]])) {
   follow[prevalent_event_date < add_years(approx_birth_date, min_age),
       c("prevalent_event_type", "prevalent_record_source", "prevalent_code_type",
         "prevalent_code", "prevalent_cause_type", "prevalent_event_date", 
-        "prevalent_code_label") := .(NA, NA, NA, NA, NA, NA, NA)]
+        "prevalent_has_missing_dates", "prevalent_code_label") := 
+        .(NA, NA, NA, NA, NA, NA, NA, NA)]
 }
 
 ########################################################################################
@@ -842,7 +982,8 @@ if (!is.null(opts[["icd-10"]]) ||
     !is.null(opts[["prevalent opcs-4"]]) || 
     !is.null(opts[["prevalent opcs-4 primary cause only"]]) || 
     !is.null(opts[["prevalent opcs-3"]]) || 
-    !is.null(opts[["prevalent opcs-3 primary cause only"]])) {
+    !is.null(opts[["prevalent opcs-3 primary cause only"]]) ||
+    !is.null(opts[["algorithmically defined outcome"]])) {
   follow[is.na(any_hospitalisations), prevalent_event := NA]
 }
 
@@ -852,13 +993,19 @@ follow[!is.na(prevalent_code), prevalent_event := TRUE]
 
 # If minimum cut-offs on age, date, or year set, and the prevalent event is one
 # with unknown date, set these to missing
-if (!is.null(opts[["min follow years"]]) ||
-    !is.null(opts[["min follow date"]]) ||
-    !is.null(opts[["min follow age"]])) {
-  follow[(prevalent_event) & is.na(prevalent_event_date), 
-    c("prevalent_event_type", "prevalent_record_source", "prevalent_code_type", "prevalent_code", 
-      "prevalent_cause_type", "prevalent_event_date", "prevalent_code_label", "prevalent_event") := NA]
-} 
+if (!is.null(opts[["prevalent date overrules missing"]]) &&
+      tolower(opts[["prevalent date overrules missing"]]) == "true") {
+  # Unless the user has specifically requested prevalent events with dates to be included
+  # and overrule self-report events with missing event dates
+} else {
+  if (!is.null(opts[["min follow years"]]) ||
+      !is.null(opts[["min follow date"]]) ||
+      !is.null(opts[["min follow age"]])) {
+    follow[(prevalent_event) & is.na(prevalent_event_date), 
+      c("prevalent_event_type", "prevalent_record_source", "prevalent_code_type", "prevalent_code", 
+        "prevalent_cause_type", "prevalent_event_date", "prevalent_code_label", "prevalent_event") := NA]
+  } 
+}
 
 # Follow-up time is a bit tricky here, because hospital records don't go
 # all the way back until birth, while self-report data does. Here we:
@@ -869,25 +1016,35 @@ if (!is.null(opts[["min follow years"]]) ||
 #    if so, then minimum follow-up time is set to the minimum date in the
 #    hospital records. 
 #
-follow[, prevalent_event_with_followup := prevalent_event]
-follow[(prevalent_event) & is.na(prevalent_event_date), prevalent_event_with_followup := NA]
-if (!is.null(opts[["icd-10"]]) || 
-    !is.null(opts[["prevalent icd-10"]]) || 
-    !is.null(opts[["prevalent icd-10 primary cause only"]]) || 
-    !is.null(opts[["prevalent icd-9"]]) || 
-    !is.null(opts[["prevalent icd-9 primary cause only"]]) || 
-    !is.null(opts[["opcs-4"]]) || 
-    !is.null(opts[["prevalent opcs-4"]]) || 
-    !is.null(opts[["prevalent opcs-4 primary cause only"]]) || 
-    !is.null(opts[["prevalent opcs-3"]]) || 
-    !is.null(opts[["prevalent opcs-3 primary cause only"]])) {
-  follow[prevalent_event_date < earliest_hospital_date, prevalent_event_with_followup := FALSE]
-  follow[is.na(any_hospitalisations), prevalent_event_with_followup := FALSE]
-  follow[!(prevalent_event_with_followup), prevalent_event_followup_date := earliest_hospital_date]
-  follow[(prevalent_event_with_followup), prevalent_event_followup_date := prevalent_event_date]
+if (!is.null(opts[["earliest prevalent occurrence"]]) &&
+    tolower(opts[["earliest prevalent occurrence"]]) == "true") {
+  # Unless the user has asked for the earliest prevalent event instead of the most recent,
+  # in which case we don't curate this information. For now we set these placeholder columns to NA
+  # but they will be removed later
+  follow[, prevalent_event_with_followup := NA]
+  follow[, prevalent_event_followup_date := NA]
 } else {
-  follow[!(prevalent_event), prevalent_event_followup_date := approx_birth_date]
-  follow[(prevalent_event), prevalent_event_followup_date := prevalent_event_date]
+  follow[, prevalent_event_with_followup := prevalent_event]
+  follow[(prevalent_event) & is.na(prevalent_event_date), prevalent_event_with_followup := NA]
+  if (!is.null(opts[["icd-10"]]) || 
+      !is.null(opts[["prevalent icd-10"]]) || 
+      !is.null(opts[["prevalent icd-10 primary cause only"]]) || 
+      !is.null(opts[["prevalent icd-9"]]) || 
+      !is.null(opts[["prevalent icd-9 primary cause only"]]) || 
+      !is.null(opts[["opcs-4"]]) || 
+      !is.null(opts[["prevalent opcs-4"]]) || 
+      !is.null(opts[["prevalent opcs-4 primary cause only"]]) || 
+      !is.null(opts[["prevalent opcs-3"]]) || 
+      !is.null(opts[["prevalent opcs-3 primary cause only"]]) ||
+      !is.null(opts[["algorithmically defined outcome"]])) {
+    follow[prevalent_event_date < earliest_hospital_date, prevalent_event_with_followup := FALSE]
+    follow[is.na(any_hospitalisations), prevalent_event_with_followup := FALSE]
+    follow[!(prevalent_event_with_followup), prevalent_event_followup_date := earliest_hospital_date]
+    follow[(prevalent_event_with_followup), prevalent_event_followup_date := prevalent_event_date]
+  } else {
+    follow[!(prevalent_event), prevalent_event_followup_date := approx_birth_date]
+    follow[(prevalent_event), prevalent_event_followup_date := prevalent_event_date]
+  }
 }
 
 # Compute retrospective follow-up time based on date of event or minimum follow-up
@@ -957,7 +1114,8 @@ if (!is.null(opts[["icd-10"]]) ||
     !is.null(opts[["incident opcs-4"]]) || 
     !is.null(opts[["incident opcs-4 primary cause only"]]) || 
     !is.null(opts[["non-fatal incident opcs-4"]]) || 
-    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]])) {
+    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]]) ||
+    !is.null(opts[["algorithmically defined outcome"]])) {
   follow[incident_event_date > latest_hospital_date, 
 		c("incident_event_type", "incident_record_source", "incident_code_type",
 			"incident_code", "incident_cause_type", "incident_fatal_event",
@@ -978,7 +1136,8 @@ if (!is.null(opts[["icd-10"]]) ||
     !is.null(opts[["incident opcs-4"]]) || 
     !is.null(opts[["incident opcs-4 primary cause only"]]) || 
     !is.null(opts[["non-fatal incident opcs-4"]]) || 
-    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]])) {
+    !is.null(opts[["non-fatal incident opcs-4 primary cause only"]]) ||
+    !is.null(opts[["algorithmically defined outcome"]])) {
   follow[!(incident_event), incident_event_followup_date := latest_hospital_date]
 } else if (!is.null(opts[["fatal incident icd-10"]]) ||
            !is.null(opts[["fatal incident icd-10 primary cause only"]])) {
@@ -1009,7 +1168,7 @@ if (def_has_prevalent && def_has_incident) {
 		age=age_decimal, ehr_linkage_withdrawn = is.na(any_hospitalisations), earliest_hospital_date,
 		earliest_hospital_nation, prevalent_event, prevalent_event_with_followup, prevalent_event_followup, 
 		prevalent_event_followup_date, prevalent_event_followup_age, prevalent_event_date, prevalent_event_age,
-    prevalent_event_type, prevalent_record_source, prevalent_cause_type, prevalent_code_type, 
+    prevalent_has_missing_dates, prevalent_event_type, prevalent_record_source, prevalent_cause_type, prevalent_code_type, 
     prevalent_code, prevalent_code_label, lost_to_followup, lost_to_followup_reason, lost_to_followup_date, 
     latest_hospital_date, latest_hospital_nation, latest_mortality_date, incident_event, 
     incident_event_followup, incident_event_followup_date, incident_event_followup_age,
@@ -1027,8 +1186,22 @@ if (def_has_prevalent && def_has_incident) {
 		age=age_decimal, ehr_linkage_withdrawn = is.na(any_hospitalisations), earliest_hospital_date,
 		earliest_hospital_nation, prevalent_event, prevalent_event_with_followup, prevalent_event_followup, 
 		prevalent_event_followup_date, prevalent_event_followup_age, prevalent_event_date, prevalent_event_age,
-    prevalent_event_type, prevalent_record_source, prevalent_cause_type, prevalent_code_type, 
-    prevalent_code, prevalent_code_label)]
+    prevalent_has_missing_dates, prevalent_event_type, prevalent_record_source, prevalent_cause_type, 
+    prevalent_code_type, prevalent_code, prevalent_code_label)]
+}
+
+if (def_has_prevalent && !is.null(opts[["earliest prevalent occurrence"]]) &&
+     tolower(opts[["earliest prevalent occurrence"]]) == "true") {
+  follow[,prevalent_event_with_followup := NULL]
+  follow[,prevalent_event_followup := NULL]
+  follow[,prevalent_event_followup_date := NULL]
+  follow[,prevalent_event_followup_age := NULL]
+}
+if (def_has_prevalent && !(
+  !is.null(opts[["prevalent date overrules missing"]]) &&
+   tolower(opts[["prevalent date overrules missing"]] == "true")
+) {
+  follow[, prevalent_has_missing_dates := NULL]
 }
 
 # Write out

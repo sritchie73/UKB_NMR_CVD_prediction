@@ -1,2 +1,0 @@
-Max follow years: 10 
-Incident ICD-10: I63
