@@ -8,8 +8,7 @@ fitdt <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
-      model_info <- data.table(prediction_cv_testfold=this_test_fold, endpoint=this_endpoint, sex=this_sex)
-      cbind(model_info, fread(sprintf("%s/cv_coxnet_list_all_fits.txt", model_dir)))
+      fread(sprintf("%s/cv_coxnet_list_all_fits.txt", model_dir))
     }
   }
 }
@@ -19,8 +18,7 @@ bestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
-      model_info <- data.table(prediction_cv_testfold=this_test_fold, endpoint=this_endpoint, sex=this_sex)
-      cbind(model_info, fread(sprintf("%s/cv_coxnet_best_fits.txt", model_dir)))
+      fread(sprintf("%s/cv_coxnet_best_fits.txt", model_dir))
     }
   }
 }
@@ -30,11 +28,11 @@ bestbestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
-      model_info <- data.table(prediction_cv_testfold=this_test_fold, endpoint=this_endpoint, sex=this_sex)
-      cbind(model_info, fread(sprintf("%s/cv_coxnet_best_best_fits.txt", model_dir)))
+      fread(sprintf("%s/cv_coxnet_best_best_fits.txt", model_dir))
     }
   }
 }
+bestbestfit <- bestbestfit[,-(7:11)] # some columns duplicated in training code
 
 # Load in non-zero coefficients
 bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
@@ -46,18 +44,16 @@ bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
   }
 }
 
-# add sample sizes and case numbers
-minfo <- bestcoef[,.(prediction_cv_testfold, endpoint, sex, samples, cases)]
-minfo <- unique(minfo)
-fitdt <- minfo[fitdt, on = .(prediction_cv_testfold, endpoint, sex)]
-bestfit <- minfo[bestfit, on = .(prediction_cv_testfold, endpoint, sex)]
-bestbestfit <- minfo[bestbestfit, on = .(prediction_cv_testfold, endpoint, sex)]
+# Combine coefficients across test folds
+avgbestcoef <- bestcoef[,.(beta=sum(beta)/5, sd=sd(beta), min=min(beta), max=max(beta), non_zero=.N),by=.(endpoint, sex, lambda.fit, coef)]
+avgbestcoef <- avgbestcoef[order(-abs(beta))][order(lambda.fit)][order(sex)][order(endpoint)]
 
 # Write out collated stats
 fwrite(fitdt, sep="\t", quote=FALSE, file="analyses/nmr_score_training/all_elasticnet_fits.txt")
 fwrite(bestfit, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits_per_alpha.txt")
 fwrite(bestbestfit, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits.txt")
 fwrite(bestcoef, sep="\t", quote=FALSE, file="analyses/nmr_score_training/best_fits_coef.txt")
+fwrite(avgbestcoef, sep="\t", quote=FALSE, file="analyses/nmr_score_training/avg_best_coefs.txt")
 
 # For each training independent 5-fold training, plot the model fits
 fitdt[, sex := factor(sex, levels=c("Male", "Female"))]
