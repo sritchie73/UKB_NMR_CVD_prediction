@@ -1,0 +1,4 @@
+Max follow years: 10 
+Algorithmically defined outcome: stroke_is  # Ischameic stroke
+
+

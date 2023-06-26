@@ -30,20 +30,47 @@ meds_interview <- fread("data/ukb/medication/output/detailed_medications_summari
 meds <- merge(meds_touchscreen, meds_interview, by=c("eid", "visit_index"), all=TRUE)
 
 dat[meds[visit_index == 0], on = .(eid), cholesterol_medication := i.cholesterol_medication | i.lipid_lowering_medication]
-dat[meds[visit_index == 0], on = .(eid), blood_pressure_medication := i.blood_pressure_medication | i.hypertension_medication]
 
 # Add in smoking status
 smoking <- fread("data/ukb/smoking/output/smoking_status.txt")
 dat[smoking[visit_index == 0], on = .(eid), smoking := i.current_smoker]
 
-# Add in diabetes status
-diabetes <- fread("data/ukb/QDiabetes/output/qdiabetes.txt")
-diabetes <- diabetes[visit_index == 0, .(eid, prevalent_t2d=type_2_diabetes, prevalent_t1d=type_1_diabetes, uncertain_diabetes, history_gestational_diabetes)]
-dat <- merge(dat, diabetes, by="eid", all.x=TRUE)
+# Add in diabetes status (Eastwood 2016 algorithm)
+diab_sr <- fread("data/ukb/Eastwood_diabetes/output/prevalent_diabetes.txt")
+diab_hes <- fread("data/ukb/Eastwood_diabetes/output/incident_diabetes.txt")
+diabetes <- merge(diab_sr, diab_hes, by=c("eid", "visit_index"), all=TRUE, suffixes=c("_self_report", "_hes"))
+dat[diabetes[visit_index == 0], on = .(eid), prevalent_diabetes_mellitus := fcase(
+  adjudicated_diabetes_self_report == "Probable type 2 diabetes", TRUE,
+  adjudicated_diabetes_self_report == "Probable type 1 diabetes", TRUE,
+  adjudicated_diabetes_self_report == "Possible type 2 diabetes", TRUE,
+  adjudicated_diabetes_self_report == "Possible type 1 diabetes", TRUE,
+  adjudicated_diabetes_hes == "Prevalent diabetes", TRUE,
+  default = FALSE
+)]
+dat[diabetes[visit_index == 0], on = .(eid), history_gestational_diabetes := fcase(
+  adjudicated_diabetes_self_report == "Possible gestational diabetes", TRUE,
+  default = FALSE
+)]
 
-# Add in prevalent vascular disease
-prev_cvd <- fread('data/ukb/endpoints/endpoints/CEU_prevalent_vascular_disease/events_and_followup.txt')
-dat[prev_cvd[visit_index == 0], on = .(eid), prevalent_vascular_disease := i.prevalent_event]
+# Add in prevalent CKD (UKB algorithmically defined outcome)
+ado <- fread("data/ukb/algorithmically_defined_outcomes/output/algorithmically_defined_outcomes.txt")
+dat[ado, on = .(eid), prevalent_CKD := esrd_date < assessment_date]
+dat[is.na(prevalent_CKD), prevalent_CKD := FALSE]
+
+# Add in prevalent vascular disease and determine where the event onset is premature, to be used in
+# conjunction with LDL cholesterol to predict familiar hypercholesterolemia
+DLCN_vasc_disease <- fread("data/ukb/endpoints/endpoints/DLCN_prevalent_vascular_disease/events_and_followup.txt")
+dat[DLCN_vasc_disease[visit_index == 0], on = .(eid), premature_vascular_disease := fcase(
+  prevalent_event & sex == "Male" & prevalent_event_age < 55, TRUE,
+  prevalent_event & sex == "Female" & prevalent_event_age < 60, TRUE,
+  prevalent_event & sex == "Male" & is.na(prevalent_event_age) & x.age < 55, TRUE,
+  prevalent_event & sex == "Female" & is.na(prevalent_event_age) & x.age < 60, TRUE,
+  default = FALSE
+)]
+
+# Add in established atherosclerotic cardiovascular disease
+ascvd <- fread("data/ukb/endpoints/endpoints/ASCVD_10year/events_and_followup.txt")
+dat[ascvd[visit_index == 0], on = .(eid), ASCVD := i.prevalent_event]
 
 # Add in CVD endpoint (SCORE2 definition)
 cvd <- fread("data/ukb/endpoints/endpoints/SCORE2_CVD/events_and_followup.txt")
@@ -66,7 +93,7 @@ dat[cvd, on = . (eid), cvd_is_primary_cause := fcase(
 
 # Add in Ischaemic Stroke and CHD endpoints, to be used for model training. Note these have
 # separate follow-up columns as we don't treat CVD as a competing risk, only all-cause mortality.
-stroke <- fread("data/ukb/endpoints/endpoints/Stroke_IS_10year/events_and_followup.txt")
+stroke <- fread("data/ukb/endpoints/endpoints/ADO_Stroke_IS_10year/events_and_followup.txt")
 stroke <- stroke[visit_index == 0]
 dat[stroke, on = .(eid), incident_stroke := i.incident_event]
 dat[stroke, on = .(eid), incident_stroke_followup := i.incident_event_followup]
@@ -83,8 +110,9 @@ dat[stroke, on = . (eid), stroke_is_primary_cause := fcase(
   i.incident_cause_type == "" & !is.na(i.incident_cause_type), FALSE,
   is.na(i.incident_cause_type), NA
 )]
+dat[stroke, on = .(eid), prevalent_stroke := i.prevalent_event]
 
-chd <- fread("data/ukb/endpoints/endpoints/CAD_10year/events_and_followup.txt")
+chd <- fread("data/ukb/endpoints/endpoints/ASCVD_10year/events_and_followup.txt")
 chd <- chd[visit_index == 0]
 dat[chd, on = .(eid), incident_chd := i.incident_event]
 dat[chd, on = .(eid), incident_chd_followup := i.incident_event_followup]
@@ -92,6 +120,7 @@ dat[chd, on = .(eid), incident_chd_followup_date := i.incident_event_followup_da
 dat[chd, on = .(eid), incident_chd_is_fatal := fcase(
   i.incident_event_type == "death", TRUE,
   i.incident_event_type == "hospitalisation", FALSE,
+  i.incident_event_type == "operation", FALSE,
   i.incident_event_type == "" & !is.na(i.incident_event), FALSE,
   is.na(i.incident_event), NA
 )]
@@ -101,17 +130,35 @@ dat[chd, on = . (eid), chd_is_primary_cause := fcase(
   i.incident_cause_type == "" & !is.na(i.incident_cause_type), FALSE,
   is.na(i.incident_cause_type), NA
 )]
-
+dat[chd, on = .(eid), prevalent_chd := i.prevalent_event] # Currently the same as ASCVD
+ 
 # Get information on where participants resided at baseline assessment, 
 # maximum, and minimum follow-up available in hospital records (different
 # hospital systems have different follow-up time available depending on
 # nation of hospital)
 dat[cvd, on = .(eid), latest_hospital_nation := i.latest_hospital_nation]
-dat[prev_cvd, on = .(eid), earliest_hospital_nation := i.earliest_hospital_nation]
+dat[ascvd, on = .(eid), earliest_hospital_nation := i.earliest_hospital_nation]
 
-# Get additional information
-dat[cvd, on = .(eid), all_cause_mortality := i.mortality_at_followup_date]
-dat[cvd, on = .(eid), lost_to_followup := i.lost_to_followup_reason]
+# Get additional information on follow-up
+dat[cvd, on = .(eid), mortality_at_cvd_followup := i.mortality_at_followup_date]
+dat[cvd, on = .(eid), lost_at_cvd_followup := i.lost_to_followup_reason != ""]
+dat[cvd, on = .(eid), lost_at_cvd_followup_reason := i.lost_to_followup_reason]
+dat[, cvd_follow_lt10_Wales := !(incident_cvd) & !(lost_at_cvd_followup) & !(mortality_at_cvd_followup) & incident_cvd_followup < 10]
+stopifnot(all(dat[(cvd_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
+
+dat[stroke, on = .(eid), mortality_at_stroke_followup := i.mortality_at_followup_date]
+dat[stroke, on = .(eid), lost_at_stroke_followup := i.lost_to_followup_reason != ""]
+dat[stroke, on = .(eid), lost_at_stroke_followup_reason := i.lost_to_followup_reason]
+dat[stroke, on = .(eid), stroke_follow_lt10_Wales := !(incident_event) & incident_event_followup < 10 & incident_event_followup_date == latest_hospital_date & latest_hospital_nation == "Wales"]
+dat[, stroke_follow_lt10_Wales := !(incident_stroke) & !(lost_at_stroke_followup) & !(mortality_at_stroke_followup) & incident_stroke_followup < 10]
+stopifnot(all(dat[(stroke_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
+
+dat[chd, on = .(eid), mortality_at_chd_followup := i.mortality_at_followup_date]
+dat[chd, on = .(eid), lost_at_chd_followup := i.lost_to_followup_reason != ""]
+dat[chd, on = .(eid), lost_at_chd_followup_reason := i.lost_to_followup_reason]
+dat[chd, on = .(eid), chd_follow_lt10_Wales := !(incident_event) & incident_event_followup < 10 & incident_event_followup_date == latest_hospital_date & latest_hospital_nation == "Wales"]
+dat[, chd_follow_lt10_Wales := !(incident_chd) & !(lost_at_chd_followup) & !(mortality_at_chd_followup) & incident_chd_followup < 10]
+stopifnot(all(dat[(chd_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
 
 # Add in biochemistry biomarker data
 bio <- fread("data/ukb/biomarkers/output/biomarkers.txt")
@@ -132,6 +179,15 @@ blood_bio <- setdiff(names(bio), c("eid", "uriacc", "urianac", "uriamac", "uriak
 urine_bio <- setdiff(names(bio), c("eid", blood_bio))
 dat[, no_blood_biomarkers := apply(as.matrix(dat[,blood_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
 dat[, no_urine_biomarkers := apply(as.matrix(dat[,urine_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
+
+# Score FH status according to Dutch Lipid Clinic Network diagnosit criteria:
+dat[, DLCN_FH_score := 0]
+dat[(ASCVD), DLCN_FH_score := DLCN_FH_score + 2]
+dat[(premature_vascular_disease), DLCN_FH_score := DLCN_FH_score + 1]
+dat[ldl >= 8.5, DLCN_FH_score := DLCN_FH_score + 8]
+dat[ldl >= 6.5 & ldl < 8.5, DLCN_FH_score := DLCN_FH_score + 5]
+dat[ldl >= 5.0 & ldl < 6.5, DLCN_FH_score := DLCN_FH_score + 3]
+dat[ldl >= 4.0 & ldl < 5.0, DLCN_FH_score := DLCN_FH_score + 1]
 
 # Add in NMR data
 nmr <- fread("data/ukb/NMR_metabolomics/biomarker_measurements.txt")
@@ -160,7 +216,9 @@ setnames(prs_training, "eid")
 dat[, prs_training_samples := FALSE]
 dat[prs_training, on = .(eid), prs_training_samples := TRUE]
 
+# -----------------------------------------------------
 # Now do sample exclusions to derive analysis cohort
+# -----------------------------------------------------
 
 # Start building table of sample flowchart
 sample_info <- data.table(step="Baseline (excl. withdrawals)", 
@@ -201,75 +259,33 @@ update_sample_info <- function(step_name, dataset, last_dataset) {
   sample_info <<- rbind(sample_info, new_row) 
 }
 
+# Filter to people with requisite data
+dat_cpy <- copy(dat)
+
 # Drop people with no linkage in electronic health records and update flow-chart
 dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)]
 update_sample_info("With EHR linkage")
+
+# Filter to people with blood samples
+dat <- dat[!(no_blood_sample)]
+update_sample_info("With blood samples")
 
 # Filter to people with NMR data
 dat <- dat[!(no_nmr_data)]
 update_sample_info("With NMR data")
 
-# Only include people in the age range eligible for SCORE2
-dat_cpy <- copy(dat) # for tracking sample and case exits aggregating multiple steps
-dat <- dat[age >= 40]
-update_sample_info("40 years or older")
+# Drop people without genetic data
+dat <- dat[!(no_genetics)]
+update_sample_info("With linked genotype information")
 
-dat <- dat[age <= 69]
-update_sample_info("69 years or younger")
-update_sample_info("Eligible age for SCORE2 risk prediction", dat, dat_cpy) 
+# Add entry summarising steps
+update_sample_info("With EHR, NMR, and genotype data", dat, dat_cpy)
 
-# Drop people otherwise ineligible for SCORE2 risk prediction due to disease or medication
-dat_cpy <- copy(dat) # for tracking sample and case exits aggregating multiple steps
-dat <- dat[!(prevalent_vascular_disease) | is.na(prevalent_vascular_disease)]
-update_sample_info("Without prevalent vascular disease")
-update_sample_info("Missing/unclassifiable treated as non-prevalent", dat[is.na(prevalent_vascular_disease)], dat[is.na(prevalent_vascular_disease)])
-
-dat_cpy2 <- copy(dat)
-dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)]
-update_sample_info("Not on lipid lowering medication", dat, dat_cpy2)
-update_sample_info("Missing data treated as medication-free", dat[is.na(cholesterol_medication)], dat[is.na(cholesterol_medication)])
-
-dat_cpy2 <- copy(dat)
-dat <- dat[!(prevalent_t2d) | is.na(prevalent_t2d)]
-update_sample_info("Without type 2 diabetes", dat, dat_cpy2)
-update_sample_info("Type 1 diabetics included:", dat[(prevalent_t1d)], dat[(prevalent_t1d)])
-update_sample_info("Uncertain diabetes included:", dat[(uncertain_diabetes)], dat[(uncertain_diabetes)])
-update_sample_info("History of gestational diabetes included:", dat[(history_gestational_diabetes)], dat[(history_gestational_diabetes)]) 
-
-dat_cpy2 <- copy(dat)
-update_sample_info("With LDL-C >= 8.5 mmol/L (8 points):", dat[ldl >= 8.5], dat[ldl >= 8.5])
-update_sample_info("With LDL-C 6.5-8.4 mmol/L (5 points):", dat[ldl >= 6.5 & ldl < 8.5], dat[ldl >= 6.5 & ldl < 8.5])
-update_sample_info("With LDL-C 5.0-6.4 mmol/L (3 points):", dat[ldl >= 5 & ldl < 6.5], dat[ldl >= 5 & ldl < 6.5])
-update_sample_info("With LDL-C 4.0-4.9 mmol/L (1 points):", dat[ldl >= 4 & ldl < 4.9], dat[ldl >= 4 & ldl < 4.9])
-update_sample_info("With LDL-C < 4 mmol/L (0 points):", dat[ldl < 4], dat[ldl < 4])
-update_sample_info("Missing LDL-C:", dat[is.na(ldl)], dat[is.na(ldl)])
-update_sample_info("Definite FH (>8 points on Dutch Clinical Lipid Criteria):", dat[0], dat[0])
-update_sample_info("Probable FH (6-8 points on Dutch Clinical Lipid Criteria):", dat[ldl >= 8.5], dat[ldl >= 8.5])
-update_sample_info("Possible FH (3-5 points on Dutch Clinical Lipid Criteria):", dat[ldl >= 5 & ldl < 8.5], dat[ldl >= 5 & ldl < 8.5])
-dat <- dat[is.na(ldl) | ldl < 8.5]
-update_sample_info("Without probable FH", dat, dat_cpy2)
-
-update_sample_info("Eligible disease and medication history for SCORE2 risk prediction", dat, dat_cpy)
-
-# Drop people missing quantitative conventional risk factors
+# Flag data quality issues or other ineligibility criteria
 dat_cpy <- copy(dat)
 
-dat <- dat[!is.na(sbp)]
-update_sample_info("With known SBP", dat, dat_cpy)
-
-dat <- dat[!(no_blood_sample)]
-update_sample_info("With blood sample for biochemistry assays")
-
-update_sample_info("Missing HDL cholesterol:", dat[is.na(hdl)], dat[is.na(hdl)])
-update_sample_info("Missing Total cholesterol:", dat[is.na(tchol)], dat[is.na(tchol)])
-update_sample_info("Missing HDL and total cholesterol:", dat[is.na(hdl) & is.na(tchol) & is.na(ldl)], dat[is.na(hdl) & is.na(tchol) & is.na(ldl)])
-update_sample_info("Missing all blood biochemistry biomarkers:", dat[(no_blood_biomarkers)], dat[(no_blood_biomarkers)])
-
-dat_cpy2 <- copy(dat)
-dat <- dat[!is.na(hdl) & !is.na(tchol) & !is.na(ldl)]
-update_sample_info("With non-missing data for HDL and total cholesterol", dat, dat_cpy2)
-
-update_sample_info("With non-missing quantitative SCORE2 risk factors", dat, dat_cpy)
+dat <- dat[!(prs_training_samples)]
+update_sample_info("Not used for PRS training")
 
 # Get information on NMR data missingness in non-derived biomarkers
 non_derived <- ukbnmr::nmr_info[Type == "Non-derived", Biomarker]
@@ -316,19 +332,70 @@ fwrite(sample_miss_tags, sep="\t", quote=FALSE, file="data/cleaned/missingness_r
 # plates of non-biological origin (93% of excluded samples) or technical 
 # error (6% of excluded samples). Setting the threshold as 10% (as we had originally)
 # only includes 231 additional samples 
-update_sample_info("Subset with complete NMR data:", dat[eid %in% miss[nmr_missingness == 0, eid]], dat)
-dat_cpy <- copy(dat)
+dat_cpy2 <- copy(dat)
+update_sample_info("Subset with complete NMR data:", dat[eid %in% miss[nmr_missingness == 0, eid]], dat[eid %in% miss[nmr_missingness == 0, eid]])
 dat <- dat[!miss[nmr_missingness > 0.05], on = .(eid)]
-update_sample_info("With <5% missing NMR data", dat, dat_cpy)
+update_sample_info("With <5% missing NMR data", dat, dat_cpy2)
 
-# Drop people who can't be jointly analysed with PRS
+# Flag issues with clinical biochemistry assays
+dat <- dat[!(no_blood_biomarkers)]
+update_sample_info("Clinical chemistry failed")
+
+# Add new row flagging requisite data for analysis
+update_sample_info("Passing data analysis QC", dat, dat_cpy)
+
+# Assess eligibility for SCORE2 screening
 dat_cpy <- copy(dat)
-dat <- dat[!(no_genetics)]
-update_sample_info("With linked genotype information")
+dat <- dat[age >= 40]
+update_sample_info("40 years or older")
 
-dat <- dat[!(prs_training_samples)]
-update_sample_info("Not used for PRS training")
-update_sample_info("Can be jointly analyzed with PRS", dat, dat_cpy)
+dat <- dat[age <= 69]
+update_sample_info("69 years or younger")
+update_sample_info("Eligible age for SCORE2 risk prediction", dat, dat_cpy) 
+
+dat <- dat[!(ASCVD) | is.na(ASCVD)]
+update_sample_info("Without established atherosclerotic CVD")
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!(prevalent_diabetes_mellitus) | is.na(prevalent_diabetes_mellitus)]
+update_sample_info("Without type 1 or type 1 diabetes", dat, dat_cpy2)
+update_sample_info("History of gestational diabetes included:", dat[(history_gestational_diabetes)], dat[(history_gestational_diabetes)]) 
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!(prevalent_CKD) | is.na(prevalent_CKD)]
+update_sample_info("Without CKD", dat, dat_cpy2)
+
+dat_cpy2 <- copy(dat)
+update_sample_info("Definite FH (LDL ≥ 8.5 mmol/L and premature vascular disease):", dat[DLCN_FH_score > 8], dat[DLCN_FH_score > 8])
+update_sample_info("Probable FH (LDL ≥ 8.5 mmol/L)", dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)], dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)])
+update_sample_info("Probable FH (LDL ≥ 6.5 mmol/L and premature vascular disease)", dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease], dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease])
+update_sample_info("Possible FH (LDL ≥ 5 mmol/L)", dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5], dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5])
+update_sample_info("No FH (LDL < 5 mmol/L or missing)", dat[DLCN_FH_score < 3], dat[DLCN_FH_score < 3])
+dat <- dat[DLCN_FH_score < 6]
+update_sample_info("Without probable FH", dat, dat_cpy2)
+
+update_sample_info("Eligible for screening with SCORE2 according to ESC 2021 guidelines", dat, dat_cpy)
+
+# Exclude people on statins
+dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)]
+update_sample_info("Already treated with statins")
+
+# Drop people missing quantitative conventional risk factors
+dat_cpy <- copy(dat)
+
+dat <- dat[!is.na(sbp)]
+update_sample_info("With known SBP", dat, dat_cpy)
+
+update_sample_info("Missing HDL cholesterol:", dat[is.na(hdl)], dat[is.na(hdl)])
+update_sample_info("Missing Total cholesterol:", dat[is.na(tchol)], dat[is.na(tchol)])
+update_sample_info("Missing HDL and total cholesterol:", dat[is.na(hdl) & is.na(tchol) & is.na(ldl)], dat[is.na(hdl) & is.na(tchol) & is.na(ldl)])
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!is.na(hdl) & !is.na(tchol) & !is.na(ldl)]
+update_sample_info("With non-missing data for HDL and total cholesterol", dat, dat_cpy2)
+
+update_sample_info("With non-missing quantitative SCORE2 risk factors", dat, dat_cpy)
+
 
 # Format flowchart and add percentages
 sample_info[, exited_cvd := ifelse(
@@ -393,89 +460,83 @@ dat[, CAD_metaGRS := scale(CAD_metaGRS)]
 dat[, Stroke_metaGRS := scale(Stroke_metaGRS)]
 cvd_cohort_info <- dat[,.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[,.N]*100, digits=1)),
+  assumed_ascvd_free = sprintf("%s (%s%%)", format(sum(is.na(ASCVD)), big.mark=","), round(sum(is.na(ASCVD))/.N*100, digits=2)),
+  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
   men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=2)),
   age = sprintf("%s (%s)", round(median(age), digits=1), round(sd(age), digits=2)),
   BMI = sprintf("%s (%s)", round(median(na.omit(bmi)), digits=1), round(sd(na.omit(bmi)), digits=2)),
   SBP = sprintf("%s (%s)", round(median(sbp), digits=1), round(sd(sbp), digits=2)),
   smokers = sprintf("%s (%s%%)", format(sum(na.omit(smoking)), big.mark=","), round(sum(na.omit(smoking))/.N*100, digits=2)),
-  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
-  assumed_cvd_free = sprintf("%s (%s%%)", format(sum(is.na(prevalent_vascular_disease)), big.mark=","), round(sum(is.na(prevalent_vascular_disease))/.N*100, digits=2)),
   assumed_non_smoking = sprintf("%s (%s%%)", format(sum(is.na(smoking)), big.mark=","), round(sum(is.na(smoking))/.N*100, digits=2)),
-  uncertain_diabetes = sprintf("%s (%s%%)", format(sum(uncertain_diabetes), big.mark=","), round(sum(uncertain_diabetes)/.N*100, digits=2)),
-  prevalent_t1d = sprintf("%s (%s%%)", format(sum(na.omit(prevalent_t1d)), big.mark=","), round(sum(na.omit(prevalent_t1d))/.N*100, digits=2)),
   history_gestational_diabetes = sprintf("%s (%s%%)", format(sum(na.omit(history_gestational_diabetes)), big.mark=","), round(sum(na.omit(history_gestational_diabetes))/dat[sex == "Female", .N]*100, digits=2)),
   hdl_cholesterol = sprintf("%s (%s)", round(median(hdl, na.rm=TRUE), digits=2), round(sd(hdl, na.rm=TRUE), digits=2)),
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
-  fatal = sprintf("%s (%s%%)", format(sum(incident_cvd_is_fatal), big.mark=","), round(sum(incident_cvd_is_fatal)/sum(incident_cvd)*100, digits=2)),
+  Median_followup = sprintf("%s (%s)", round(median(incident_cvd * incident_cvd_followup), digits=1), round(sd(incident_cvd * incident_cvd_followup), digits=2)),
   primary_cause = sprintf("%s (%s%%)", format(sum(cvd_is_primary_cause), big.mark=","), round(sum(cvd_is_primary_cause)/sum(incident_cvd)*100, digits=2)),
-  Median_followup = sprintf("%s (%s)", round(median(incident_cvd_followup), digits=1), round(sd(incident_cvd_followup), digits=2)),
-  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_cvd_followup < 10), big.mark=","), round(sum(incident_cvd_followup < 10)/.N*100, digits=2)),
-  Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_cvd_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_cvd_followup < 10)/.N*100, digits=2)),
-  Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_cvd_followup < 10 & !all_cause_mortality), big.mark=","), 
-                                       round(sum(lost_to_followup != "" & incident_cvd_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
-  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_cvd_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
-                                            round(sum(latest_hospital_nation == "Wales" & incident_cvd_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+  fatal = sprintf("%s (%s%%)", format(sum(incident_cvd_is_fatal), big.mark=","), round(sum(incident_cvd_is_fatal)/sum(incident_cvd)*100, digits=2)),
+  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(!incident_cvd & incident_cvd_followup < 10), big.mark=","), round(sum(!incident_cvd & incident_cvd_followup < 10)/.N*100, digits=2)),
+  Censored_fatal = sprintf("%s (%s%%)", format(sum(!incident_cvd & incident_cvd_followup < 10 & mortality_at_cvd_followup), big.mark=","), 
+                                          round(sum(!incident_cvd & incident_cvd_followup < 10 & mortality_at_cvd_followup)/sum(!incident_cvd & incident_cvd_followup < 10)*100, digits=2)),
+  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(!incident_cvd & cvd_follow_lt10_Wales), big.mark=","), round(sum(!incident_cvd & cvd_follow_lt10_Wales)/sum(!incident_cvd & incident_cvd_followup < 10)*100, digits=2)),
+  Censored_lost = sprintf("%s (%s%%)", format(sum(!incident_cvd & lost_at_cvd_followup  & !mortality_at_cvd_followup), big.mark=","), 
+                                         round(sum(!incident_cvd & lost_at_cvd_followup  & !mortality_at_cvd_followup)/sum(!incident_cvd & incident_cvd_followup < 10)*100, digits=2))
 ), by=.(case_status=fcase(incident_cvd, "cvd", default="cvd non-case"))]
 
-chd_cohort_info <- dat[,.(
+chd_cohort_info <- dat[!(prevalent_chd) | is.na(prevalent_chd),.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[,.N]*100, digits=1)),
+  assumed_ascvd_free = sprintf("%s (%s%%)", format(sum(is.na(ASCVD)), big.mark=","), round(sum(is.na(ASCVD))/.N*100, digits=2)),
+  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
   men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=2)),
   age = sprintf("%s (%s)", round(median(age), digits=1), round(sd(age), digits=2)),
   BMI = sprintf("%s (%s)", round(median(na.omit(bmi)), digits=1), round(sd(na.omit(bmi)), digits=2)),
   SBP = sprintf("%s (%s)", round(median(sbp), digits=1), round(sd(sbp), digits=2)),
   smokers = sprintf("%s (%s%%)", format(sum(na.omit(smoking)), big.mark=","), round(sum(na.omit(smoking))/.N*100, digits=2)),
-  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
-  assumed_cvd_free = sprintf("%s (%s%%)", format(sum(is.na(prevalent_vascular_disease)), big.mark=","), round(sum(is.na(prevalent_vascular_disease))/.N*100, digits=2)),
   assumed_non_smoking = sprintf("%s (%s%%)", format(sum(is.na(smoking)), big.mark=","), round(sum(is.na(smoking))/.N*100, digits=2)),
-  uncertain_diabetes = sprintf("%s (%s%%)", format(sum(uncertain_diabetes), big.mark=","), round(sum(uncertain_diabetes)/.N*100, digits=2)),
-  prevalent_t1d = sprintf("%s (%s%%)", format(sum(na.omit(prevalent_t1d)), big.mark=","), round(sum(na.omit(prevalent_t1d))/.N*100, digits=2)),
   history_gestational_diabetes = sprintf("%s (%s%%)", format(sum(na.omit(history_gestational_diabetes)), big.mark=","), round(sum(na.omit(history_gestational_diabetes))/dat[sex == "Female", .N]*100, digits=2)),
   hdl_cholesterol = sprintf("%s (%s)", round(median(hdl, na.rm=TRUE), digits=2), round(sd(hdl, na.rm=TRUE), digits=2)),
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
-  fatal = sprintf("%s (%s%%)", format(sum(incident_chd_is_fatal), big.mark=","), round(sum(incident_chd_is_fatal)/sum(incident_chd)*100, digits=2)),
+  Median_followup = sprintf("%s (%s)", round(median(incident_chd * incident_chd_followup), digits=1), round(sd(incident_chd * incident_chd_followup), digits=2)),
   primary_cause = sprintf("%s (%s%%)", format(sum(chd_is_primary_cause), big.mark=","), round(sum(chd_is_primary_cause)/sum(incident_chd)*100, digits=2)),
-  Median_followup = sprintf("%s (%s)", round(median(incident_chd_followup), digits=1), round(sd(incident_chd_followup), digits=2)),
-  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_chd_followup < 10), big.mark=","), round(sum(incident_chd_followup < 10)/.N*100, digits=2)),
-  Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_chd_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_chd_followup < 10)/.N*100, digits=2)),
-  Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_chd_followup < 10 & !all_cause_mortality), big.mark=","), 
-                                       round(sum(lost_to_followup != "" & incident_chd_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
-  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_chd_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
-                                            round(sum(latest_hospital_nation == "Wales" & incident_chd_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+  fatal = sprintf("%s (%s%%)", format(sum(incident_chd_is_fatal), big.mark=","), round(sum(incident_chd_is_fatal)/sum(incident_chd)*100, digits=2)),
+  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(!incident_chd & incident_chd_followup < 10), big.mark=","), round(sum(!incident_chd & incident_chd_followup < 10)/.N*100, digits=2)),
+  Censored_fatal = sprintf("%s (%s%%)", format(sum(!incident_chd & incident_chd_followup < 10 & mortality_at_chd_followup), big.mark=","), 
+                                          round(sum(!incident_chd & incident_chd_followup < 10 & mortality_at_chd_followup)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2)),
+  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(!incident_chd & chd_follow_lt10_Wales), big.mark=","), round(sum(!incident_chd & chd_follow_lt10_Wales)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2)),
+  Censored_lost = sprintf("%s (%s%%)", format(sum(!incident_chd & lost_at_chd_followup  & !mortality_at_chd_followup), big.mark=","), 
+                                         round(sum(!incident_chd & lost_at_chd_followup  & !mortality_at_chd_followup)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2))
 ), by=.(case_status=fcase(incident_chd, "chd", default="chd non-case"))]
 
-stroke_cohort_info <- dat[,.(
+stroke_cohort_info <- dat[!(prevalent_stroke) | is.na(prevalent_stroke),.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[,.N]*100, digits=1)),
+  assumed_ascvd_free = sprintf("%s (%s%%)", format(sum(is.na(ASCVD)), big.mark=","), round(sum(is.na(ASCVD))/.N*100, digits=2)),
+  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
   men = sprintf("%s (%s%%)", format(sum(sex == "Male"), big.mark=","), round(sum(sex == "Male")/.N*100, digits=2)),
   age = sprintf("%s (%s)", round(median(age), digits=1), round(sd(age), digits=2)),
   BMI = sprintf("%s (%s)", round(median(na.omit(bmi)), digits=1), round(sd(na.omit(bmi)), digits=2)),
   SBP = sprintf("%s (%s)", round(median(sbp), digits=1), round(sd(sbp), digits=2)),
   smokers = sprintf("%s (%s%%)", format(sum(na.omit(smoking)), big.mark=","), round(sum(na.omit(smoking))/.N*100, digits=2)),
-  assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
-  assumed_cvd_free = sprintf("%s (%s%%)", format(sum(is.na(prevalent_vascular_disease)), big.mark=","), round(sum(is.na(prevalent_vascular_disease))/.N*100, digits=2)),
   assumed_non_smoking = sprintf("%s (%s%%)", format(sum(is.na(smoking)), big.mark=","), round(sum(is.na(smoking))/.N*100, digits=2)),
-  uncertain_diabetes = sprintf("%s (%s%%)", format(sum(uncertain_diabetes), big.mark=","), round(sum(uncertain_diabetes)/.N*100, digits=2)),
-  prevalent_t1d = sprintf("%s (%s%%)", format(sum(na.omit(prevalent_t1d)), big.mark=","), round(sum(na.omit(prevalent_t1d))/.N*100, digits=2)),
   history_gestational_diabetes = sprintf("%s (%s%%)", format(sum(na.omit(history_gestational_diabetes)), big.mark=","), round(sum(na.omit(history_gestational_diabetes))/dat[sex == "Female", .N]*100, digits=2)),
   hdl_cholesterol = sprintf("%s (%s)", round(median(hdl, na.rm=TRUE), digits=2), round(sd(hdl, na.rm=TRUE), digits=2)),
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
-  fatal = sprintf("%s (%s%%)", format(sum(incident_stroke_is_fatal), big.mark=","), round(sum(incident_stroke_is_fatal)/sum(incident_stroke)*100, digits=2)),
+  Median_followup = sprintf("%s (%s)", round(median(incident_stroke * incident_stroke_followup), digits=1), round(sd(incident_stroke * incident_stroke_followup), digits=2)),
   primary_cause = sprintf("%s (%s%%)", format(sum(stroke_is_primary_cause), big.mark=","), round(sum(stroke_is_primary_cause)/sum(incident_stroke)*100, digits=2)),
-  Median_followup = sprintf("%s (%s)", round(median(incident_stroke_followup), digits=1), round(sd(incident_stroke_followup), digits=2)),
-  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(incident_stroke_followup < 10), big.mark=","), round(sum(incident_stroke_followup < 10)/.N*100, digits=2)),
-  Censored_fatal = sprintf("%s (%s%%)", format(sum(all_cause_mortality & incident_stroke_followup < 10), big.mark=","), round(sum(all_cause_mortality & incident_stroke_followup < 10)/.N*100, digits=2)),
-  Censored_lost = sprintf("%s (%s%%)", format(sum(lost_to_followup != "" & incident_stroke_followup < 10 & !all_cause_mortality), big.mark=","), 
-                                       round(sum(lost_to_followup != "" & incident_stroke_followup < 10 & !all_cause_mortality)/.N*100, digits=2)),
-  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(latest_hospital_nation == "Wales" & incident_stroke_followup < 10 & !all_cause_mortality & lost_to_followup == ""), big.mark=","), 
-                                            round(sum(latest_hospital_nation == "Wales" & incident_stroke_followup < 10 & !all_cause_mortality & lost_to_followup == "")/.N*100, digits=2))
+  fatal = sprintf("%s (%s%%)", format(sum(incident_stroke_is_fatal), big.mark=","), round(sum(incident_stroke_is_fatal)/sum(incident_stroke)*100, digits=2)),
+  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(!incident_stroke & incident_stroke_followup < 10), big.mark=","), round(sum(!incident_stroke & incident_stroke_followup < 10)/.N*100, digits=2)),
+  Censored_fatal = sprintf("%s (%s%%)", format(sum(!incident_stroke & incident_stroke_followup < 10 & mortality_at_stroke_followup), big.mark=","), 
+                                          round(sum(!incident_stroke & incident_stroke_followup < 10 & mortality_at_stroke_followup)/sum(!incident_stroke & incident_stroke_followup < 10)*100, digits=2)),
+  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(!incident_stroke & stroke_follow_lt10_Wales), big.mark=","), round(sum(!incident_stroke & stroke_follow_lt10_Wales)/sum(!incident_stroke & incident_stroke_followup < 10)*100, digits=2)),
+  Censored_lost = sprintf("%s (%s%%)", format(sum(!incident_stroke & lost_at_stroke_followup  & !mortality_at_stroke_followup), big.mark=","), 
+                                         round(sum(!incident_stroke & lost_at_stroke_followup  & !mortality_at_stroke_followup)/sum(!incident_stroke & incident_stroke_followup < 10)*100, digits=2))
 ), by=.(case_status=fcase(incident_stroke, "stroke", default="stroke non-case"))]
 
 cohort_info <- rbind(cvd_cohort_info, chd_cohort_info, stroke_cohort_info)
@@ -483,3 +544,13 @@ cohort_info <- as.data.table(t(cohort_info), keep.rownames=TRUE)
 cohort_info <- cohort_info[, c(1,2,3,5,4,7,6), with=FALSE]
 
 fwrite(cohort_info, sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohort_information.txt")
+
+# Note disease subtype analysis exclusions
+excl_info <- rbind(
+  data.table("Prevalent events excluded from CHD analyses", sprintf("%s (%s%%)", format(dat[(prevalent_chd), .N], big.mark=","), round(dat[(prevalent_chd), .N]/dat[,.N]*100, digits=2))),
+  data.table("Assumed CHD free", sprintf("%s (%s%%)", format(dat[is.na(prevalent_chd), .N], big.mark=","), round(dat[is.na(prevalent_chd), .N]/dat[,.N]*100, digits=2))),
+  data.table("Prevalent events excluded from stroke analyses", sprintf("%s (%s%%)", format(dat[(prevalent_stroke), .N], big.mark=","), round(dat[(prevalent_stroke), .N]/dat[,.N]*100, digits=2))),
+  data.table("Assumed stroke free", sprintf("%s (%s%%)", format(dat[is.na(prevalent_stroke), .N], big.mark=","), round(dat[is.na(prevalent_stroke), .N]/dat[,.N]*100, digits=2)))
+)
+fwrite(excl_info, sep="\t", quote=FALSE, col.names=FALSE, file="analyses/sub_cohort_information.txt")
+

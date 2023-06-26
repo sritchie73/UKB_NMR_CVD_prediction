@@ -32,9 +32,9 @@ dat[, SCORE2_LP := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predi
 
 # Extract columns required for model training
 if (this_endpoint == "CHD") {
-  dat <- dat[, .(eid, age, SCORE2_LP, event=incident_chd, followup=incident_chd_followup)]
+  dat <- dat[!(prevalent_chd) | is.na(prevalent_chd), .(eid, age, SCORE2_LP, event=incident_chd, followup=incident_chd_followup)]
 } else if (this_endpoint == "Stroke") {
-  dat <- dat[, .(eid, age, SCORE2_LP, event=incident_stroke, followup=incident_stroke_followup)]
+  dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, age, SCORE2_LP, event=incident_stroke, followup=incident_stroke_followup)]
 }
 
 # Allocate samples to 10-folds for cross-validation, balancing folds by cases status
