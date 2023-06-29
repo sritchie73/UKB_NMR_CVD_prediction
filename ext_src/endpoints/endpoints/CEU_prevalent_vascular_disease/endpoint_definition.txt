@@ -1,0 +1,51 @@
+# CEU's prevalent vascular disease definition, which closely matches the ESC 2021's 
+# ASCVD definition
+
+
+# History of heart disease or angina 
+Prevalent ICD-10: I20-I25
+Prevalent ICD-9: 410-414, 429.2, 429.9
+Self-report field 6150:  1    # "Heart attack" (Touchscreen)
+Self-report field 6150:  2    # "Angina" (touchscreen)
+Self-report field 20002: 1066 # "heart/cardiac problem" (Verbal interview)
+Self-report field 20002: 1075 # "heart attack/myocardial infarction" (verbal interview)
+Self-report field 20002: 1074 # "angina" (verbal interview)
+
+# Note, self report fields can also be given as comma separated lists, e.g. 
+# 'Self-report field 20002: 1066, 1074, 1075', I've just separated them here
+# for ease of documentation.
+
+# History of stroke
+Prevalent ICD-10: I60-I69, F01
+Prevalent ICD-9: 430-434, 436-438, 290.4
+Self-report field 6150: 3 # "Stroke"
+Self-report field 20002: 1081 # "stroke" (verbal interview)
+Self-report field 20002: 1583 # "ischaemic stroke" (verbal interview)
+Self-report field 20002: 1086 # "subarachnoid haemorrhage" (verbal interview)
+Self-report field 20002: 1491 # "brain haemorrhage" (verbal interview)
+Self-report field 20002: 1425 # "cerebral aneurysm" (verbal interview)
+
+# Transient ischaemic attack
+Prevalent ICD-10: G45
+Prevalent ICD-9: 435
+Self-report field 20002: 1082
+
+# Peripheral vascular disease
+Prevalent ICD-10: I73, I74, I77, I78
+Prevalent ICD-9: 443, 444, 447, 448
+Self-report field 20002: 1067 # peripheral vascular disease
+Self-report field 20002: 1087 # leg claudication/ intermittent claudication
+Self-report field 20002: 1088 # arterial embolism
+Self-report field 20002: 1492 # aortic aneurysm
+Self-report field 20002: 1591 # aortic aneurysm rupture
+Self-report field 20002: 1592 # aortic dissection
+Self-report field 4728: 1     # "Yes" to touchscreen: "Do you get a pain in either leg on walking?"
+
+# History of coronary surgery
+Prevalent ICD-10: Z95.1
+Prevalent ICD-9: V45.81
+Prevalent OPCS-4: K40-K46, K49, K50.1, K75
+Prevalent OPCS-3: 309.4, 884
+Self-report field 20004: 1070 # coronary angioplasty (ptca) +/- stent
+Self-report field 20004: 1095 # coronary artery bypass grafts (cabg)
+Self-report field 20004: 1523 # triple heart bypass
