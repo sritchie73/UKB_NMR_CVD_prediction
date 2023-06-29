@@ -57,9 +57,10 @@ ado <- fread("data/ukb/algorithmically_defined_outcomes/output/algorithmically_d
 dat[ado, on = .(eid), prevalent_CKD := esrd_date < assessment_date]
 dat[is.na(prevalent_CKD), prevalent_CKD := FALSE]
 
-# Add in prevalent vascular disease and determine where the event onset is premature, to be used in
-# conjunction with LDL cholesterol to predict familiar hypercholesterolemia
-DLCN_vasc_disease <- fread("data/ukb/endpoints/endpoints/DLCN_prevalent_vascular_disease/events_and_followup.txt")
+# Add in earliest onset of prevalent vascular disease and CAD (as defined by the Dutch Lipic Clinical Network) 
+# and determine where the event onset is premature, to be used in conjunction with LDL cholesterol 
+# to predict familiar hypercholesterolemia
+DLCN_vasc_disease <- fread("data/ukb/endpoints/endpoints/DLCN_premature_vascular_disease/events_and_followup.txt")
 dat[DLCN_vasc_disease[visit_index == 0], on = .(eid), premature_vascular_disease := fcase(
   prevalent_event & sex == "Male" & prevalent_event_age < 55, TRUE,
   prevalent_event & sex == "Female" & prevalent_event_age < 60, TRUE,
@@ -68,8 +69,18 @@ dat[DLCN_vasc_disease[visit_index == 0], on = .(eid), premature_vascular_disease
   default = FALSE
 )]
 
-# Add in established atherosclerotic cardiovascular disease
-ascvd <- fread("data/ukb/endpoints/endpoints/ASCVD_10year/events_and_followup.txt")
+DLCN_cad <- fread("data/ukb/endpoints/endpoints/DLCN_premature_CAD/events_and_followup.txt")
+dat[DLCN_cad[visit_index == 0], on = .(eid), premature_cad := fcase(
+  prevalent_event & sex == "Male" & prevalent_event_age < 55, TRUE,
+  prevalent_event & sex == "Female" & prevalent_event_age < 60, TRUE,
+  prevalent_event & sex == "Male" & is.na(prevalent_event_age) & x.age < 55, TRUE,
+  prevalent_event & sex == "Female" & is.na(prevalent_event_age) & x.age < 60, TRUE,
+  default = FALSE
+)]
+
+# Add in established atherosclerotic cardiovascular disease: the ESC 2021 guidelines
+# (Table 4) pretty closely match CEU's prevalent vascular disease definition
+ascvd <- fread("data/ukb/endpoints/endpoints/CEU_prevalent_vascular_disease/events_and_followup.txt")
 dat[ascvd[visit_index == 0], on = .(eid), ASCVD := i.prevalent_event]
 
 # Add in CVD endpoint (SCORE2 definition)
@@ -91,8 +102,11 @@ dat[cvd, on = . (eid), cvd_is_primary_cause := fcase(
   is.na(i.incident_cause_type), NA
 )]
 
-# Add in Ischaemic Stroke and CHD endpoints, to be used for model training. Note these have
+# Add in Ischaemic Stroke and CAD endpoints, to be used for model training. Note these have
 # separate follow-up columns as we don't treat CVD as a competing risk, only all-cause mortality.
+
+# For Stroke we use UK Biobank's algorithmically defined outcome to match the 2019 Stroke metaGRS
+# paper (here with additional curation for follow-up time in non-cases)
 stroke <- fread("data/ukb/endpoints/endpoints/ADO_Stroke_IS_10year/events_and_followup.txt")
 stroke <- stroke[visit_index == 0]
 dat[stroke, on = .(eid), incident_stroke := i.incident_event]
@@ -112,25 +126,26 @@ dat[stroke, on = . (eid), stroke_is_primary_cause := fcase(
 )]
 dat[stroke, on = .(eid), prevalent_stroke := i.prevalent_event]
 
-chd <- fread("data/ukb/endpoints/endpoints/ASCVD_10year/events_and_followup.txt")
-chd <- chd[visit_index == 0]
-dat[chd, on = .(eid), incident_chd := i.incident_event]
-dat[chd, on = .(eid), incident_chd_followup := i.incident_event_followup]
-dat[chd, on = .(eid), incident_chd_followup_date := i.incident_event_followup_date]
-dat[chd, on = .(eid), incident_chd_is_fatal := fcase(
+# For CAD we the same definition as the 2018 CAD metaGRS paper
+cad <- fread("data/ukb/endpoints/endpoints/MetaGRS_CAD_10yr/events_and_followup.txt")
+cad <- cad[visit_index == 0]
+dat[cad, on = .(eid), incident_cad := i.incident_event]
+dat[cad, on = .(eid), incident_cad_followup := i.incident_event_followup]
+dat[cad, on = .(eid), incident_cad_followup_date := i.incident_event_followup_date]
+dat[cad, on = .(eid), incident_cad_is_fatal := fcase(
   i.incident_event_type == "death", TRUE,
   i.incident_event_type == "hospitalisation", FALSE,
   i.incident_event_type == "operation", FALSE,
   i.incident_event_type == "" & !is.na(i.incident_event), FALSE,
   is.na(i.incident_event), NA
 )]
-dat[chd, on = . (eid), chd_is_primary_cause := fcase(
+dat[cad, on = . (eid), cad_is_primary_cause := fcase(
   i.incident_cause_type == "primary", TRUE,
   i.incident_cause_type == "secondary", FALSE,
   i.incident_cause_type == "" & !is.na(i.incident_cause_type), FALSE,
   is.na(i.incident_cause_type), NA
 )]
-dat[chd, on = .(eid), prevalent_chd := i.prevalent_event] # Currently the same as ASCVD
+dat[cad, on = .(eid), prevalent_cad := i.prevalent_event]
  
 # Get information on where participants resided at baseline assessment, 
 # maximum, and minimum follow-up available in hospital records (different
@@ -153,12 +168,12 @@ dat[stroke, on = .(eid), stroke_follow_lt10_Wales := !(incident_event) & inciden
 dat[, stroke_follow_lt10_Wales := !(incident_stroke) & !(lost_at_stroke_followup) & !(mortality_at_stroke_followup) & incident_stroke_followup < 10]
 stopifnot(all(dat[(stroke_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
 
-dat[chd, on = .(eid), mortality_at_chd_followup := i.mortality_at_followup_date]
-dat[chd, on = .(eid), lost_at_chd_followup := i.lost_to_followup_reason != ""]
-dat[chd, on = .(eid), lost_at_chd_followup_reason := i.lost_to_followup_reason]
-dat[chd, on = .(eid), chd_follow_lt10_Wales := !(incident_event) & incident_event_followup < 10 & incident_event_followup_date == latest_hospital_date & latest_hospital_nation == "Wales"]
-dat[, chd_follow_lt10_Wales := !(incident_chd) & !(lost_at_chd_followup) & !(mortality_at_chd_followup) & incident_chd_followup < 10]
-stopifnot(all(dat[(chd_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
+dat[cad, on = .(eid), mortality_at_cad_followup := i.mortality_at_followup_date]
+dat[cad, on = .(eid), lost_at_cad_followup := i.lost_to_followup_reason != ""]
+dat[cad, on = .(eid), lost_at_cad_followup_reason := i.lost_to_followup_reason]
+dat[cad, on = .(eid), cad_follow_lt10_Wales := !(incident_event) & incident_event_followup < 10 & incident_event_followup_date == latest_hospital_date & latest_hospital_nation == "Wales"]
+dat[, cad_follow_lt10_Wales := !(incident_cad) & !(lost_at_cad_followup) & !(mortality_at_cad_followup) & incident_cad_followup < 10]
+stopifnot(all(dat[(cad_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
 
 # Add in biochemistry biomarker data
 bio <- fread("data/ukb/biomarkers/output/biomarkers.txt")
@@ -182,7 +197,7 @@ dat[, no_urine_biomarkers := apply(as.matrix(dat[,urine_bio,with=FALSE]), 1, fun
 
 # Score FH status according to Dutch Lipid Clinic Network diagnosit criteria:
 dat[, DLCN_FH_score := 0]
-dat[(ASCVD), DLCN_FH_score := DLCN_FH_score + 2]
+dat[(premature_cad), DLCN_FH_score := DLCN_FH_score + 2]
 dat[(premature_vascular_disease), DLCN_FH_score := DLCN_FH_score + 1]
 dat[ldl >= 8.5, DLCN_FH_score := DLCN_FH_score + 8]
 dat[ldl >= 6.5 & ldl < 8.5, DLCN_FH_score := DLCN_FH_score + 5]
@@ -222,8 +237,8 @@ dat[prs_training, on = .(eid), prs_training_samples := TRUE]
 
 # Start building table of sample flowchart
 sample_info <- data.table(step="Baseline (excl. withdrawals)", 
-  samples=dat[,.N], CVD=NA_real_, CHD=NA_real_, Stroke=NA_real_,
-  exited=NA_real_, exited_cvd=NA_real_, exited_chd=NA_real_, exited_stroke=NA_real_)
+  samples=dat[,.N], CVD=NA_real_, CAD=NA_real_, Stroke=NA_real_,
+  exited=NA_real_, exited_cvd=NA_real_, exited_cad=NA_real_, exited_stroke=NA_real_)
 
 # Function to update sample information
 update_sample_info <- function(step_name, dataset, last_dataset) {
@@ -232,28 +247,28 @@ update_sample_info <- function(step_name, dataset, last_dataset) {
   }
   current_samples <- dataset[,.N]
   current_cvd <- sum(dataset$incident_cvd, na.rm=TRUE)
-  current_chd <- sum(dataset$incident_chd, na.rm=TRUE)
+  current_cad <- sum(dataset$incident_cad, na.rm=TRUE)
   current_stroke <- sum(dataset$incident_stroke, na.rm=TRUE)
   if (missing(last_dataset)) {
 		last_samples <- sample_info[.N, samples]
 		last_cvd <- sample_info[.N, CVD]
-		last_chd <- sample_info[.N, CHD]
+		last_cad <- sample_info[.N, CAD]
 		last_stroke <- sample_info[.N, Stroke]
   } else {
     last_samples <- last_dataset[,.N]
     last_cvd <- last_dataset[, sum(incident_cvd, na.rm=TRUE)]
-    last_chd <- last_dataset[, sum(incident_chd, na.rm=TRUE)]
+    last_cad <- last_dataset[, sum(incident_cad, na.rm=TRUE)]
     last_stroke <- last_dataset[, sum(incident_stroke, na.rm=TRUE)]
   }
   new_row <- data.table(
     step=step_name, 
     samples=current_samples, 
     CVD=current_cvd, 
-    CHD=current_chd,
+    CAD=current_cad,
     Stroke=current_stroke,
     exited=last_samples - current_samples,
     exited_cvd=ifelse(is.na(last_cvd), NA, last_cvd - current_cvd),
-    exited_chd=ifelse(is.na(last_chd), NA, last_chd - current_chd),
+    exited_cad=ifelse(is.na(last_cad), NA, last_cad - current_cad),
     exited_stroke=ifelse(is.na(last_stroke), NA, last_stroke - current_stroke)
   )
   sample_info <<- rbind(sample_info, new_row) 
@@ -366,9 +381,9 @@ dat <- dat[!(prevalent_CKD) | is.na(prevalent_CKD)]
 update_sample_info("Without CKD", dat, dat_cpy2)
 
 dat_cpy2 <- copy(dat)
-update_sample_info("Definite FH (LDL ≥ 8.5 mmol/L and premature vascular disease):", dat[DLCN_FH_score > 8], dat[DLCN_FH_score > 8])
+update_sample_info("Definite FH (LDL ≥ 8.5 mmol/L and premature CAD or vascular disease):", dat[DLCN_FH_score > 8], dat[DLCN_FH_score > 8])
 update_sample_info("Probable FH (LDL ≥ 8.5 mmol/L)", dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)], dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)])
-update_sample_info("Probable FH (LDL ≥ 6.5 mmol/L and premature vascular disease)", dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease], dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease])
+update_sample_info("Probable FH (LDL ≥ 6.5 mmol/L and premature CAD or vascular disease)", dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease], dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease])
 update_sample_info("Possible FH (LDL ≥ 5 mmol/L)", dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5], dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5])
 update_sample_info("No FH (LDL < 5 mmol/L or missing)", dat[DLCN_FH_score < 3], dat[DLCN_FH_score < 3])
 dat <- dat[DLCN_FH_score < 6]
@@ -404,10 +419,10 @@ sample_info[, exited_cvd := ifelse(
   sprintf("%s (%s%%)", format(exited_cvd, big.mark=","), round(exited_cvd/(exited_cvd + CVD)*100, digits=2))
 ))]
 
-sample_info[, exited_chd := ifelse(
-  is.na(exited_chd), NA_character_,
+sample_info[, exited_cad := ifelse(
+  is.na(exited_cad), NA_character_,
   ifelse(exited == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(exited_chd, big.mark=","), round(exited_chd/(exited_chd + CVD)*100, digits=2))
+  sprintf("%s (%s%%)", format(exited_cad, big.mark=","), round(exited_cad/(exited_cad + CVD)*100, digits=2))
 ))]
 
 sample_info[, exited_stroke := ifelse(
@@ -428,10 +443,10 @@ sample_info[, CVD := ifelse(
   sprintf("%s (%s%%)", format(CVD, big.mark=","), round(CVD/samples*100, digits=2))
 ))]
 
-sample_info[, CHD := ifelse(
-  is.na(CHD), NA_character_,
+sample_info[, CAD := ifelse(
+  is.na(CAD), NA_character_,
   ifelse(samples == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(CHD, big.mark=","), round(CHD/samples*100, digits=2))
+  sprintf("%s (%s%%)", format(CAD, big.mark=","), round(CAD/samples*100, digits=2))
 ))]
 
 sample_info[, Stroke := ifelse(
@@ -446,7 +461,7 @@ sample_info[, samples := ifelse(is.na(samples), NA_character_, format(samples, b
 fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 
 # We will perform nested cross-validation. Here, split the data into 5-folds balancing CVD cases status and sex.
-# We will later split each 4/5ths of the data into 10-folds for elasticnet cross-validation, balancing by CHD or 
+# We will later split each 4/5ths of the data into 10-folds for elasticnet cross-validation, balancing by CAD or 
 # Stroke case status.
 dat[, foldgrp := paste(incident_cvd, sex)]
 dat[, prediction_cv_foldid := createFolds(foldgrp, k=5, list=FALSE)]
@@ -485,7 +500,7 @@ cvd_cohort_info <- dat[,.(
                                          round(sum(!incident_cvd & lost_at_cvd_followup  & !mortality_at_cvd_followup)/sum(!incident_cvd & incident_cvd_followup < 10)*100, digits=2))
 ), by=.(case_status=fcase(incident_cvd, "cvd", default="cvd non-case"))]
 
-chd_cohort_info <- dat[!(prevalent_chd) | is.na(prevalent_chd),.(
+cad_cohort_info <- dat[!(prevalent_cad) | is.na(prevalent_cad),.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[,.N]*100, digits=1)),
   assumed_ascvd_free = sprintf("%s (%s%%)", format(sum(is.na(ASCVD)), big.mark=","), round(sum(is.na(ASCVD))/.N*100, digits=2)),
   assumed_medication_free = sprintf("%s (%s%%)", format(sum(is.na(cholesterol_medication)), big.mark=","), round(sum(is.na(cholesterol_medication))/.N*100, digits=2)),
@@ -501,16 +516,16 @@ chd_cohort_info <- dat[!(prevalent_chd) | is.na(prevalent_chd),.(
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
-  Median_followup = sprintf("%s (%s)", round(median(incident_chd * incident_chd_followup), digits=1), round(sd(incident_chd * incident_chd_followup), digits=2)),
-  primary_cause = sprintf("%s (%s%%)", format(sum(chd_is_primary_cause), big.mark=","), round(sum(chd_is_primary_cause)/sum(incident_chd)*100, digits=2)),
-  fatal = sprintf("%s (%s%%)", format(sum(incident_chd_is_fatal), big.mark=","), round(sum(incident_chd_is_fatal)/sum(incident_chd)*100, digits=2)),
-  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(!incident_chd & incident_chd_followup < 10), big.mark=","), round(sum(!incident_chd & incident_chd_followup < 10)/.N*100, digits=2)),
-  Censored_fatal = sprintf("%s (%s%%)", format(sum(!incident_chd & incident_chd_followup < 10 & mortality_at_chd_followup), big.mark=","), 
-                                          round(sum(!incident_chd & incident_chd_followup < 10 & mortality_at_chd_followup)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2)),
-  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(!incident_chd & chd_follow_lt10_Wales), big.mark=","), round(sum(!incident_chd & chd_follow_lt10_Wales)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2)),
-  Censored_lost = sprintf("%s (%s%%)", format(sum(!incident_chd & lost_at_chd_followup  & !mortality_at_chd_followup), big.mark=","), 
-                                         round(sum(!incident_chd & lost_at_chd_followup  & !mortality_at_chd_followup)/sum(!incident_chd & incident_chd_followup < 10)*100, digits=2))
-), by=.(case_status=fcase(incident_chd, "chd", default="chd non-case"))]
+  Median_followup = sprintf("%s (%s)", round(median(incident_cad * incident_cad_followup), digits=1), round(sd(incident_cad * incident_cad_followup), digits=2)),
+  primary_cause = sprintf("%s (%s%%)", format(sum(cad_is_primary_cause), big.mark=","), round(sum(cad_is_primary_cause)/sum(incident_cad)*100, digits=2)),
+  fatal = sprintf("%s (%s%%)", format(sum(incident_cad_is_fatal), big.mark=","), round(sum(incident_cad_is_fatal)/sum(incident_cad)*100, digits=2)),
+  Censored_lt_10yr = sprintf("%s (%s%%)", format(sum(!incident_cad & incident_cad_followup < 10), big.mark=","), round(sum(!incident_cad & incident_cad_followup < 10)/.N*100, digits=2)),
+  Censored_fatal = sprintf("%s (%s%%)", format(sum(!incident_cad & incident_cad_followup < 10 & mortality_at_cad_followup), big.mark=","), 
+                                          round(sum(!incident_cad & incident_cad_followup < 10 & mortality_at_cad_followup)/sum(!incident_cad & incident_cad_followup < 10)*100, digits=2)),
+  Censored_max_Wales = sprintf("%s (%s%%)", format(sum(!incident_cad & cad_follow_lt10_Wales), big.mark=","), round(sum(!incident_cad & cad_follow_lt10_Wales)/sum(!incident_cad & incident_cad_followup < 10)*100, digits=2)),
+  Censored_lost = sprintf("%s (%s%%)", format(sum(!incident_cad & lost_at_cad_followup  & !mortality_at_cad_followup), big.mark=","), 
+                                         round(sum(!incident_cad & lost_at_cad_followup  & !mortality_at_cad_followup)/sum(!incident_cad & incident_cad_followup < 10)*100, digits=2))
+), by=.(case_status=fcase(incident_cad, "cad", default="cad non-case"))]
 
 stroke_cohort_info <- dat[!(prevalent_stroke) | is.na(prevalent_stroke),.(
   samples = sprintf("%s (%s%%)", format(.N, big.mark=","), round(.N/dat[,.N]*100, digits=1)),
@@ -539,7 +554,7 @@ stroke_cohort_info <- dat[!(prevalent_stroke) | is.na(prevalent_stroke),.(
                                          round(sum(!incident_stroke & lost_at_stroke_followup  & !mortality_at_stroke_followup)/sum(!incident_stroke & incident_stroke_followup < 10)*100, digits=2))
 ), by=.(case_status=fcase(incident_stroke, "stroke", default="stroke non-case"))]
 
-cohort_info <- rbind(cvd_cohort_info, chd_cohort_info, stroke_cohort_info)
+cohort_info <- rbind(cvd_cohort_info, cad_cohort_info, stroke_cohort_info)
 cohort_info <- as.data.table(t(cohort_info), keep.rownames=TRUE)
 cohort_info <- cohort_info[, c(1,2,3,5,4,7,6), with=FALSE]
 
@@ -547,8 +562,8 @@ fwrite(cohort_info, sep="\t", quote=FALSE, col.names=FALSE, file="analyses/cohor
 
 # Note disease subtype analysis exclusions
 excl_info <- rbind(
-  data.table("Prevalent events excluded from CHD analyses", sprintf("%s (%s%%)", format(dat[(prevalent_chd), .N], big.mark=","), round(dat[(prevalent_chd), .N]/dat[,.N]*100, digits=2))),
-  data.table("Assumed CHD free", sprintf("%s (%s%%)", format(dat[is.na(prevalent_chd), .N], big.mark=","), round(dat[is.na(prevalent_chd), .N]/dat[,.N]*100, digits=2))),
+  data.table("Prevalent events excluded from CAD analyses", sprintf("%s (%s%%)", format(dat[(prevalent_cad), .N], big.mark=","), round(dat[(prevalent_cad), .N]/dat[,.N]*100, digits=2))),
+  data.table("Assumed CAD free", sprintf("%s (%s%%)", format(dat[is.na(prevalent_cad), .N], big.mark=","), round(dat[is.na(prevalent_cad), .N]/dat[,.N]*100, digits=2))),
   data.table("Prevalent events excluded from stroke analyses", sprintf("%s (%s%%)", format(dat[(prevalent_stroke), .N], big.mark=","), round(dat[(prevalent_stroke), .N]/dat[,.N]*100, digits=2))),
   data.table("Assumed stroke free", sprintf("%s (%s%%)", format(dat[is.na(prevalent_stroke), .N], big.mark=","), round(dat[is.na(prevalent_stroke), .N]/dat[,.N]*100, digits=2)))
 )

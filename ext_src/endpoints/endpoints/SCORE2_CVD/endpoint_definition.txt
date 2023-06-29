@@ -1,6 +1,5 @@
 Max follow years: 10 
 
-
 # As defined in Supplementary Table 5 of:
 # SCORE2 working group and ESC Cardiovascular risk collaboration (2021). SCORE2 risk 
 # prediction algorithms: new models to estimate 10-year risk of cardiovascular disease 

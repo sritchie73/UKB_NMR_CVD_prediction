@@ -492,7 +492,7 @@ if (2463 %in% srmap$field_id && 20004 %in% srmap$field_id) {
 # Now we can filter to unique instances
 missing <- unique(missing[,.(eid, visit_index)])
 
-# Add in people not asked any of the self-report question - this doesn;t conflict with the
+# Add in people not asked any of the self-report question - this doesn't conflict with the
 # above because no one who was asked 20002/20004 was not first asked one of the preceeding
 # touchscreen questions listed above
 if (length(srmap$field_id) > 0) {
@@ -997,6 +997,7 @@ if (!is.null(opts[["prevalent date overrules missing"]]) &&
       tolower(opts[["prevalent date overrules missing"]]) == "true") {
   # Unless the user has specifically requested prevalent events with dates to be included
   # and overrule self-report events with missing event dates
+  invisible() # stops the empty print statement condition from printing NULL to stdout
 } else {
   if (!is.null(opts[["min follow years"]]) ||
       !is.null(opts[["min follow date"]]) ||
@@ -1197,10 +1198,11 @@ if (def_has_prevalent && !is.null(opts[["earliest prevalent occurrence"]]) &&
   follow[,prevalent_event_followup_date := NULL]
   follow[,prevalent_event_followup_age := NULL]
 }
+
 if (def_has_prevalent && !(
   !is.null(opts[["prevalent date overrules missing"]]) &&
-   tolower(opts[["prevalent date overrules missing"]] == "true")
-) {
+   tolower(opts[["prevalent date overrules missing"]]) == "true"
+)) {
   follow[, prevalent_has_missing_dates := NULL]
 }
 

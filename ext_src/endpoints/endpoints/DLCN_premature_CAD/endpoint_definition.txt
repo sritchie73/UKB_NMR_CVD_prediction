@@ -1,0 +1,27 @@
+# For use in conjunction with LDL cholesterol levels for predicting familiar hypercholesterolemia
+# See Table 11 in Visseren et al., 2021 ESC Guidelines on cardiovascular disease prevention in
+# clinical practice: Developed by the Task Force for cardiovascular disease prevention in clinical
+# practice with representatives of the European Society of Cardiology and 12 medical societies
+# With the special contribution of the European Association of Preventive Cardiology (EAPC).
+# Rev. Esp. Cardiol. 75, 429. 2022
+
+# Here CAD follows the same definition as used in the JACC 2018 metaGRS paper
+
+earliest prevalent occurrence: true # We want earliest prevalent occurrence, not most recent
+prevalent date overrules missing: true # We want the earliest known event even if some dates cannot be inferred
+
+# Myocardial infarction
+Prevalent ICD-10: I21-I24, I25.2
+Prevalent ICD-9: 410-412
+Self-report field 6150: 1 # heart attack (touchscreen)
+Self-report field 20002: 1075 # "heart attack/myocardial infarction" (verbal interview)
+
+# Heart surgery 
+Prevalent ICD-10: Z95.1
+Prevalent ICD-9: V45.81
+OPCS-4: K40-K46, K49, K50.1, K75
+Prevalent OPCS-3: 309.4, 884
+Self-report field 20004: 1070 # coronary angioplasty (ptca) +/- stent
+Self-report field 20004: 1095 # coronary artery bypass grafts (cabg)
+Self-report field 20004: 1523 # triple heart bypass
+

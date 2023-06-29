@@ -1,0 +1,19 @@
+# Follow the same endpoint definition as the 2018 JACC CAD metaGRS paper
+
+Max follow years: 10
+
+# Myocardial infarction
+ICD-10: I21-I24, I25.2
+Prevalent ICD-9: 410-412
+Self-report field 6150: 1 # heart attack (touchscreen)
+Self-report field 20002: 1075 # "heart attack/myocardial infarction" (verbal interview)
+
+# Heart surgery 
+ICD-10: Z95.1
+Prevalent ICD-9: V45.81
+OPCS-4: K40-K46, K49, K50.1, K75
+Prevalent OPCS-3: 309.4, 884
+Self-report field 20004: 1070 # coronary angioplasty (ptca) +/- stent
+Self-report field 20004: 1095 # coronary artery bypass grafts (cabg)
+Self-report field 20004: 1523 # triple heart bypass
+
