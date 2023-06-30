@@ -112,13 +112,13 @@ score_scatter <- function(score_comp) {
       panel.grid=element_blank(), legend.text=element_text(size=6)
     )
 }
-g1 <- score_scatter(score_comp[endpoint == "CHD" & sex == "Male" & lambda.fit == "lambda.min"])
-g2 <- score_scatter(score_comp[endpoint == "CHD" & sex == "Female" & lambda.fit == "lambda.min"])
+g1 <- score_scatter(score_comp[endpoint == "CAD" & sex == "Male" & lambda.fit == "lambda.min"])
+g2 <- score_scatter(score_comp[endpoint == "CAD" & sex == "Female" & lambda.fit == "lambda.min"])
 g3 <- score_scatter(score_comp[endpoint == "Stroke" & sex == "Male" & lambda.fit == "lambda.min"])
 g4 <- score_scatter(score_comp[endpoint == "Stroke" & sex == "Female" & lambda.fit == "lambda.min"])
 
-ggsave(g1, width=7, height=6, file="analyses/nmr_score_training/CHD_male_score_consistency.pdf")
-ggsave(g2, width=7, height=6, file="analyses/nmr_score_training/CHD_female_score_consistency.pdf")
+ggsave(g1, width=7, height=6, file="analyses/nmr_score_training/CAD_male_score_consistency.pdf")
+ggsave(g2, width=7, height=6, file="analyses/nmr_score_training/CAD_female_score_consistency.pdf")
 ggsave(g3, width=7, height=6, file="analyses/nmr_score_training/Stroke_male_score_consistency.pdf")
 ggsave(g4, width=7, height=6, file="analyses/nmr_score_training/Stroke_female_score_consistency.pdf")
 
@@ -153,7 +153,7 @@ ggsave(g, width=7, height=5.5, file="analyses/nmr_score_training/test_aggregate_
 system("mkdir -p data/scores/")
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
 test_scores <- nmr[lambda.fit == "lambda.min" & prediction_cv_testfold == prediction_cv_foldid]
-dat[test_scores[endpoint == "CHD"], on = .(eid), CHD_NMR_score := i.linear_predictor]
+dat[test_scores[endpoint == "CAD"], on = .(eid), CAD_NMR_score := i.linear_predictor]
 dat[test_scores[endpoint == "Stroke"], on = .(eid), Stroke_NMR_score := i.linear_predictor]
 fwrite(dat, sep="\t", quote=FALSE, file="data/scores/analysis_cohort.txt")
 
