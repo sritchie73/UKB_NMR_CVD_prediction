@@ -5,7 +5,7 @@ library(ggh4x)
 
 # Load fits for all parameters
 fitdt <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
-  foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
+  foreach(this_endpoint = c("CAD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
       fread(sprintf("%s/cv_coxnet_list_all_fits.txt", model_dir))
@@ -15,7 +15,7 @@ fitdt <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
 
 # Load best fit per alpha
 bestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
-  foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
+  foreach(this_endpoint = c("CAD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
       fread(sprintf("%s/cv_coxnet_best_fits.txt", model_dir))
@@ -25,7 +25,7 @@ bestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
 
 # Load optimal fit per trait, sex, and test-fold
 bestbestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
-  foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
+  foreach(this_endpoint = c("CAD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
       fread(sprintf("%s/cv_coxnet_best_best_fits.txt", model_dir))
@@ -36,13 +36,14 @@ bestbestfit <- bestbestfit[,-(7:11)] # some columns duplicated in training code
 
 # Load in non-zero coefficients
 bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
-  foreach(this_endpoint = c("CHD", "Stroke"), .combine=rbind) %do% {
+  foreach(this_endpoint = c("CAD", "Stroke"), .combine=rbind) %do% {
     foreach(this_sex = c("Female", "Male"), .combine=rbind) %do% {
       model_dir <- sprintf("analyses/nmr_score_training/test_fold_%s/%s/%s", this_test_fold, this_endpoint, this_sex)
       fread(sprintf("%s/best_best_fits_coefficients.txt", model_dir))
     }
   }
 }
+bestcoef <- bestcoef[!is.na(beta)]
 
 # Combine coefficients across test folds
 avgbestcoef <- bestcoef[,.(beta=sum(beta)/5, sd=sd(beta), min=min(beta), max=max(beta), non_zero=.N),by=.(endpoint, sex, lambda.fit, coef)]
@@ -117,7 +118,7 @@ for (this_test_fold in 1:5) {
     scale_linetype_manual(name="Lambda selection", values=c("lambda.min"="dotted", "lambda.1se"="dashed")) +
     guides(fill=guide_legend(nrow=1), colour=guide_legend(nrow=1)) +
     xlab("Log(lambda)") +
-    scale_y_continuous(name=sprintf("%s (± SD)", fitdt$fit_metric[1]), limits=c(21.8, 23.8), expand=c(0,0), oob=scales::squish) +
+    scale_y_continuous(name=sprintf("%s (± SD)", fitdt$fit_metric[1]), limits=c(21.7, 23.7), expand=c(0,0), oob=scales::squish) +
     theme_bw() + 
     theme(axis.text=element_text(size=6), axis.title=element_text(size=8), 
           legend.title=element_text(size=8), legend.text=element_text(size=6), 

@@ -7,7 +7,7 @@ registerDoMC(10) # recommend requesting more cores than this in sbatch for memor
 source("src/utils/SCORE2.R")
 
 # Setup array task information
-tasklist <- expand.grid(prediction_cv_testfold = 1:5, endpoint = c("CHD", "Stroke"), sex=c("Male", "Female")) # 20 tasks
+tasklist <- expand.grid(prediction_cv_testfold = 1:5, endpoint = c("CAD", "Stroke"), sex=c("Male", "Female")) # 20 tasks
 setDT(tasklist)
 this_task <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 this_task <- tasklist[this_task]
@@ -31,8 +31,8 @@ dat <- dat[sex == this_sex & prediction_cv_foldid != this_test_fold]
 dat[, SCORE2_LP := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
 
 # Extract columns required for model training
-if (this_endpoint == "CHD") {
-  dat <- dat[!(prevalent_chd) | is.na(prevalent_chd), .(eid, age, SCORE2_LP, event=incident_chd, followup=incident_chd_followup)]
+if (this_endpoint == "CAD") {
+  dat <- dat[!(prevalent_cad) | is.na(prevalent_cad), .(eid, age, SCORE2_LP, event=incident_cad, followup=incident_cad_followup)]
 } else if (this_endpoint == "Stroke") {
   dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, age, SCORE2_LP, event=incident_stroke, followup=incident_stroke_followup)]
 }
