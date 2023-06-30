@@ -32,7 +32,6 @@ bestbestfit <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
     }
   }
 }
-bestbestfit <- bestbestfit[,-(7:11)] # some columns duplicated in training code
 
 # Load in non-zero coefficients
 bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
@@ -43,7 +42,6 @@ bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
     }
   }
 }
-bestcoef <- bestcoef[!is.na(beta)]
 
 # Combine coefficients across test folds
 avgbestcoef <- bestcoef[,.(beta=sum(beta)/5, sd=sd(beta), min=min(beta), max=max(beta), non_zero=.N),by=.(endpoint, sex, lambda.fit, coef)]

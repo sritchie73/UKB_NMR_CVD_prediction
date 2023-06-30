@@ -107,16 +107,15 @@ fitdt <- cbind(model_info, fitdt)
 fwrite(fitdt, sep="\t", quote=FALSE, file=sprintf("%s/cv_coxnet_list_all_fits.txt", out_dir))
 
 # Build table containing information about the best fits in each case:
-bestfit <- fitdt[lambda == lambda.min | lambda == lambda.1se]
-bestfit[lambda == lambda.min, model := "lambda.min"]
-bestfit[lambda == lambda.1se, model := "lambda.1se"]
-bestfit <- bestfit[, .(alpha, lambda, model, nonzero, fit_metric, fit_mean, fit_sd, fit_mean_minus_sd, fit_mean_plus_sd)]
-bestfit <- cbind(model_info, bestfit)
+bestfit <- rbind(idcol="model",
+  "lambda.min"=fitdt[lambda == lambda.min],
+  "lambda.1se"=fitdt[lambda == lambda.1se]
+) 
+bestfit[, c("lambda.min", "lambda.1se") := NULL]
 fwrite(bestfit, sep="\t", quote=FALSE, file=sprintf("%s/cv_coxnet_best_fits.txt", out_dir))
 
 # Choose best lambda.min and lambda.1se across models
 bestbestfit <- bestfit[,.SD[which.min(fit_mean)],by=model]
-bestbestfit <- cbind(model_info, bestbestfit)
 fwrite(bestbestfit,  sep="\t", quote=FALSE, file=sprintf("%s/cv_coxnet_best_best_fits.txt", out_dir))
 
 # Extract non-zero coefficients for best best fits
