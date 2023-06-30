@@ -147,13 +147,12 @@ avg_vs_test_scatter <- function(lambda) {
 }
 
 g <- avg_vs_test_scatter("lambda.min")
-ggsave(g, width=7, height=5.5, file="analyses/nmr_score_training/test_aggregate_vs_coef_average.pdf")
+ggsave(g, width=7, height=5.5, file="analyses/nmr_score_training/aggregate_test_vs_coef_average.pdf")
 
-# Create dataset with optimal scores
-system("mkdir -p data/scores/")
-dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
+# Write out aggregate scores
 test_scores <- nmr[lambda.fit == "lambda.min" & prediction_cv_testfold == prediction_cv_foldid]
-dat[test_scores[endpoint == "CAD"], on = .(eid), CAD_NMR_score := i.linear_predictor]
-dat[test_scores[endpoint == "Stroke"], on = .(eid), Stroke_NMR_score := i.linear_predictor]
-fwrite(dat, sep="\t", quote=FALSE, file="data/scores/analysis_cohort.txt")
+test_scores <- dcast(test_scores, eid  ~ endpoint, value.var="linear_predictor")
+setnames(test_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
+fwrite(test_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
+
 
