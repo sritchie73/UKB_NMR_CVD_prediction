@@ -8,7 +8,10 @@ library(ggpp)
 library(ggh4x)
 library(hexbin)
 library(cowplot)
+library(survival)
 source("src/utils/SCORE2.R")
+source("src/utils/cox_test.R")
+source("src/utils/score_cindex.R")
 
 options("ggrastr.default.dpi" = 300) 
 
@@ -155,4 +158,140 @@ test_scores <- dcast(test_scores, eid  ~ endpoint, value.var="linear_predictor")
 setnames(test_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
 fwrite(test_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 
+# Sanity check hazard ratios/C-index in conventional Cox models
+if ("CAD_NMR_score" %in% names(dat)) dat[, c("CAD_NMR_score", "Stroke_NMR_score") := NULL]
+dat <- dat[test_scores, on = .(eid)]
+
+cx_list <- list(
+  "NMR_CAD_males"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Male"]),
+  "NMR_CAD_females"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Female"]),
+  "NMR_CAD_strata"=cox.test("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", "incident_cad", dat),
+  "NMR_Stroke_males"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Male"]),
+  "NMR_Stroke_females"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", "incident_stroke", dat)
+)
+
+hrs <- rbindlist(idcol="model", lapply(cx_list, `[[`, "coefficients"))
+hrs[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
+cinds <- rbind(idcol="model",
+  "SCORE2_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2", dat),
+  "SCORE2_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2", dat),
+  "NMR_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Male"]),
+  "NMR_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Female"]),
+  "NMR_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", dat),
+  "NMR_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Male"]),
+  "NMR_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", dat)
+)
+cinds[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
+avg_scores <- dcast(avg_nmr[lambda.fit == "lambda.min"], eid ~ endpoint, value.var="linear_predictor")
+setnames(avg_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
+
+dat[, c("CAD_NMR_score", "Stroke_NMR_score") := NULL]
+dat <- dat[avg_scores, on = .(eid)]
+
+cx_list2 <- list(
+  "NMR_CAD_males"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Male"]),
+  "NMR_CAD_females"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Female"]),
+  "NMR_CAD_strata"=cox.test("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", "incident_cad", dat),
+  "NMR_Stroke_males"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Male"]),
+  "NMR_Stroke_females"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", "incident_stroke", dat)
+)
+
+hrs2 <- rbindlist(idcol="model", lapply(cx_list2, `[[`, "coefficients"))
+hrs2[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
+cinds2 <- rbind(idcol="model",
+  "SCORE2_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2", dat),
+  "SCORE2_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2", dat),
+  "NMR_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Male"]),
+  "NMR_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Female"]),
+  "NMR_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", dat),
+  "NMR_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Male"]),
+  "NMR_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", dat)
+)
+cinds2[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
+hrs <- rbind(idcol="type", "aggregate"=hrs, "average"=hrs2)
+cinds <- rbind(idcol="type", "aggregate"=cinds, "average"=cinds2)
+
+hrs[, coefficient := factor(coefficient, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score"))]
+hrs[, sex := factor(sex, levels=c("males", "females", "strata"))]
+
+cinds[score == "NMR", score := sprintf("SCORE2 +\n%s_NMR_score", endpoint)]
+cinds[, score := factor(score, levels=c("SCORE2", "SCORE2 +\nCAD_NMR_score", "SCORE2 +\nStroke_NMR_score"))]
+cinds[, sex := factor(sex, levels=c("males", "females", "strata"))]
+
+g1 <- ggplot(hrs) +
+  aes(x=coefficient, y=HR, ymin=L95, ymax=U95, color=sex) +
+  facet_wrap(~ type + endpoint, nrow=1, scales="free") +
+  geom_hline(yintercept=1, linetype=2) +
+  geom_errorbar(width=0, position=position_dodge(width=0.8)) + 
+  geom_point(shape=23, position=position_dodge(width=0.8)) +
+  scale_color_manual("Sex", values=c("males"="#e41a1c", "females"="#377eb8", "strata"="#4daf4a")) +
+  xlab("") + ylab("Hazard Ratio (95% CI) per SD") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+    legend.text=element_text(size=6), legend.title=element_text(size=8),
+    legend.position="bottom"
+  )
+ggsave(g1, width=7, height=3, file="analyses/nmr_score_training/hazard_ratio_sanity_check.pdf")
+
+g2 <- ggplot(cinds) +
+  aes(x=score, y=C.index, ymin=L95, ymax=U95, color=sex) + 
+  facet_wrap(~ type + endpoint, nrow=1, scales="free") +
+  geom_errorbar(width=0, position=position_dodge(width=0.8)) +
+  geom_point(shape=23, position=position_dodge(width=0.8)) +
+  scale_color_manual("Sex", values=c("males"="#e41a1c", "females"="#377eb8", "strata"="#4daf4a")) +
+  xlab("") + ylab("C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+    legend.text=element_text(size=6), legend.title=element_text(size=8),
+    legend.position="bottom"
+  )
+ggsave(g2, width=7, height=3, file="analyses/nmr_score_training/cindex_sanity_check.pdf")
+
+score2_cinds <- cinds[score == "SCORE2"]
+score2_cinds[, score := sprintf("SCORE2 +\n%s_NMR_score", endpoint)]
+cinds[score2_cinds, on = .(type, score, endpoint, sex), c("deltaC", "deltaC.L95", "deltaC.U95") := .(C.index - i.C.index, L95 - i.C.index, U95 - i.C.index)]
+
+g3 <- ggplot(cinds[!is.na(deltaC)]) +
+  aes(x=score, y=deltaC, ymin=deltaC.L95, ymax=deltaC.U95, color=sex) + 
+  facet_wrap(~ type + endpoint, nrow=1, scales="free") +
+  geom_hline(yintercept=0, linetype=2) +
+  geom_errorbar(width=0, position=position_dodge(width=0.8)) +
+  geom_point(shape=23, position=position_dodge(width=0.8)) +
+  scale_color_manual("Sex", values=c("males"="#e41a1c", "females"="#377eb8", "strata"="#4daf4a")) +
+  xlab("") + ylab("Delta C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+    legend.text=element_text(size=6), legend.title=element_text(size=8),
+    legend.position="bottom"
+  )
+ggsave(g3, width=7, height=3, file="analyses/nmr_score_training/delta_cindex_sanity_check.pdf")
+
+fwrite(hrs, sep="\t", quote=FALSE, file="analyses/nmr_score_training/hazard_ratio_sanity_check.txt")
+cinds[, score := gsub("\\\n", " ", score)]
+fwrite(cinds, sep="\t", quote=FALSE, file="analyses/nmr_score_training/cindex_sanity_check.txt")
 
