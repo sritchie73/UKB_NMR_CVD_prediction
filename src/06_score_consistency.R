@@ -160,3 +160,71 @@ avg_scores <- dcast(avg_nmr[lambda.fit == "lambda.min"], eid ~ endpoint, value.v
 setnames(avg_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
 fwrite(avg_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/coef_avg_NMR_scores.txt")
 
+# For each score, how many coefficients are included across N training runs?
+empty <- expand.grid(endpoint=c("CAD", "Stroke"), sex=c("Male", "Female"), scores=0:5)
+setDT(empty)
+empty[, coef := 0]
+coef_stats <- nmr_coef[lambda.fit == "lambda.min", .(scores=.N), by=.(endpoint, sex, coef)]
+coef_stats <- coef_stats[,.(coef=.N), by=.(endpoint, sex, scores)]
+empty[coef_stats, on = .(endpoint, sex, scores), coef := i.coef]
+coef_stats <- empty
+coef_stats[, scores := factor(scores, levels=0:5)]
+
+g <- ggplot(coef_stats) + 
+  aes(x=scores, y=coef) +
+  facet_grid(sex ~ endpoint, drop=FALSE, shrink=FALSE) + 
+  geom_col() +
+  scale_x_discrete("Number of scores coefficient is included in") +
+  scale_y_continuous("Number of coefficients", limits=c(0, 214)) +
+  theme_bw() + 
+  theme(
+    axis.text=element_text(size=6), axis.title=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid=element_blank()
+  )
+ggsave(g, width=7, height=5.5, file="analyses/nmr_score_training/coefficient_inclusion_matrix.pdf")
+
+# Plot consistency of coefficient estimates
+coef_plot <- function(this_endpoint, this_sex, this_lambda="lambda.min") {
+  ggdt_ribbon <- avg_nmr_coef[endpoint == this_endpoint & sex == this_sex & lambda.fit == this_lambda]
+  
+  ggdt_ribbon <- ggdt_ribbon[order(-beta)]
+  ggdt_ribbon[, coef := factor(coef, levels=unique(coef))]
+  ggdt_ribbon[, xorder := .I]
+
+  ggdt_points <- nmr_coef[endpoint == this_endpoint & sex == this_sex & lambda.fit == this_lambda]
+  ggdt_points[ggdt_ribbon, on = .(coef), xorder := i.xorder]
+  ggdt_points[ggdt_ribbon, on = .(coef), discordant := sign(beta) != sign(i.beta)]
+
+  ggplot(ggdt_points) +
+    aes(x=xorder, y=exp(beta)) +
+    geom_point(data=ggdt_points[!(discordant)], shape=19, fill="#525252", size=0.3) +
+    geom_line(data=ggdt_ribbon, color="#6a51a3") +
+    geom_hline(yintercept=1, linetype=2) +
+    geom_point(data=ggdt_points[(discordant)], shape=1, color="#b30000", size=0.8) +
+    scale_y_continuous("Hazard Ratio") +
+    scale_x_continuous("", breaks=ggdt_ribbon$xorder, labels=ggdt_ribbon$coef, expand=expansion(mult=0, add=0.5)) +
+    theme_bw() +
+    theme(
+      axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), 
+      axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
+      axis.ticks.x=element_blank(),
+      panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+      plot.margin=margin(10, 5.5, 5.5, 5.5)
+    )
+} 
+
+g1 <- coef_plot("CAD", "Male")
+g2 <- coef_plot("CAD", "Female")
+g3 <- coef_plot("Stroke", "Male")
+g4 <- coef_plot("Stroke", "Female")
+g <- plot_grid(g1, g2, g3, g4, ncol=1, vjust=1.5, hjust=-0.2, label_size=8, align="hv",
+  labels=c(
+    "NMR score for CAD in males               ", 
+    "NMR score for CAD in females             ", 
+    "NMR score for ischaemic stroke in males  ", 
+    "NMR score for ischaemic stroke in females"
+  ))
+
+ggsave(g, width=14, height=8, file="analyses/nmr_score_training/coefficient_consistency.pdf")
+  
