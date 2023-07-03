@@ -108,7 +108,8 @@ g <- ggplot(hrs) +
   xlab("") + ylab("Hazard Ratio (95% CI) per SD") +
   theme_bw() +
   theme(
-    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), 
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
     strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
     panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
     legend.text=element_text(size=6), legend.title=element_text(size=8),
@@ -127,7 +128,8 @@ g <- ggplot(hrs[coefficient != "SCORE2"]) +
   xlab("") + ylab("Hazard Ratio (95% CI) per SD") +
   theme_bw() +
   theme(
-    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), 
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
     strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
     panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
     legend.text=element_text(size=6), legend.title=element_text(size=8),
@@ -145,7 +147,8 @@ g <- ggplot(cinds) +
   xlab("") + ylab("C-index (95% CI)") +
   theme_bw() +
   theme(
-    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), 
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
     strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
     panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
     legend.text=element_text(size=6), legend.title=element_text(size=8),
@@ -168,7 +171,8 @@ g <- ggplot(cinds[!is.na(deltaC)]) +
   xlab("") + ylab("Delta C-index (95% CI)") +
   theme_bw() +
   theme(
-    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), axis.text.x=element_text(size=6, angle=90, hjust=1),
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8), 
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
     strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
     panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
     legend.text=element_text(size=6), legend.title=element_text(size=8),
