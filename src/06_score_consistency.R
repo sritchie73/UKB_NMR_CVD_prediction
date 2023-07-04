@@ -6,7 +6,6 @@ library(forcats)
 library(ggrastr)
 library(ggpp)
 library(ggh4x)
-library(hexbin)
 library(cowplot)
 library(survival)
 
