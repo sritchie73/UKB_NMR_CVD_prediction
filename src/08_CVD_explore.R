@@ -6,7 +6,10 @@ library(forcats)
 library(ggrastr)
 library(ggpp)
 library(ggh4x)
+library(caret)
 source("src/utils/cox_test.R")
+source("src/utils/cv_coxph.R")
+source("src/utils/score_cindex.R")
 
 options("ggrastr.default.dpi" = 300)
 
@@ -232,6 +235,130 @@ g2 <- score_scatter(score_comp[sex == "Female"])
 
 ggsave(g1, width=7, height=7, file="analyses/CVD_score_weighting/explore/score_compare_males.pdf")
 ggsave(g2, width=7, height=7, file="analyses/CVD_score_weighting/explore/score_compare_females.pdf")
+
+# Compare methods for generating C-indices
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
+dat <- dat[nmr_scores, on = .(eid)]
+nmr_scores <- fread("analyses/nmr_score_training/coef_avg_NMR_scores.txt")
+dat <- dat[nmr_scores, on = .(eid)]
+setnames(dat, c("i.CAD_NMR_score", "i.Stroke_NMR_score"), c("avg_CAD_NMR_score", "avg_Stroke_NMR_score"))
+dat[, coxph_cv_foldid := createFolds(paste(incident_cvd, sex), k=10, list=FALSE)]
+
+cinds <- list(
+  "aggregate cross-validation coxph offset males"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
+  "aggregate cross-validation coxph offset females"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
+  "aggregate cross-validation coxph offset strata"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat, "coxph_cv_foldid"),
+  "aggregate cross-validation coxph variable males"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
+  "aggregate cross-validation coxph variable females"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
+  "aggregate cross-validation coxph variable strata"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat, "coxph_cv_foldid"),
+  "aggregate full-dataset coxph offset males"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat[sex == "Male"])$model_fit,
+  "aggregate full-dataset coxph offset females"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat[sex == "Female"])$model_fit,
+  "aggregate full-dataset coxph offset strata"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat)$model_fit,
+  "aggregate full-dataset coxph variable males"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat[sex == "Male"])$model_fit,
+  "aggregate full-dataset coxph variable females"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat[sex == "Female"])$model_fit,
+  "aggregate full-dataset coxph variable strata"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + CAD_NMR_score + Stroke_NMR_score", "incident_cvd", dat)$model_fit,
+  "aggregate full-dataset score-sum NA males"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"]),
+  "aggregate full-dataset score-sum NA females"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"]),
+  "aggregate full-dataset score-sum NA strata"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat),
+  "average cross-validation coxph offset males"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
+  "average cross-validation coxph offset females"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
+  "average cross-validation coxph offset strata"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat, "coxph_cv_foldid"),
+  "average cross-validation coxph variable males"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
+  "average cross-validation coxph variable females"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
+  "average cross-validation coxph variable strata"=cv.cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat, "coxph_cv_foldid"),
+  "average full-dataset coxph offset males"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat[sex == "Male"])$model_fit,
+  "average full-dataset coxph offset females"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat[sex == "Female"])$model_fit,
+  "average full-dataset coxph offset strata"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2) + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat)$model_fit,
+  "average full-dataset coxph variable males"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat[sex == "Male"])$model_fit,
+  "average full-dataset coxph variable females"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat[sex == "Female"])$model_fit,
+  "average full-dataset coxph variable strata"=cox.test("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", "incident_cvd", dat)$model_fit,
+  "average full-dataset score-sum NA males"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Male"]),
+  "average full-dataset score-sum NA females"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat[sex == "Female"]),
+  "average full-dataset score-sum NA strata"=score_cindex("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + SCORE2 + avg_CAD_NMR_score + avg_Stroke_NMR_score", dat)
+)
+cinds <- rbindlist(idcol="model", fill=TRUE, cinds)
+cinds <- cinds[,.(model, C.index, SE, L95, U95)]
+cinds[, c("score_type", "dataset", "method", "SCORE2", "sex") := tstrsplit(model, " ")]
+
+fwrite(cinds, sep="\t", quote=FALSE, file="analyses/CVD_score_weighting/explore/cindex_method_comparison.txt")
+
+# Show comparison of different methods for computing C-index
+ggdt <- cinds[score_type == "aggregate"]
+ggdt[, sex := factor(sex, levels=c("males", "females", "strata"))]
+ggdt[, label := sprintf("%s in %s with SCORE2 as %s", method, dataset, SCORE2)]
+ggdt[, label := gsub(" with SCORE2 as NA", "", label)]
+ggdt[, label := factor(label, levels=rev(c(
+  "coxph in cross-validation with SCORE2 as offset",
+  "coxph in cross-validation with SCORE2 as variable",
+  "coxph in full-dataset with SCORE2 as offset",
+  "coxph in full-dataset with SCORE2 as variable",
+  "score-sum in full-dataset"
+)))]
+
+g <- ggplot(ggdt) +
+  aes(y=label, x=C.index, xmin=L95, xmax=U95, color=sex) +
+  facet_wrap(~ sex, nrow=1, scales="free_x") +
+  geom_vline(data=ggdt[dataset == "cross-validation" & SCORE2 == "offset"], aes(xintercept=C.index), linetype=2) +
+  geom_errorbarh(height=0) +
+  geom_point(shape=23) +
+  scale_color_manual("Sex", values=c("males"="#e41a1c", "females"="#377eb8", "strata"="#4daf4a")) +
+  ylab("") + xlab("C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
+ggsave(g, width=7.2, height=2, file="analyses/CVD_score_weighting/explore/cindex_method_comparison.pdf")
+
+# Compare aggregate vs. average 
+ggdt <- copy(cinds)
+ggdt[, sex := factor(sex, levels=c("males", "females", "strata"))]
+ggdt[, label := sprintf("%s in %s with SCORE2 as %s", method, dataset, SCORE2)]
+ggdt[, label := gsub(" with SCORE2 as NA", "", label)]
+ggdt[, label := factor(label, levels=rev(c(
+  "coxph in cross-validation with SCORE2 as offset",
+  "coxph in cross-validation with SCORE2 as variable",
+  "coxph in full-dataset with SCORE2 as offset",
+  "coxph in full-dataset with SCORE2 as variable",
+  "score-sum in full-dataset"
+)))]
+
+g <- ggplot(ggdt) +
+  aes(y=label, x=C.index, xmin=L95, xmax=U95, color=score_type) +
+  facet_wrap(~ sex, nrow=1, scales="free_x") +
+  geom_vline(data=ggdt[score_type == "aggregate" & dataset == "cross-validation" & SCORE2 == "offset"], aes(xintercept=C.index), linetype=2) +
+  geom_errorbarh(height=0, position=position_dodge(width=0.8)) +
+  geom_point(shape=23, position=position_dodge(width=0.8)) +
+  scale_color_manual("NMR scores", values=c("aggregate"="black", "average"="red")) +
+  ylab("") + xlab("C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.text=element_text(size=6), legend.title=element_text(size=8),
+  )
+ggsave(g, width=7.2, height=2, file="analyses/CVD_score_weighting/explore/aggregate_vs_average_cindex.pdf")
+
+ 
+  
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
