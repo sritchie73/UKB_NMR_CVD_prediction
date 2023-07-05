@@ -47,7 +47,7 @@ pred_scores <- foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
         this_model == "SCORE2 + NMR_scores + PRS", "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS"
       )
       this_lp <- cv.linear.predictor(this_formula, this_dat, "coxph_cv_foldid", cv_cx_lists[[this_sex]][[this_model]])
-      this_dat[as.integer(names(this_lp)), .(model=this_model, eid, sex, linear_predictor=this_lp)] 
+      this_dat[as.integer(names(this_lp)), .(model=this_model, eid, sex, age, incident_cvd_followup, incident_cvd, linear_predictor=this_lp)] 
    }
 }
 
