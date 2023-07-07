@@ -29,7 +29,8 @@ cv.coxph <- function(formula, data, partition_col) {
   message("  Test fold:", appendLF=FALSE)
   cx_list <- foreach(tidx = 1:length(test_folds), .inorder=TRUE) %dopar% {
      message(sprintf(" %s...", tidx), appendLF=FALSE)
-     coxph(formula, data=data[partition_col != test_folds[tidx]], x=TRUE)
+     train_dat <- data[partition_col != test_folds[tidx]]
+     coxph(formula, data=train_dat, x=TRUE)
   }
   names(cx_list) <- test_folds
   message("")
@@ -221,8 +222,16 @@ cv.absrisk <- function(data, partition_col, years=10, formula=NULL, cx_list=NULL
      test_data <- data[partition_col == test_fold] 
      this_pred_dat <- pred_dat[partition_col == test_fold]
 
-     # Extract baseline hazards fit in the training folds
+     # Extract baseline hazards fit in the training folds - this is somewhat obnoxious
+     # in that basehaz requires the data used to fit the cox model to exist as it was
+     # in the global environment
+     if (exists("train_dat")) {
+       bkp <- train_dat
+       on.exit({ train_dat <<- bkp }, add = TRUE)
+     }
+     train_dat <<- data[partition_col != test_fold]
      train_bh <- basehaz(train_cx, centered=TRUE) # basehaz() is part of survival package
+     rm(train_dat, envir=parent.frame())
 
      # Extract a vector coding of the response term in the test fold
      surv_term <- train_cx$formula[[2]]
