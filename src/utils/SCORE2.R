@@ -13,11 +13,12 @@ library(data.table)
 # Supplementary Methods Table 4 part 2 shows how to compute absolute risk from these linear predictors,
 # using baseline hazards from Supplementary Methods Table 2
 #
-score2 <- function(sex, age, smoking, sbp, tchol, hdl, type="absolute risk", calibration=TRUE, risk_region="low") {
+score2 <- function(sex, age, smoking, sbp, tchol, hdl, type="absolute risk", calibration=TRUE, risk_region="low", weights="complete population") {
   # Basic error checking
   type <- match.arg(type, c("linear predictor", "absolute risk"))
   stopifnot(length(calibration) == 1 || !is.na(calibration))
   risk_region <- match.arg(risk_region, c("low", "medium", "high", "very high"))
+  weights <- match.arg(weights, c("complete population", "excluding UK Biobank"))
 
   stopifnot(age >= 40 & age <= 70) 
   stopifnot(is.logical(smoking))
@@ -44,27 +45,53 @@ score2 <- function(sex, age, smoking, sbp, tchol, hdl, type="absolute risk", cal
   wip <- data.table(sex, cage, smoking, csbp, ctchol, chdl)
 
   # Calculate linear predictor as per Supplmentary Methods Table 4
-  # using coefficients in Supplementary Methods Table 2
-  wip[sex == "Male", linear_predictor :=
-    cage * 0.3742 + 
-    smoking * 0.6012 + 
-    csbp * 0.2777 +
-    ctchol * 0.1458 +
-    chdl * -0.2698 +
-    cage * smoking * -0.0755 +
-    cage * csbp * -0.0255 +
-    cage * ctchol * -0.0281 +
-    cage * chdl * 0.0426]
-  wip[sex == "Female", linear_predictor :=
-    cage * 0.4648 + 
-    smoking * 0.7744 + 
-    csbp * 0.3131 +
-    ctchol * 0.1002 +
-    chdl * -0.2606 +
-    cage * smoking * -0.1088 +
-    cage * csbp * -0.0277 +
-    cage * ctchol * -0.0226 +
-    cage * chdl * 0.0613]
+  # using designated set of weights
+  if (weights == "complete population") {
+    # Standard SCORE2 model, using coefficients in Supplementary Methods Table 2
+    wip[sex == "Male", linear_predictor :=
+      cage * 0.3742 + 
+      smoking * 0.6012 + 
+      csbp * 0.2777 +
+      ctchol * 0.1458 +
+      chdl * -0.2698 +
+      cage * smoking * -0.0755 +
+      cage * csbp * -0.0255 +
+      cage * ctchol * -0.0281 +
+      cage * chdl * 0.0426]
+    wip[sex == "Female", linear_predictor :=
+      cage * 0.4648 + 
+      smoking * 0.7744 + 
+      csbp * 0.3131 +
+      ctchol * 0.1002 +
+      chdl * -0.2606 +
+      cage * smoking * -0.1088 +
+      cage * csbp * -0.0277 +
+      cage * ctchol * -0.0226 +
+      cage * chdl * 0.0613]
+  } else if (weights == "excluding UK Biobank") {
+    # Weights from sensitivity analysis that exclude UK Biobank from the derivation cohorts
+    # published in Supplementary Table 8
+    wip[sex == "Male", linear_predictor :=
+          cage * log(1.50) + 
+          smoking * log(1.77) + 
+          csbp * log(1.33) +
+          ctchol * log(1.13) +
+          chdl * log(0.80) +
+          cage * smoking * log(0.92) +
+          cage * csbp * log(0.98) +
+          cage * ctchol * log(0.98) +
+          cage * chdl * log(1.04)]
+    wip[sex == "Female", linear_predictor :=
+          cage * log(1.64) + 
+          smoking * log(2.09) + 
+          csbp * log(1.39) +
+          ctchol * log(1.11) +
+          chdl * log(0.81) +
+          cage * smoking * log(0.89) +
+          cage * csbp * log(0.97) +
+          cage * ctchol * log(0.98) +
+          cage * chdl * log(1.06)]
+  } 
 
   # If all we want is the linear predictor, we return that now
   if (type == "linear predictor") {
