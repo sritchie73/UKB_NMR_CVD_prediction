@@ -463,6 +463,7 @@ fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 
 # Add SCORE2
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
+dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor", weights="excluding UK Biobank")]
 
 # We will perform nested cross-validation. Here, split the data into 5-folds balancing CVD cases status and sex.
 # We will later split each 4/5ths of the data into 10-folds for elasticnet cross-validation, balancing by CAD or 
@@ -492,6 +493,7 @@ cvd_cohort_info <- dat[,.(
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   SCORE2 = sprintf("%s (%s)", round(median(SCORE2), digits=2), round(sd(SCORE2), digits=2)),
+  SCORE2_excl_UKB = sprintf("%s (%s)", round(median(SCORE2_excl_UKB), digits=2), round(sd(SCORE2_excl_UKB), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
   Median_followup = sprintf("%s (%s)", round(median(incident_cvd * incident_cvd_followup), digits=1), round(sd(incident_cvd * incident_cvd_followup), digits=2)),
@@ -520,6 +522,7 @@ cad_cohort_info <- dat[!(prevalent_cad) | is.na(prevalent_cad),.(
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   SCORE2 = sprintf("%s (%s)", round(median(SCORE2), digits=2), round(sd(SCORE2), digits=2)),
+  SCORE2_excl_UKB = sprintf("%s (%s)", round(median(SCORE2_excl_UKB), digits=2), round(sd(SCORE2_excl_UKB), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
   Median_followup = sprintf("%s (%s)", round(median(incident_cad * incident_cad_followup), digits=1), round(sd(incident_cad * incident_cad_followup), digits=2)),
@@ -548,6 +551,7 @@ stroke_cohort_info <- dat[!(prevalent_stroke) | is.na(prevalent_stroke),.(
   total_cholesterol = sprintf("%s (%s)", round(median(tchol, na.rm=TRUE), digits=2), round(sd(tchol, na.rm=TRUE), digits=2)),
   ldl_cholesterol = sprintf("%s (%s)", round(median(ldl, na.rm=TRUE), digits=2), round(sd(ldl, na.rm=TRUE), digits=2)),
   SCORE2 = sprintf("%s (%s)", round(median(SCORE2), digits=2), round(sd(SCORE2), digits=2)),
+  SCORE2_excl_UKB = sprintf("%s (%s)", round(median(SCORE2_excl_UKB), digits=2), round(sd(SCORE2_excl_UKB), digits=2)),
   CAD_metaGRS = sprintf("%s (%s)", round(median(CAD_metaGRS, na.rm=TRUE), digits=2), round(sd(CAD_metaGRS, na.rm=TRUE), digits=2)),
   Stroke_metaGRS = sprintf("%s (%s)", round(median(Stroke_metaGRS, na.rm=TRUE), digits=2), round(sd(Stroke_metaGRS, na.rm=TRUE), digits=2)),
   Median_followup = sprintf("%s (%s)", round(median(incident_stroke * incident_stroke_followup), digits=1), round(sd(incident_stroke * incident_stroke_followup), digits=2)),
