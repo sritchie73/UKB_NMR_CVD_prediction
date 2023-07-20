@@ -1,8 +1,8 @@
 library(data.table)
-library(ukbnmr)
 library(ggplot2)
 library(caret)
 source('src/utils/SCORE2.R')
+source('src/utils/score_cindex.R')
 
 # Make output directories
 system("mkdir -p data/cleaned/")
@@ -304,7 +304,8 @@ dat <- dat[!(prs_training_samples)]
 update_sample_info("Not used for PRS training")
 
 # Get information on NMR data missingness in non-derived biomarkers
-non_derived <- ukbnmr::nmr_info[Type == "Non-derived", Biomarker]
+nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
+non_derived <- nmr_info[Type == "Non-derived", Biomarker]
 nmr_miss <- apply(dat[,.SD,.SDcols=non_derived], 1, function(rr) { sum(is.na(rr)) / length(non_derived) })
 miss <- dat[, .(eid, nmr_missingness=nmr_miss)]
 
@@ -465,12 +466,45 @@ fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
 dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor", weights="excluding UK Biobank")]
 
-# We will perform nested cross-validation. Here, split the data into 5-folds balancing CVD cases status and sex.
-# We will later split each 4/5ths of the data into 10-folds for elasticnet cross-validation, balancing by CAD or 
-# Stroke case status.
-dat[, foldgrp := paste(incident_cvd, sex)]
-dat[, prediction_cv_foldid := createFolds(foldgrp, k=5, list=FALSE)]
-dat[, foldgrp := NULL]
+# Sanity check C-indices
+system("mkdir -p analyses/test/")
+score2_cind <- rbind(idcol="SCORE2_method",
+  "Weights derived from all datasets"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2, data=.SD), by=sex],
+  "Weights derived excluding UK Biobank"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB, data=.SD), by=sex]
+)
+fwrite(score2_cind, sep="\t", quote=FALSE, file="analyses/test/cindex_by_SCORE2_method.txt")
+
+score2_cind[, sex := factor(paste0(sex, "s"), levels=c("Males", "Females"))]
+score2_cind[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
+g <- ggplot(score2_cind) + 
+  aes(x=C.index, xmin=L95, xmax=U95, y=SCORE2_method, color=SCORE2_method) +
+  facet_wrap(~ sex, scales="free_x") +
+  geom_errorbarh(height=0) +
+  geom_point(shape=18) +
+  scale_color_manual(values=c("Weights derived excluding UK Biobank"="#2166ac", "Weights derived from all datasets"="#b2182b")) +
+  xlab("C-index (95% CI)") +
+  guides(color=guide_legend(title="SCORE2 model", reverse=TRUE)) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_blank(), axis.title.y=element_blank(), axis.ticks.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"), 
+    legend.text=element_text(size=6), legend.title=element_text(size=8)
+  )
+ggsave(g, width=7.2, height=1.5, file="analyses/test/cindex_by_SCORE2_method.pdf")
+
+
+# We will perform nested cross-validation to train NMR scores for CAD and stroke. Here, we split the data into
+# 5-folds, balancing case status and sex, then later we will split each 4/5ths of the data into 10-folds for
+# elasticnet cross-validation. We want to define the top level in advance as we'll distribute each of the 
+# elasticnet jobs as an array job, so we need to be able to look up the top level split so that we have non
+# overlapping 4/5ths of the data
+dat[, cad_prediction_foldid := createFolds(paste(incident_cad, sex), k=5, list=FALSE)]
+dat[, stroke_prediction_foldid := createFolds(paste(incident_stroke, sex), k=5, list=FALSE)]
+
+# Also define in advance 10-fold cross-validation partitions for obtaining weights for CVD prediction
+dat[, cvd_prediction_foldid := createFolds(paste(incident_cvd, sex), k=10, list=FALSE)]
 
 # Write out analysis cohort
 fwrite(dat, sep="\t", quote=FALSE, file="data/cleaned/analysis_cohort.txt")

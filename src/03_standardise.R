@@ -1,17 +1,19 @@
 library(data.table)
-library(ukbnmr)
 
 system("mkdir -p data/standardised/")
 
 # load imputed data
 dat <- fread("data/imputed/analysis_cohort.txt")
 
+# Load NMR information
+nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
+
 # Compute means and standard deviations of non-derived NMR biomarkers
-nmr_long <- melt(dat, id.vars="eid", measure.vars=ukbnmr::nmr_info[Type == "Non-derived", Biomarker],
+nmr_long <- melt(dat, id.vars="eid", measure.vars=nmr_info[Type == "Non-derived", Biomarker],
   variable.name="biomarker", value.name="concentration")
 
 nmr_scaling <- nmr_long[,.(mean=mean(concentration), sd=sd(concentration)), by=biomarker]
-nmr_scaling[ukbnmr::nmr_info, on = .(biomarker=Biomarker), units := i.Units]
+nmr_scaling[nmr_info, on = .(biomarker=Biomarker), units := i.Units]
 fwrite(nmr_scaling, sep="\t", quote=FALSE, file="data/standardised/nmr_scaling_factors.txt")
 
 # Compute scaling factors for PRS
