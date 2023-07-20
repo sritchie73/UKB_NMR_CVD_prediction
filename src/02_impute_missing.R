@@ -1,5 +1,4 @@
 library(data.table)
-library(ukbnmr)
 library(impute)
 
 system("mkdir -p data/imputed/")
@@ -11,10 +10,11 @@ dat <- fread("data/cleaned/analysis_cohort.txt")
 dat[is.na(smoking), smoking := FALSE]
 
 # extract the non-derived nmr biomarkers for which we'll impute missing data
-nmr_dat <- dat[,.SD,.SDcols=c("eid", ukbnmr::nmr_info[Type == "Non-derived", Biomarker])]
+nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
+nmr_dat <- dat[,.SD,.SDcols=c("eid", nmr_info[Type == "Non-derived", Biomarker])]
 
 # Drop all nmr biomarkers (ratios included) from the main dataset
-dat[, c(ukbnmr::nmr_info[,Biomarker]) := NULL]
+dat[, c(nmr_info[,Biomarker]) := NULL]
 
 # Impute the missing data using K-nearest neighbours
 nmr_dat <- as.matrix(nmr_dat, rownames="eid")

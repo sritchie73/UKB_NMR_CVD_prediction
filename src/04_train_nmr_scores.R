@@ -4,7 +4,6 @@ library(caret)
 library(survival)
 library(glmnet)
 registerDoMC(10) # recommend requesting more cores than this in sbatch for memory reasons
-source("src/utils/SCORE2.R")
 
 # Setup array task information
 tasklist <- expand.grid(prediction_cv_testfold = 1:5, endpoint = c("CAD", "Stroke"), sex=c("Male", "Female")) # 20 tasks
@@ -24,17 +23,22 @@ system(sprintf("mkdir -p %s", out_dir))
 # Load imputed data
 dat <- fread("data/imputed/analysis_cohort.txt")
 
-# Extract subset of training data
-dat <- dat[sex == this_sex & prediction_cv_foldid != this_test_fold]
+# Load NMR info
+nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
 
-# Compute SCORE2 linear predictor to be held constant in model training
-dat[, SCORE2_LP := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
+# Extract subset of training data
+dat <- dat[sex == this_sex]
+if (this_endpoint == "CAD") {
+  dat <- dat[cad_prediction_foldid != this_test_fold]
+} else if (this_endpoint == "Stroke") {
+  dat <- dat[stroke_prediction_foldid != this_test_fold]
+}
 
 # Extract columns required for model training
 if (this_endpoint == "CAD") {
-  dat <- dat[!(prevalent_cad) | is.na(prevalent_cad), .(eid, age, SCORE2_LP, event=incident_cad, followup=incident_cad_followup)]
+  dat <- dat[!(prevalent_cad) | is.na(prevalent_cad), .(eid, age, SCORE2_excl_UKB, event=incident_cad, followup=incident_cad_followup)]
 } else if (this_endpoint == "Stroke") {
-  dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, age, SCORE2_LP, event=incident_stroke, followup=incident_stroke_followup)]
+  dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, age, SCORE2_excl_UKB, event=incident_stroke, followup=incident_stroke_followup)]
 }
 
 # Allocate samples to 10-folds for cross-validation, balancing folds by cases status
@@ -52,7 +56,7 @@ dat[, age := (age - 60)/5]
 
 # Set up model matrix formula
 mf <- as.formula(sprintf("~0 + %s", 
-  paste(sprintf("age*%s", ukbnmr::nmr_info[Type == "Non-derived", Biomarker]), collapse=" + ")
+  paste(sprintf("age*%s", nmr_info[Type == "Non-derived" & Biomarker != "Clinical_LDL_C", Biomarker]), collapse=" + ")
 ))
 
 # Create model matrix of predictor terms
@@ -69,7 +73,7 @@ alphas <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1) # 0 = ridge, 1 = lasso
 cv.coxnet.list <- foreach(this_alpha = alphas, .inorder=TRUE) %do% {
   # Fit elastinet in 10-fold cross-validation with the given alpha penalty
   cv.coxnet <- cv.glmnet(inmat, Surv(dat$followup, dat$event), family="cox",
-                         alpha = this_alpha, offset=dat$SCORE2_LP,
+                         alpha = this_alpha, offset=dat$SCORE2_excl_UKB,
                          foldid = dat$elasticnet_cv_foldid,
                          trace.it=1, parallel=TRUE, standardize=FALSE)
 
