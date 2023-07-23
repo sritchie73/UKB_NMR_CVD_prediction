@@ -17,7 +17,8 @@ options("ggrastr.default.dpi" = 300)
 system("mkdir -p analyses/CVD_score_weighting/explore", wait=TRUE)
 
 # Load in scores and CVD data
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
@@ -89,7 +90,8 @@ g <- ggplot(hrs[coefficient != "SCORE2"]) +
 ggsave(g, width=7, height=3, file="analyses/CVD_score_weighting/explore/hazard_ratio_sanity_check_drop_score2.pdf")
 
 # Try SCORE2 as offset
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
@@ -140,8 +142,9 @@ g <- ggplot(hrs[coefficient != "SCORE2"]) +
 ggsave(g, width=7, height=3, file="analyses/CVD_score_weighting/explore/hazard_ratio_offset_vs_dependent.pdf")
 
 # Compare scores derived from coefficient averages, which are most likely overfit
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
-nmr_scores <- fread("analyses/nmr_score_training/coef_avg_NMR_scores.txt")
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
+nmr_scores <- fread("analyses/nmr_score_training/sig_coef_avg_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
 dat[, CAD_NMR_score := scale(CAD_NMR_score)]
@@ -195,7 +198,8 @@ ggsave(g, width=7, height=3, file="analyses/CVD_score_weighting/explore/hazard_r
 fwrite(hrs, sep="\t", quote=FALSE, file="analyses/CVD_score_weighting/explore/hazard_ratios.txt")
 
 # Compare scores to each other
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 dat <- melt(dat, id.vars=c("eid", "sex"), variable.name="score")
@@ -237,10 +241,11 @@ ggsave(g1, width=7, height=7, file="analyses/CVD_score_weighting/explore/score_c
 ggsave(g2, width=7, height=7, file="analyses/CVD_score_weighting/explore/score_compare_females.pdf")
 
 # Compare methods for generating C-indices
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
-nmr_scores <- fread("analyses/nmr_score_training/coef_avg_NMR_scores.txt")
+nmr_scores <- fread("analyses/nmr_score_training/sig_coef_avg_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 setnames(dat, c("i.CAD_NMR_score", "i.Stroke_NMR_score"), c("avg_CAD_NMR_score", "avg_Stroke_NMR_score"))
 dat[, coxph_cv_foldid := createFolds(paste(incident_cvd, sex), k=10, list=FALSE)]

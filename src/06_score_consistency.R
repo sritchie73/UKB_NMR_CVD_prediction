@@ -215,7 +215,11 @@ setnames(test_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score")
 fwrite(test_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 
 # Also average scores for downstream checks
-avg_scores <- dcast(avg_scores[lambda.fit == "lambda.min"], eid ~ endpoint, value.var="lp_simplified")
+avg_scores_simplified <- dcast(avg_scores[lambda.fit == "lambda.min"], eid ~ endpoint, value.var="linear_predictor")
+setnames(avg_scores_simplified, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
+fwrite(avg_scores_simplified, sep="\t", quote=FALSE, file="analyses/nmr_score_training/sig_coef_avg_NMR_scores.txt")
+
+avg_scores <- dcast(avg_scores[lambda.fit == "lambda.min"], eid ~ endpoint, value.var="linear_predictor")
 setnames(avg_scores, c("CAD", "Stroke"), c("CAD_NMR_score", "Stroke_NMR_score"))
 fwrite(avg_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/coef_avg_NMR_scores.txt")
 

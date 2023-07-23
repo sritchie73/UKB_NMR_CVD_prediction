@@ -5,7 +5,8 @@ source("src/utils/cox_test.R")
 source("src/utils/score_cindex.R")
 
 # Load in CAD and Stroke follow-up data and SCORE2
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cad_followup", "incident_cad", "incident_stroke_followup", "incident_stroke", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cad_followup", "incident_cad", "incident_stroke_followup", "incident_stroke", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 
 # Add in test scores
 test_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
@@ -47,11 +48,12 @@ cx_list <- list(
 hrs <- rbindlist(idcol="model", lapply(cx_list, `[[`, "coefficients"))
 hrs[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
 
-# Repeat, using the scores compute from coefficient averages (what would be distributed on
-# publication as the representative score, but unsuitable for testing in UK Biobank due to 
-# overfitting to training samples)
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cad_followup", "incident_cad", "incident_stroke_followup", "incident_stroke", "SCORE2"))
-test_scores <- fread("analyses/nmr_score_training/coef_avg_NMR_scores.txt")
+# Repeat, using the scores compute from coefficient averages, rounded to 3 decimal places
+# (what would be distributed on publication as the representative score, but unsuitable 
+# for testing in UK Biobank due to overfitting to training samples)
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cad_followup", "incident_cad", "incident_stroke_followup", "incident_stroke", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
+test_scores <- fread("analyses/nmr_score_training/sig_coef_avg_NMR_scores.txt")
 dat <- dat[test_scores, on = .(eid)]
 
 cinds2 <- rbind(idcol="model",
@@ -86,9 +88,47 @@ cx_list2 <- list(
 hrs2 <- rbindlist(idcol="model", lapply(cx_list2, `[[`, "coefficients"))
 hrs2[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
 
+# Repeat, using the scores compute from coefficient averages without rounding
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "incident_cad_followup", "incident_cad", "incident_stroke_followup", "incident_stroke", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
+test_scores <- fread("analyses/nmr_score_training/coef_avg_NMR_scores.txt")
+dat <- dat[test_scores, on = .(eid)]
+
+cinds3 <- rbind(idcol="model",
+  "SCORE2_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2", dat),
+  "SCORE2_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Male"]),
+  "SCORE2_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2", dat[sex == "Female"]),
+  "SCORE2_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2", dat),
+  "NMR_CAD_males"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Male"]),
+  "NMR_CAD_females"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", dat[sex == "Female"]),
+  "NMR_CAD_strata"=score_cindex("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", dat),
+  "NMR_Stroke_males"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Male"]),
+  "NMR_Stroke_females"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=score_cindex("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", dat)
+)
+cinds3[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
+dat[, SCORE2 := scale(SCORE2)]
+dat[, CAD_NMR_score := scale(CAD_NMR_score)]
+dat[, Stroke_NMR_score := scale(Stroke_NMR_score)]
+
+cx_list3 <- list(
+  "NMR_CAD_males"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Male"]),
+  "NMR_CAD_females"=cox.test("Surv(incident_cad_followup, incident_cad) ~ SCORE2 + CAD_NMR_score", "incident_cad", dat[sex == "Female"]),
+  "NMR_CAD_strata"=cox.test("Surv(incident_cad_followup, incident_cad) ~ strata(sex) + SCORE2 + CAD_NMR_score", "incident_cad", dat),
+  "NMR_Stroke_males"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Male"]),
+  "NMR_Stroke_females"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ SCORE2 + Stroke_NMR_score", "incident_stroke", dat[sex == "Female"]),
+  "NMR_Stroke_strata"=cox.test("Surv(incident_stroke_followup, incident_stroke) ~ strata(sex) + SCORE2 + Stroke_NMR_score", "incident_stroke", dat)
+)
+
+hrs3 <- rbindlist(idcol="model", lapply(cx_list3, `[[`, "coefficients"))
+hrs3[, c("score", "endpoint", "sex") := tstrsplit(model, "_")]
+
 # Combine results from aggregate and average scores
-hrs <- rbind(idcol="type", "aggregate"=hrs, "average"=hrs2)
-cinds <- rbind(idcol="type", "aggregate"=cinds, "average"=cinds2)
+hrs <- rbind(idcol="type", "aggregate"=hrs, "average\n(rounded coef)"=hrs2, "average\n(full coef)"=hrs3)
+cinds <- rbind(idcol="type", "aggregate"=cinds, "average\n(rounded coef)"=cinds2, "average\n(full coef)"=cinds3)
 
 hrs[, coefficient := factor(coefficient, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score"))]
 hrs[, sex := factor(sex, levels=c("males", "females", "strata"))]
