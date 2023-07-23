@@ -87,10 +87,3 @@ g <- ggplot(risk_strata) +
   )
 ggsave(g, width=7.2, height=2, file="analyses/test/stratification_by_SCORE2_risk_groups.pdf", device=cairo_pdf)
 
-
-
-
-
-
-
-

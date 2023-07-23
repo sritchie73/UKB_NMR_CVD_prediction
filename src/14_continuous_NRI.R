@@ -8,7 +8,7 @@ library(ggstance)
 library(scales)
 
 # Load required data
-dat <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
+dat <- fread('analyses/risk_recalibration/CVD_linear_predictors_and_risk.txt')
 
 # Wrapper function for continuous NRI test
 nri.test <- function(data, base_model, new_model, absrisk_column) {
@@ -31,29 +31,29 @@ nri.test <- function(data, base_model, new_model, absrisk_column) {
 }
 
 nri_lists <- list(
-  "score2_absrisk"=list(
-    "Males"=list(
-      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores", "score2_absrisk"),
-      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + PRSs", "score2_absrisk"),
-      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores + PRSs", "score2_absrisk")
-     ),
-    "Females"=list(
-      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores", "score2_absrisk"),
-      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + PRSs", "score2_absrisk"),
-      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores + PRSs", "score2_absrisk")
-     )
-  ),
   "uk_risk"=list(
     "Males"=list(
       "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores", "uk_risk"),
       "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + PRSs", "uk_risk"),
       "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores + PRSs", "uk_risk")
-     ),
+    ),
     "Females"=list(
       "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores", "uk_risk"),
       "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + PRSs", "uk_risk"),
       "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores + PRSs", "uk_risk")
-     )
+    )
+  ),
+  "recalibrated_risk"=list(
+    "Males"=list(
+      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + PRSs", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores + PRSs", "recalibrated_risk")
+    ),
+    "Females"=list(
+      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + PRSs", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores + PRSs", "recalibrated_risk")
+    )
   )
 )
 saveRDS(nri_lists, file="analyses/test/nri.rds")
@@ -69,7 +69,7 @@ nri_estimates <- rbindlist(idcol="risk_col", fill=TRUE, lapply(nri_lists, functi
 fwrite(nri_estimates, sep="\t", quote=FALSE, file="analyses/test/nri_estimates.txt")
 
 # Plot
-ggdt <- nri_estimates[risk_col == "score2_absrisk" & metric %in% c("NRI+", "NRI-")]
+ggdt <- nri_estimates[risk_col == "uk_risk" & metric %in% c("NRI+", "NRI-")]
 ggdt[, type := ifelse(metric == "NRI+", "CVD cases", "Non-cases")]
 ggdt[, type := factor(type, levels=c("CVD cases", "Non-cases"))]
 ggdt[, sex := factor(sex, levels=c("Males", "Females"))]

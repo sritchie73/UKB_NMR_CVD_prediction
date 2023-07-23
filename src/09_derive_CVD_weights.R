@@ -9,7 +9,8 @@ source("src/utils/absrisk.R")
 source("src/utils/SCORE2.R")
 
 # Load required data
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "age", "incident_cvd_followup", "incident_cvd", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2"))
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "age", "incident_cvd_followup", "incident_cvd", "cvd_prediction_foldid", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
@@ -18,20 +19,16 @@ prs_scaling <- fread("data/standardised/prs_scaling_factors.txt")
 dat[, CAD_metaGRS := (CAD_metaGRS - prs_scaling[PRS == "CAD_metaGRS", mean])/prs_scaling[PRS == "CAD_metaGRS", sd]]
 dat[, Stroke_metaGRS := (Stroke_metaGRS - prs_scaling[PRS == "Stroke_metaGRS", mean])/prs_scaling[PRS == "Stroke_metaGRS", sd]]
  
-# Fit Cox proportial hazards models in 10-fold cross-validation
-dat[, coxph_cv_foldid := createFolds(paste(incident_cvd, sex), k=10, list=FALSE)]
-fwrite(dat[,.(eid, coxph_cv_foldid)], sep="\t", quote=FALSE, file="analyses/CVD_score_weighting/cross_validation_fold_allocation.txt")
-
 cv_cx_lists <- list(
   "Males"=list(
-    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
-    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "coxph_cv_foldid"),
-    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "coxph_cv_foldid")
+    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "cvd_prediction_foldid"),
+    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "cvd_prediction_foldid"),
+    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "cvd_prediction_foldid")
   ),
   "Females"=list(
-    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
-    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "coxph_cv_foldid"),
-    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "coxph_cv_foldid")
+    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "cvd_prediction_foldid"),
+    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "cvd_prediction_foldid"),
+    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "cvd_prediction_foldid")
   )
 )
 
@@ -52,8 +49,8 @@ pred_scores <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
         this_model == "SCORE2 + PRSs", "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_metaGRS + Stroke_metaGRS",
         this_model == "SCORE2 + NMR scores + PRSs", "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2) + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS"
       )
-      this_lp <- cv.linear.predictor(this_formula, this_dat, "coxph_cv_foldid", cv_cx_lists[[this_sex]][[this_model]])
-      this_ar <- cv.absrisk(this_dat, "coxph_cv_foldid", years=10, this_formula, cv_cx_lists[[this_sex]][[this_model]], this_lp)
+      this_lp <- cv.linear.predictor(this_formula, this_dat, "cvd_prediction_foldid", cv_cx_lists[[this_sex]][[this_model]])
+      this_ar <- cv.absrisk(this_dat, "cvd_prediction_foldid", years=10, this_formula, cv_cx_lists[[this_sex]][[this_model]], this_lp)
       this_dat[as.integer(names(this_lp)), .(model=this_model, eid, sex, age, incident_cvd_followup, incident_cvd, linear_predictor=this_lp, ukb_absrisk=this_ar)] 
    }
 }
@@ -70,7 +67,7 @@ fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_score_weighting/CV
 # Extract hazard ratios
 cv_hrs <- rbindlist(idcol="sex", lapply(cv_cx_lists, function(l) {
   rbindlist(idcol="model", lapply(l, function(cx_list) {
-    rbindlist(idcol="coxph_cv_foldid", lapply(cx_list, function(cx) {
+    rbindlist(idcol="cvd_prediction_foldid", lapply(cx_list, function(cx) {
       cf <- coef(summary(cx))
       ci <- confint(cx)
       data.table(score=rownames(cf), logHR=cf[,1], SE=cf[,3], L95=ci[,1], U95=ci[,2], Pval=cf[,5])
@@ -159,21 +156,21 @@ dat[, Stroke_NMR_score := scale(Stroke_NMR_score)]
 
 cv_cx_lists2 <- list(
   "Males"=list(
-    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "coxph_cv_foldid"),
-    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "coxph_cv_foldid"),
-    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "coxph_cv_foldid")
+    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Male"], "cvd_prediction_foldid"),
+    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "cvd_prediction_foldid"),
+    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Male"], "cvd_prediction_foldid")
   ),
   "Females"=list(
-    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "coxph_cv_foldid"),
-    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "coxph_cv_foldid"),
-    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "coxph_cv_foldid")
+    "SCORE2 + NMR scores"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score", dat[sex == "Female"], "cvd_prediction_foldid"),
+    "SCORE2 + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "cvd_prediction_foldid"),
+    "SCORE2 + NMR scores + PRSs"=cv.coxph("Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + CAD_NMR_score + Stroke_NMR_score + CAD_metaGRS + Stroke_metaGRS", dat[sex == "Female"], "cvd_prediction_foldid")
   )
 )
 
 # Extract hazard ratios
 cv_hrs2 <- rbindlist(idcol="sex", lapply(cv_cx_lists2, function(l) {
   rbindlist(idcol="model", lapply(l, function(cx_list) {
-    rbindlist(idcol="coxph_cv_foldid", lapply(cx_list, function(cx) {
+    rbindlist(idcol="cvd_prediction_foldid", lapply(cx_list, function(cx) {
       cf <- coef(summary(cx))
       ci <- confint(cx)
       data.table(score=rownames(cf), logHR=cf[,1], SE=cf[,3], L95=ci[,1], U95=ci[,2], Pval=cf[,5])
