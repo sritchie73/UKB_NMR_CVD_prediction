@@ -11,12 +11,12 @@ dat <- rbind(idcol="strategy", "blanket"=blanket, "targeted"=targeted)
 shownum <- function(num) { format(num, big.mark=",", trim=TRUE) }
 dat <- dat[,.(
   strategy, model, sex, 
-  high_risk = sprintf("%s (%s–%s)", shownum(high_risk), shownum(high_risk_L95), shownum(high_risk_U95)),
-  cases = sprintf("%s (%s–%s)", shownum(high_risk_cases), shownum(high_risk_cases_L95), shownum(high_risk_cases_U95)),
-  non_cases = sprintf("%s (%s–%s)", shownum(high_risk_non_cases), shownum(high_risk_non_cases_L95), shownum(high_risk_non_cases_U95)),
-  prevented = sprintf("%s (%s–%s)", shownum(events_prevented), shownum(events_prevented_L95), shownum(events_prevented_U95)),
-  NNS = sprintf("%s (%s–%s)", shownum(NNS), shownum(NNS_L95), shownum(NNS_U95)),
-  NNT = sprintf("%s (%s–%s)", shownum(NNT), shownum(NNT_L95), shownum(NNT_U95))
+  high_risk = sprintf("%s (%s-%s)", shownum(high_risk), shownum(high_risk_L95), shownum(high_risk_U95)),
+  cases = sprintf("%s (%s-%s)", shownum(high_risk_cases), shownum(high_risk_cases_L95), shownum(high_risk_cases_U95)),
+  non_cases = sprintf("%s (%s-%s)", shownum(high_risk_non_cases), shownum(high_risk_non_cases_L95), shownum(high_risk_non_cases_U95)),
+  prevented = sprintf("%s (%s-%s)", shownum(events_prevented), shownum(events_prevented_L95), shownum(events_prevented_U95)),
+  NNS = sprintf("%s (%s-%s)", shownum(NNS), shownum(NNS_L95), shownum(NNS_U95)),
+  NNT = sprintf("%s (%s-%s)", shownum(NNT), shownum(NNT_L95), shownum(NNT_U95))
 )]
 
 # Impose ordering
