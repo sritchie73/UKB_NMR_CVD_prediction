@@ -119,13 +119,13 @@ pop_screened[, events_prevented_U95 := floor(high_risk_cases_U95 * 0.2)]
 
 # Number needed to screen per event prevented
 pop_screened[, NNS := ceiling(people / events_prevented)]
-pop_screened[, NNS_L95 := ceiling(people / events_prevented_L95)]
-pop_screened[, NNS_U95 := ceiling(people / events_prevented_U95)]
+pop_screened[, NNS_L95 := ceiling(people / events_prevented_U95)]
+pop_screened[, NNS_U95 := ceiling(people / events_prevented_L95)]
 
 # Number of statins prescribed per event prevented
 pop_screened[, NNT := ceiling(high_risk / events_prevented)]
-pop_screened[, NNT_L95 := ceiling(high_risk_L95 / events_prevented_L95)]
-pop_screened[, NNT_U95 := ceiling(high_risk_U95 / events_prevented_U95)]
+pop_screened[, NNT_L95 := ceiling(high_risk_U95 / events_prevented_U95)]
+pop_screened[, NNT_U95 := ceiling(high_risk_L95 / events_prevented_L95)]
 
 fwrite(pop_screened, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/population_screening.txt")
 

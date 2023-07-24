@@ -39,7 +39,7 @@ ons_pop[, controls := N - cases]
 ons_pop[, sex := paste0(sex, "s")]
 
 # Summarise all to population totals
-ons_pop_summary <- ons_pop[, .(N=sum(N), cases=sum(cases), controls=sum(controls))]
+ons_pop_summary <- ons_pop[, .(N=sum(N), cases=sum(cases), controls=sum(controls)), by=sex]
 
 # Write out hypothetical population
 fwrite(ons_pop, sep="\t", quote=FALSE, file=sprintf("%s/ONS_hypothetical_100k_pop_by_age_sex.txt", out_dir))
