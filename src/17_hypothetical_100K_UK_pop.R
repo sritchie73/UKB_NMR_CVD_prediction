@@ -3,7 +3,7 @@ library(data.table)
 library(foreach)
 
 # Create output directory
-out_dir <- "analyses/public_health_modelling/UK_population_generalised"
+out_dir <- "analyses/public_health_modelling"
 system(sprintf("mkdir -p %s", out_dir))
 
 # Load mid-2020 population estimates for the UK downloaded from ONS:
@@ -34,6 +34,9 @@ CPRD <- fread("analyses/risk_recalibration/CPRD_incidence_and_risk.txt")
 # Estimate number of cases in ONS population
 ons_pop[CPRD, on = .(sex, age_group), cases := floor(N * expected_risk)]
 ons_pop[, controls := N - cases]
+
+# Recode sex
+ons_pop[, sex := paste0(sex, "s")]
 
 # Summarise all to population totals
 ons_pop_summary <- ons_pop[, .(N=sum(N), cases=sum(cases), controls=sum(controls))]
