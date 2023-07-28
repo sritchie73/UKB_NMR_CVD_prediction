@@ -80,16 +80,16 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
       # return combined results
       rbind(res, boot_res, fill=TRUE)
 }
-boot_res <- dcast(boot_res, sex + age_group + model + bootstrap ~ metric, value.var="estimate")
-boot_res[is.na(bootstrap), bootstrap := 0] # simplify sorting and joining
-boot_res <- boot_res[order(bootstrap)]
+risk_strata <- dcast(risk_strata, sex + age_group + model + bootstrap ~ metric, value.var="estimate")
+risk_strata[is.na(bootstrap), bootstrap := 0] # simplify sorting and joining
+risk_strata <- risk_strata[order(bootstrap)]
 
-fwrite(boot_res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/ukb_risk_strata_proportions_with_bootstraps.txt")
+fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/ukb_risk_strata_proportions_with_bootstraps.txt")
 
 ###########
 
 # Apply proportions to simulated population
-pop_boot <- boot_res[ons_pop, on = .(sex, age_group)]
+pop_boot <- risk_strata[ons_pop, on = .(sex, age_group)]
 pop_boot[, high_risk := floor(N * pct_high_risk)]
 pop_boot[, low_risk := N - high_risk]
 pop_boot[, high_risk_cases := floor(high_risk * pct_high_risk_cases)]
