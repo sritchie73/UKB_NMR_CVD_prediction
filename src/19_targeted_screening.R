@@ -193,6 +193,8 @@ group_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # as
 group_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 group_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+group_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 group_agg <- melt(group_agg, id.vars=c("sex", "age_group", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
 # Extract estimates and 95% CIs
@@ -223,6 +225,8 @@ sex_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assu
 sex_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 sex_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+sex_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 sex_agg <- melt(sex_agg, id.vars=c("sex", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
 # Extract estimates and 95% CIs
@@ -252,6 +256,8 @@ pop_agg[, NNT := ceiling(high_risk / events_prevented)] # Number of statins pres
 pop_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assuming 20% reduction due to statins
 pop_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 pop_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
+
+pop_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
 
 pop_agg <- melt(pop_agg, id.vars=c("people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
