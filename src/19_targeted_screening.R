@@ -111,7 +111,6 @@ risk_strata[is.na(bootstrap), bootstrap := 0] # simplify sorting and joining
 risk_strata <- risk_strata[order(bootstrap)]
 
 fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/ukb_risk_strata_proportions_with_bootstraps.txt")
-stop()
 
 ###########
 
