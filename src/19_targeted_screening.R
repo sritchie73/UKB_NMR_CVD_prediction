@@ -170,6 +170,9 @@ pop_boot[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # ass
 pop_boot[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 pop_boot[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+pop_boot[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
+pop_boot[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 # Write out
 fwrite(pop_boot, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/ons_pop_stratified_with_bootstraps.txt")
 
@@ -193,6 +196,7 @@ group_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # as
 group_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 group_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+group_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
 group_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
 
 group_agg <- melt(group_agg, id.vars=c("sex", "age_group", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
@@ -225,6 +229,7 @@ sex_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assu
 sex_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 sex_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+sex_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
 sex_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
 
 sex_agg <- melt(sex_agg, id.vars=c("sex", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
@@ -257,6 +262,7 @@ pop_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assu
 pop_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
 pop_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
 
+pop_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
 pop_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
 
 pop_agg <- melt(pop_agg, id.vars=c("people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
