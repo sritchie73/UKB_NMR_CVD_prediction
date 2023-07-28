@@ -189,5 +189,5 @@ pop_screen_95ci <- dcast(pop_screen_95ci, people + cases + non_cases + model + n
 pop_screen <- pop_screen_estimates[pop_screen_95ci, on = .(people, cases, non_cases, model, number)]
 
 # Write out
-fwrite(pop_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/population_screening_by_sex.txt")
+fwrite(pop_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/population_screening.txt")
 
