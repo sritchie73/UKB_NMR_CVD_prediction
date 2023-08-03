@@ -4,20 +4,18 @@ library(scales)
 library(forcats)
 
 # Load predicted risk
-pred_risk <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
-
-# Add in 5-year age group
-pred_risk[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
+pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_risk <- pred_risk[score_type == "non-derived"]
 
 # Compute number and percentage of people at different risk thresholds
-pred_risk <- pred_risk[,.(sex, model, age_group, uk_risk)]
+pred_risk <- pred_risk[,.(sex, model, age_group, uk_calibrated_risk)]
 pred_risk[, risk_group := fcase(
-  uk_risk >= 0.25, "≥25%",
-  uk_risk > 0.15, "15%–<25%",
-  uk_risk > 0.1, "10%–<15%",
-  uk_risk > 0.075, "7.5%–<10%",
-  uk_risk > 0.05, "5%–<7.5%",
-  uk_risk > 0.025, "2.5%–<5%",
+  uk_calibrated_risk >= 0.25, "≥25%",
+  uk_calibrated_risk > 0.15, "15%–<25%",
+  uk_calibrated_risk > 0.1, "10%–<15%",
+  uk_calibrated_risk > 0.075, "7.5%–<10%",
+  uk_calibrated_risk > 0.05, "5%–<7.5%",
+  uk_calibrated_risk > 0.025, "2.5%–<5%",
   default = "<2.5%"
 )]
 
