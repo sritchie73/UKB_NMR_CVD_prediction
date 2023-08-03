@@ -14,12 +14,13 @@ system("mkdir -p analyses/test/")
 ###
 
 # Stratify by risk decile
-pred_risk <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
-pred_risk <- pred_risk[order(uk_risk)][order(model)][order(sex)]
+pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_risk <- pred_risk[score_type == "non-derived"]
+pred_risk <- pred_risk[order(uk_calibrated_risk)][order(model)][order(sex)]
 pred_risk[, risk_decile := floor((seq_len(.N)-1)/(.N/10))+1, by=.(model, sex)]
 
 # Compute mean risk and 95% CI in each decile
-risk_comp <- pred_risk[,.(mean_risk=mean(uk_risk), L95=quantile(uk_risk, 0.025), U95=quantile(uk_risk, 0.975)), by=.(sex, model, risk_decile)]
+risk_comp <- pred_risk[,.(mean_risk=mean(uk_calibrated_risk), L95=quantile(uk_calibrated_risk, 0.025), U95=quantile(uk_calibrated_risk, 0.975)), by=.(sex, model, risk_decile)]
 
 # Get Kaplan Meier estimates of observed risk in UK Biobank
 dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "age", "incident_cvd_followup", "incident_cvd"))
@@ -83,9 +84,9 @@ ggsave(g, width=7.2, height=4, file="analyses/test/model_calibration.pdf")
 ###
 
 # Compute mean risk and 95% CI in each age-group
-pred_risk <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
-pred_risk[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
-risk_comp <- pred_risk[,.(mean_risk=mean(uk_risk), L95=quantile(uk_risk, 0.025), U95=quantile(uk_risk, 0.975)), by=.(sex, age_group, model)]
+pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_risk <- pred_risk[score_type == "non-derived"]
+risk_comp <- pred_risk[,.(mean_risk=mean(uk_calibrated_risk), L95=quantile(uk_calibrated_risk, 0.025), U95=quantile(uk_calibrated_risk, 0.975)), by=.(sex, age_group, model)]
 
 # Get Kaplan Meier estimates of observed risk in UK Biobank
 dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "age", "incident_cvd_followup", "incident_cvd"))
