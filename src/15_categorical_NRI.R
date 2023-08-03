@@ -11,7 +11,7 @@ library(scales)
 dat <- fread("analyses/risk_recalibration/CVD_linear_predictors_and_risk.txt")
 
 # Wrapper function for categorical NRI test
-nri.test <- function(data, base_model, new_model, absrisk_column="uk_risk") {
+nri.test <- function(data, base_model, new_model, absrisk_column="uk_calibrated_risk") {
   # Extract predicted 10 year risk
   comp_risk <- data[model == base_model | model == new_model]
   comp_risk[, model := fcase(model == base_model, "base", model == new_model, "new")]
@@ -42,7 +42,7 @@ nri.test <- function(data, base_model, new_model, absrisk_column="uk_risk") {
 }
 
 nri_lists <- list(
-  "uk_risk"=list(
+  "uk_calibrated_risk"=list(
     "Males"=list(
       "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + NMR scores"),
       "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Male"], "SCORE2", "SCORE2 + PRSs"),
@@ -52,6 +52,11 @@ nri_lists <- list(
       "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores"),
       "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + PRSs"),
       "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores + PRSs")
+    ),
+    "Sex-stratified"=list(
+      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat, "SCORE2", "SCORE2 + NMR scores"),
+      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat, "SCORE2", "SCORE2 + PRSs"),
+      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat, "SCORE2", "SCORE2 + NMR scores + PRSs")
     )
   ),
   "recalibrated_risk"=list(
@@ -64,6 +69,11 @@ nri_lists <- list(
       "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores", "recalibrated_risk"),
       "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + PRSs", "recalibrated_risk"),
       "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat[sex == "Female"], "SCORE2", "SCORE2 + NMR scores + PRSs", "recalibrated_risk")
+    ),
+    "Sex-stratified"=list(
+      "SCORE2 vs. SCORE2 + NMR scores"=nri.test(dat, "SCORE2", "SCORE2 + NMR scores", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + PRSs"=nri.test(dat, "SCORE2", "SCORE2 + PRSs", "recalibrated_risk"),
+      "SCORE2 vs. SCORE2 + NMR scores + PRSs"=nri.test(dat, "SCORE2", "SCORE2 + NMR scores + PRSs", "recalibrated_risk")
     )
   )
 )
@@ -117,17 +127,17 @@ fwrite(reclassified, sep="\t", quote=FALSE, file="analyses/test/categorical_nri_
 ggdt <- nri_estimates[metric %in% c("NRI+", "NRI-")]
 ggdt[, type := ifelse(metric == "NRI+", "CVD cases", "Non-cases")]
 ggdt[, type := factor(type, levels=c("CVD cases", "Non-cases"))]
-ggdt[, sex := factor(sex, levels=c("Males", "Females"))]
+ggdt[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
 ggdt[, model_comparison := factor(model_comparison, levels=c("SCORE2 vs. SCORE2 + NMR scores", "SCORE2 vs. SCORE2 + PRSs", "SCORE2 vs. SCORE2 + NMR scores + PRSs"))]
 ggdt[, age_group := factor(paste(age_group, "years"), levels=paste(c("<50", "50–<70"), "years"))]
 
-g <- ggplot(ggdt[risk_col == "uk_risk"]) +
+g <- ggplot(ggdt[risk_col == "uk_calibrated_risk"]) +
   aes(x=Estimate, xmin=Lower, xmax=Upper, y=fct_rev(model_comparison), color=type) +
   facet_grid(age_group ~ sex) +
   geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, fill="white", size=1.2, position=position_dodgev(height=0.3)) +
-  geom_errorbarh(data=ggdt[risk_col == "uk_risk" & metric == "NRI-"], height=0, position=position_nudge(y=0.075), show.legend=FALSE) +
+  geom_errorbarh(data=ggdt[risk_col == "uk_calibrated_risk" & metric == "NRI-"], height=0, position=position_nudge(y=0.075), show.legend=FALSE) +
   scale_color_manual("", values=c("CVD cases"="#c51b7d", "Non-cases"="#4d9221")) +
   scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent) +
   ylab("") +
