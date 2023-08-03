@@ -305,7 +305,7 @@ update_sample_info("Not used for PRS training")
 
 # Get information on NMR data missingness in non-derived biomarkers
 nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
-non_derived <- nmr_info[Type == "Non-derived", Biomarker]
+non_derived <- nmr_info[Type == "Non-derived" & Biomarker != "Clinical_LDL_C", Biomarker]
 nmr_miss <- apply(dat[,.SD,.SDcols=non_derived], 1, function(rr) { sum(is.na(rr)) / length(non_derived) })
 miss <- dat[, .(eid, nmr_missingness=nmr_miss)]
 
@@ -500,11 +500,7 @@ ggsave(g, width=7.2, height=1.5, file="analyses/test/cindex_by_SCORE2_method.pdf
 # elasticnet cross-validation. We want to define the top level in advance as we'll distribute each of the 
 # elasticnet jobs as an array job, so we need to be able to look up the top level split so that we have non
 # overlapping 4/5ths of the data
-dat[, cad_prediction_foldid := createFolds(paste(incident_cad, sex), k=5, list=FALSE)]
-dat[, stroke_prediction_foldid := createFolds(paste(incident_stroke, sex), k=5, list=FALSE)]
-
-# Also define in advance 10-fold cross-validation partitions for obtaining weights for CVD prediction
-dat[, cvd_prediction_foldid := createFolds(paste(incident_cvd, sex), k=10, list=FALSE)]
+dat[, cvd_prediction_foldid := createFolds(paste(incident_cvd, sex), k=5, list=FALSE)]
 
 # Write out analysis cohort
 fwrite(dat, sep="\t", quote=FALSE, file="data/cleaned/analysis_cohort.txt")
