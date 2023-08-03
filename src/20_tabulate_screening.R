@@ -3,46 +3,41 @@ library(ggplot2)
 library(ggh4x)
 library(cowplot)
 
-# Load results
-blanket <- fread("analyses/public_health_modelling/blanket_screening/population_screening.txt")
-targeted <- fread("analyses/public_health_modelling/targeted_screening/population_screening.txt")
+# Load results stratified by sex
+blanket <- fread("analyses/public_health_modelling/blanket_screening/population_screening_by_sex.txt")
+targeted <- fread("analyses/public_health_modelling/targeted_screening/population_screening_by_sex.txt")
 
 # Combine
 dat <- rbind(idcol="strategy", "blanket"=blanket, "targeted"=targeted)
 
 # Format columns of interest
 shownum <- function(num) { format(num, big.mark=",", trim=TRUE) }
-dat <- dat[,.(
-  strategy, model, sex, 
-  high_risk = sprintf("%s (%s-%s)", shownum(high_risk), shownum(high_risk_L95), shownum(high_risk_U95)),
-  cases = sprintf("%s (%s-%s)", shownum(high_risk_cases), shownum(high_risk_cases_L95), shownum(high_risk_cases_U95)),
-  prevented = sprintf("%s (%s-%s)", shownum(events_prevented), shownum(events_prevented_L95), shownum(events_prevented_U95)),
-  NNS = sprintf("%s (%s-%s)", shownum(NNS), shownum(NNS_L95), shownum(NNS_U95)),
-  NNT = sprintf("%s (%s-%s)", shownum(NNT), shownum(NNT_L95), shownum(NNT_U95))
-)]
+dat[, text := sprintf("%s (%s-%s)", shownum(estimate), shownum(L95), shownum(U95))]
+dat[, people := shownum(people)]
+dat[, cases := shownum(cases)]
+dat <- dcast(dat, sex + people + cases + strategy + model ~ number, value.var="text")
+dat <- dat[, .(sex, people, cases, strategy, model, high_risk, high_risk_cases, events_prevented, NNS, NNT, delta_high_risk_cases, delta_events_prevented)]
 
 # Impose ordering
 dat[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
 dat[, sex := factor(sex, levels=c("Males", "Females"))]
 dat[, strategy := factor(strategy, levels=c("blanket", "targeted"))]
-dat <- dat[order(sex)][order(model)][order(strategy)]
-
-dat <- dcast(dat, strategy + model ~ sex, value.var=c("high_risk", "cases", "prevented", "NNS", "NNT"))
-dat <- dat[, .(strategy, model, high_risk_Males, cases_Males,  prevented_Males, NNS_Males, NNT_Males,
-  high_risk_Females, cases_Females, prevented_Females, NNS_Females, NNT_Females)]
+dat <- dat[order(model)][order(strategy)][order(sex)]
 
 # Write out
-fwrite(dat, sep="\t", quote=FALSE, file="analyses/public_health_modelling/screening_summary.txt")
+fwrite(dat, sep="\t", quote=FALSE, file="analyses/public_health_modelling/screening_summary_by_sex.txt")
 
 # Also plot
 dat <- rbind(idcol="strategy", "blanket"=blanket, "targeted"=targeted)
-dat <- rbind(idcol="metric",
-  "People classified as high risk"=dat[,.(strategy, sex, model, estimate=high_risk, L95=high_risk_L95, U95=high_risk_U95)],
-  "CVD cases classified as high risk"=dat[,.(strategy, sex, model, estimate=high_risk_cases, L95=high_risk_cases_L95, U95=high_risk_cases_U95)],
-  "CVD events prevented by statin prescription"=dat[,.(strategy, sex, model, estimate=events_prevented, L95=events_prevented_L95, U95=events_prevented_U95)],
-  "Number needed to screen to prevent 1 CVD event"=dat[,.(strategy, sex, model, estimate=NNS, L95=NNS_L95, U95=NNS_U95)],
-  "Number of statins prescribed per CVD event prevented"=dat[,.(strategy, sex, model, estimate=NNT, L95=NNT_L95, U95=NNT_U95)]
-)
+dat[, metric := fcase(
+  number == "high_risk", "People classified as high risk",
+  number == "high_risk_cases", "CVD cases classified as high risk",
+  number == "events_prevented", "CVD events prevented by statin prescription",
+  number == "NNS", "Number needed to screen to prevent 1 CVD event",
+  number == "NNT", "Number of statins prescribed per CVD event prevented",
+  default = NA
+)]
+dat <- dat[!is.na(metric)]
 dat[, metric := factor(metric, levels=unique(metric))]
 dat[, strategy := fcase(
   strategy == "blanket", "Population screening",
@@ -86,10 +81,27 @@ g2 <- ggplot(dat[sex == "Females"]) +
   )
 
 g <- plot_grid(g1, g2, labels=c("Males  ", "Females"), label_size=10, ncol=1)
-ggsave(g, width=7.2, height=4, file="analyses/public_health_modelling/screening_comparison.pdf")
+ggsave(g, width=7.2, height=4, file="analyses/public_health_modelling/screening_comparison_by_sex.pdf")
 
+# Load results not stratified by sex
+blanket <- fread("analyses/public_health_modelling/blanket_screening/population_screening.txt")
+targeted <- fread("analyses/public_health_modelling/targeted_screening/population_screening.txt")
 
+# Combine
+dat <- rbind(idcol="strategy", "blanket"=blanket, "targeted"=targeted)
 
+# Format columns of interest
+dat[, text := sprintf("%s (%s-%s)", shownum(estimate), shownum(L95), shownum(U95))]
+dat[, people := shownum(people)]
+dat[, cases := shownum(cases)]
+dat <- dcast(dat, people + cases + strategy + model ~ number, value.var="text")
+dat <- dat[, .(people, cases, strategy, model, high_risk, high_risk_cases, events_prevented, NNS, NNT, delta_high_risk_cases, delta_events_prevented)]
 
+# Impose ordering
+dat[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dat[, strategy := factor(strategy, levels=c("blanket", "targeted"))]
+dat <- dat[order(model)][order(strategy)]
 
+# Write out
+fwrite(dat, sep="\t", quote=FALSE, file="analyses/public_health_modelling/screening_summary.txt")
 
