@@ -49,11 +49,11 @@ CPRD[, expected_risk := 1 - exp(-annual_incidence * 10)]
 fwrite(CPRD, sep="\t", quote=FALSE, file="analyses/risk_recalibration/CPRD_incidence_and_risk.txt")
 
 # Load predicted risk and add 5-year age groups
-pred_risk <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
-pred_risk[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
+pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_risk <- pred_risk[score_type == "non-derived"]
 
 # Build comparison table of expected 10-year risk so we can fit recalibration models
-comp_risk <- pred_risk[, .(predicted=mean(uk_risk)), by=.(model, sex, age_group)]
+comp_risk <- pred_risk[, .(predicted=mean(uk_calibrated_risk)), by=.(model, sex, age_group)]
 comp_risk[CPRD, on = .(sex, age_group), CPRD := i.expected_risk]
 
 # Transform with link function
@@ -69,7 +69,7 @@ fwrite(recalibration_fit, sep="\t", quote=FALSE, file="analyses/risk_recalibrati
 # transforming the "true" risk of UK Biobank participants to the risk distribution that we would expect
 # in age-groups of those numbers if we had instead sampled from the general UK population
 pred_risk[recalibration_fit, on = .(model, sex), 
-  recalibrated_risk := 1 - exp(-exp(scale1 + scale2 * log(-log(1 - uk_risk)))),
+  recalibrated_risk := 1 - exp(-exp(scale1 + scale2 * log(-log(1 - uk_calibrated_risk)))),
 ]
 
 # Write out 
@@ -105,13 +105,12 @@ fwrite(ukb_inci, sep="\t", quote=FALSE, file="analyses/risk_recalibration/UKB_Ka
 ####### Now plot sanity checks
 
 # Compute risk quantiles in each age group for each model and risk calculation
-risk_comp <- melt(pred_risk, measure.vars=c("ukb_absrisk", "score2_absrisk", "uk_risk", "recalibrated_risk"), variable.name="risk_model", value.name="risk")
+risk_comp <- melt(pred_risk, measure.vars=c("uncalibrated_risk", "uk_calibrated_risk", "recalibrated_risk"), variable.name="risk_model", value.name="risk")
 risk_comp <- risk_comp[,.(mean_risk=mean(risk), L95=quantile(risk, 0.025), U95=quantile(risk, 0.975)),
   by=.(sex, age_group, model, risk_model)]
 risk_comp[, risk_model := fcase(
-  risk_model == "ukb_absrisk", "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)",
-  risk_model == "score2_absrisk", "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)",
-  risk_model == "uk_risk", "Risk predicted using SCORE2 European CVD low-risk region formula",
+  risk_model == "uncalibrated_risk", "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)",
+  risk_model == "uk_calibrated_risk", "Risk predicted using SCORE2 European CVD low-risk region formula",
   risk_model == "recalibrated_risk", "Predicted risk recalibrated to CPRD-derived estimates of CVD incidence rates"
 )]
 
@@ -136,7 +135,6 @@ risk_comp[, age_group := factor(age_group, levels=c("40-44", "45-49", "50-54", "
 risk_comp[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
 risk_comp[, risk_model := factor(risk_model, levels=c(
   "Kaplan-Meier estimate of 10-year risk in UK Biobank",
-  "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)",
   "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)",
   "Risk predicted using SCORE2 European CVD low-risk region formula",
   "Predicted risk recalibrated to CPRD-derived estimates of CVD incidence rates",
@@ -153,7 +151,6 @@ g <- ggplot(ggdt) +
   geom_errorbar(data=ggdt[risk_model == "Kaplan-Meier estimate of 10-year risk in UK Biobank"], width=0, position=position_nudge(x=-0.315), show.legend=FALSE) +
   scale_color_manual(values=c(
     "Kaplan-Meier estimate of 10-year risk in UK Biobank"="#1f78b4",
-    "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)"="#a6cee3",
     "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)"="#b2df8a",
     "Risk predicted using SCORE2 European CVD low-risk region formula"="#33a02c",
     "Predicted risk recalibrated to CPRD-derived estimates of CVD incidence rates"="#fb9a99",
@@ -184,7 +181,6 @@ g <- ggplot(risk_comp) +
   geom_errorbar(data=risk_comp[risk_model == "Kaplan-Meier estimate of 10-year risk in UK Biobank"], width=0, position=position_nudge(x=-0.315), show.legend=FALSE) +
   scale_color_manual(values=c(
     "Kaplan-Meier estimate of 10-year risk in UK Biobank"="#1f78b4",
-    "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)"="#a6cee3",
     "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)"="#b2df8a",
     "Risk predicted using SCORE2 European CVD low-risk region formula"="#33a02c",
     "Predicted risk recalibrated to CPRD-derived estimates of CVD incidence rates"="#fb9a99",
@@ -206,41 +202,8 @@ g <- ggplot(risk_comp) +
   guides(color=guide_legend(order=1, nrow=6, byrow=TRUE))
 ggsave(g, width=7.2, height=5, file="analyses/risk_recalibration/risk_computation_check.pdf")
 
-# Show selected predictions of interest
-ggdt <- risk_comp[!(risk_model %in% c(
-  "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)",
-  "Risk predicted using uncalibrated SCORE2 formula (baseline hazards estimated across 44 cohorts)"
-))]
-g <- ggplot(ggdt) +
-  aes(x=age_group, y=mean_risk, ymin=L95, ymax=U95, color=risk_model) +
-  facet_grid(sex ~ model) +
-  geom_errorbar(width=0, position=position_dodge(width=0.75)) +
-  geom_point(shape=23, fill="white", size=1.2, position=position_dodge(width=0.75)) +
-  geom_errorbar(data=risk_comp[risk_model == "Kaplan-Meier estimate of 10-year risk in UK Biobank"], width=0, position=position_nudge(x=-0.285), show.legend=FALSE) +
-  scale_color_manual(values=c(
-    "Kaplan-Meier estimate of 10-year risk in UK Biobank"="#377eb8",
-    "Risk predicted using SCORE2 European CVD low-risk region formula"="#33a02c",
-    "Predicted risk recalibrated to CPRD-derived estimates of CVD incidence rates"="#ff7f00",
-    "CVD incidence rates in CPRD (Sun et al. 2021)"="#e41a1c"
-  )) +
-  scale_y_continuous(name="10-year CVD risk (95% CI)", labels=percent) +
-  xlab("Age-group") + 
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8),
-    axis.text.x=element_text(size=6, angle=45, hjust=1), axis.title.x=element_text(size=8),
-    strip.text.x=element_text(size=7, face="bold"), strip.text.y=element_text(size=8, face="bold"),
-    strip.background=element_blank(),
-    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
-    legend.position="bottom", legend.justification="left", legend.box.margin=margin(-0.3, 0, 0, -1, unit="cm"),
-    legend.title=element_blank(), legend.text=element_text(size=6),
-    legend.spacing.y=unit(-0.1, 'cm')
-  ) +
-  guides(color=guide_legend(order=1, nrow=6, byrow=TRUE))
-ggsave(g, width=7.2, height=5, file="analyses/risk_recalibration/risk_and_recalibration.pdf")
-
 # And for SCORE2
-ggdt <- risk_comp[model == "SCORE2" & risk_model != "Risk predicted from Cox models fit in UK Biobank (Aki's code adapted to cross-validation)"]
+ggdt <- risk_comp[model == "SCORE2"]
 g <- ggplot(ggdt) +
   aes(x=age_group, y=mean_risk, ymin=L95, ymax=U95, color=risk_model) +
   facet_grid(model ~ sex) +
