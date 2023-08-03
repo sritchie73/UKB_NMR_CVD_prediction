@@ -10,14 +10,14 @@ system("mkdir -p analyses/public_health_modelling/blanket_screening")
 ons_pop <- fread("analyses/public_health_modelling/ONS_hypothetical_100k_pop_by_age_sex.txt")
 
 # Load in predicted risks
-pred_risk <- fread("analyses/CVD_score_weighting/CVD_linear_predictors_and_risk.txt")
-pred_risk[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
+pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_risk <- pred_risk[score_type == "non-derived"]
 
 # Reformat to wide table so all models have same bootstraps applied
 models <- unique(pred_risk[,.(model)])
 models[, colname := paste0("model", .I)]
 pred_risk <- pred_risk[models, on = .(model)]
-pred_risk <- dcast(pred_risk, eid + sex + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_risk")
+pred_risk <- dcast(pred_risk, eid + sex + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
 
 # Determine in each age-group and sex the proportion of participants determined to be high risk" 
 # along with the proportion of "high risk" individuals that go on to develop CVD. These proportions 
@@ -40,14 +40,14 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
         }
       
         # Put boostrapped input data into long format to simplify model comparison
-        dt <- melt(dt, measure.vars=patterns("^model"), variable.name="model", value.name="uk_risk")
+        dt <- melt(dt, measure.vars=patterns("^model"), variable.name="model", value.name="uk_calibrated_risk")
 
         # Build empty results table to fill in
         res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_high_risk", "pct_high_risk_cases")))
         res[, estimate := 0]
 
         # Compute % of group assigned to high risk and % of cases assigned to high risk for each model
-        dt[, high_risk := ifelse(uk_risk >= risk_threshold, TRUE, FALSE)]
+        dt[, high_risk := ifelse(uk_calibrated_risk >= risk_threshold, TRUE, FALSE)]
     
         metric1 <- dt[,.(metric="pct_high_risk", estimate=sum(high_risk)/.N), by=model]
         res[metric1, on = .(model, metric), estimate := i.estimate]
