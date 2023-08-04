@@ -469,12 +469,14 @@ dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear
 # Sanity check C-indices
 system("mkdir -p analyses/test/")
 score2_cind <- rbind(idcol="SCORE2_method",
-  "Weights derived from all datasets"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2, data=.SD), by=sex],
-  "Weights derived excluding UK Biobank"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB, data=.SD), by=sex]
+  "Weights derived from all datasets"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2, data=.SD), by=.(sex=paste0(sex, "s"))],
+  "Weights derived from all datasets"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + strata(sex), data=.SD))],
+  "Weights derived excluding UK Biobank"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB, data=.SD), by=.(sex=paste0(sex, "s"))],
+  "Weights derived excluding UK Biobank"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB + strata(sex), data=.SD))]
 )
 fwrite(score2_cind, sep="\t", quote=FALSE, file="analyses/test/cindex_by_SCORE2_method.txt")
 
-score2_cind[, sex := factor(paste0(sex, "s"), levels=c("Males", "Females"))]
+score2_cind[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
 score2_cind[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
 g <- ggplot(score2_cind) + 
   aes(x=C.index, xmin=L95, xmax=U95, y=SCORE2_method, color=SCORE2_method) +
