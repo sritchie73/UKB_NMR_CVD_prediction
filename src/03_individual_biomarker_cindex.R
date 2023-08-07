@@ -2,6 +2,9 @@
 library(data.table)
 library(foreach)
 library(survival)
+library(ggplot2)
+library(ggh4x)
+library(forcats)
 source("src/utils/score_cindex.R")
 registerDoMC(10)
 
@@ -32,12 +35,11 @@ test_assay <- bio_info[!is.na(UKB.Field.ID) & sample_type != "Urine" & var != "t
 
 # Build set of models to test
 models <- rbind(
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ sex", type="demographics", name="sex"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age", type="demographics", name="age"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age + smoking", type="risk_factors", name="smoking"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age + sbp", type="risk_factors", name="sbp"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age + tchol", type="risk_factors", name="tchol"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age + hdl", type="risk_factors", name="hdl"),
+  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age", type="risk_factors", name="age"),
+  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ smoking", type="risk_factors", name="smoking"),
+  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ sbp", type="risk_factors", name="sbp"),
+  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ tchol", type="risk_factors", name="tchol"),
+  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ hdl", type="risk_factors", name="hdl"),
   data.table(formula=sprintf("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB) + scale(%s)", test_nmr), type="NMR", name=test_nmr),
   data.table(formula=sprintf("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB) + scale(%s)", test_assay), type="assays", name=test_assay)
 )
@@ -61,11 +63,7 @@ cinds <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbin
 
     # Set up formula
     mf <- this_model$formula
-    if (this_model$name == "sex") {
-      if (this_sex != "Sex-stratified") {
-        return(NULL) 
-      }
-    } else if (this_sex == "Sex-stratified") {
+    if (this_sex == "Sex-stratified") {
       mf <- paste(mf, "+ strata(sex)")
     }
 
@@ -100,15 +98,7 @@ cinds <- rbind(cinds, score2_cindex)
 # Add in missing strata term to documented formula
 cinds[sex == "Sex-stratified" & name != "sex", formula := paste(formula, "+ strata(sex)")]
 
-# Add in delta change compared to reference
-sex_ref <- cinds[name == "sex"]
-sex_ref[, name := "age"]
-cinds[sex_ref, on = .(name, sex), c("deltaC", "deltaC.L95", "deltaC.U95") := .(C.index - i.C.index, L95 - i.C.index, U95 - i.C.index)]
-
-age_ref <- cinds[name == "age"]
-age_ref[, type := "risk_factors"]
-cinds[age_ref, on = .(type, sex), c("deltaC", "deltaC.L95", "deltaC.U95") := .(C.index - i.C.index, L95 - i.C.index, U95 - i.C.index)]
-
+# Add in delta change compared to SCORE2
 score2_ref <- cinds[name == "SCORE2"]
 score2_ref[, type := NULL]
 score2_ref <- rbind(idcol="type", "NMR"=score2_ref, "assays"=score2_ref)
@@ -120,41 +110,39 @@ cinds[name == "age", display_name := "Age"]
 cinds[name == "sex", display_name := "Sex"]
 cinds[name == "smoking", display_name := "Smoker"]
 cinds[name == "sbp", display_name := "SBP"]
-cinds[name == "hdl", display_name := "HDL-C"]
-cinds[name == "tchol", display_name := "Total-C"]
 cinds[nmr_info[Group %like% "Amino" & Type == "Non-derived"], on = .(name=Biomarker), display_name := Description]
 cinds[, display_name := gsub("_", "-", display_name)]
 cinds[, display_name := gsub("-pct", " %", display_name)]
 cinds[, display_name := gsub("-by-", " / ", display_name)]
 cinds[name == "Clinical_LDL_C", display_name := "Clinical LDL-C"]
+cinds[name == "hdl", display_name := "HDL cholesterol"]
+cinds[name == "tchol", display_name := "Total cholesterol"]
 cinds[name %in% test_assay, display_name := fcase(
-  name == "alt", "ALT",
   name == "alb", "Albumin",
+  name == "alt", "ALT",
   name == "alp", "ALP",
   name == "apoa1", "ApoA1",
   name == "apob", "ApoB",
-  name == "asp", "ASP",
+  name == "asp", "AST",
+  name == "dbili", "Bilirubin (direct)",
+  name == "tbili", "Bilirubin (total)",
   name == "calcium", "Calcium",
   name == "creat", "Creatinine",
   name == "crp", "CRP",
-  name == "cyst", "CST3",
-  name == "dbili", "Direct bili",
+  name == "cyst", "Cystatin-C",
   name == "ggt", "GGT",
   name == "glucose", "Glucose",
   name == "hba1c", "HbA1c",
   name == "igf1", "IGF-1",
   name == "lpa", "Lp(a)",
-  name == "ldl", "LDL-C",
-  name == "hdl", "HDL-C",
+  name == "ldl", "LDL cholesterol",
   name == "oest", "Oestradiol",
   name == "phos", "Phosphate",
   name == "rheuf", "RF",
   name == "shbg", "SHBG",
   name == "testos", "Testosterone",
-  name == "tbili", "Total bili",
-  name == "protein", "Total prot",
-  name == "tchol", "Total-C",
-  name == "trig", "Triglyceride",
+  name == "protein", "Total protein",
+  name == "trig", "Triglycerides",
   name == "uric", "Urate",
   name == "urea", "Urea",
   name == "vitd25", "Vitamin D"
@@ -162,4 +150,48 @@ cinds[name %in% test_assay, display_name := fcase(
 
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/cindices.txt")
+
+# Plot top NMR biomarkers + SCORE2
+ggdt <- rbind(
+  cinds[type == "SCORE2"],
+  cinds[type == "NMR"][order(-C.index)][,.SD[1:10], by=sex]
+)
+ggdt[type != "SCORE2", display_name := paste("SCORE2 +", display_name)]
+ggdt[, sex := factor(sex, c("Males", "Females", "Sex-stratified"))]
+ggdt[, type := factor(type, levels=c("SCORE2", "NMR"))]
+ggdt <- ggdt[order(sex)]
+ggdt[, rank := factor(.I)]
+
+g <- ggplot(ggdt) + 
+  aes(y=fct_rev(rank), x=C.index, xmin=L95, xmax=U95, color=type) +
+  facet_grid2(. ~ sex, scales="free", independent="all") +
+  geom_errorbarh(height=0) +
+  geom_point(shape=23, fill="white", size=1.2) +
+  scale_color_manual(values=c("SCORE2"="#2166ac", "NMR"="black")) +
+  geom_vline(data=ggdt[type == "SCORE2"], aes(xintercept=C.index), linetype=2, color="#4393c3") +
+  scale_y_discrete(labels=structure(ggdt$display_name, names=as.character(ggdt$rank))) +
+  xlab("C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    axis.text.y=element_text(size=6, color="black"), axis.title.y=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
+    legend.position="none"
+  )
+ggsave(g, width=7.2, height=2, file="analyses/univariate/top10_NMR.pdf")
+
+# Format table for output
+dt <- cinds[type %in% c("SCORE2", "NMR")]
+dt <- dcast(dt, display_name ~ sex, value.var=c("samples", "cases", "C.index", "L95", "U95", "deltaC", "deltaC.L95", "deltaC.U95"))
+dt <- dt[,.SD, .SDcols=c("display_name",
+  sapply(c("_Males", "_Females", "_Sex-stratified"), function(f) {
+    paste0(c("samples", "cases", "C.index", "L95", "U95", "deltaC", "deltaC.L95", "deltaC.U95"), f)
+  })
+)]
+
+dt <- dt[order(-C.index_Males)]
+dt <- rbind(dt[display_name == "SCORE2"], dt[display_name != "SCORE2"])
+dt[display_name != "SCORE2", display_name := paste("SCORE2 +", display_name)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/NMR_cindex_supp.txt")
 
