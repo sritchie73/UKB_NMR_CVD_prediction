@@ -5,6 +5,7 @@ library(forcats)
 library(ggrastr)
 library(ggpp)
 library(ggh4x)
+library(ggthemes)
 library(cowplot)
 library(survival)
 
@@ -156,20 +157,23 @@ ggsave(g3, width=7, height=6, file="analyses/nmr_score_training/Stroke_male_clin
 ggsave(g4, width=7, height=6, file="analyses/nmr_score_training/Stroke_female_clinical_score_consistency.pdf")
 
 # Make reduce plot comparing predicted scores in each 20% test fold to training scores 
-score_scatter2 <- function(lambda, outcome, score_type) {
-  ggdt <- score_comp[lambda.fit == lambda & endpoint == outcome & type == score_type]
-  ggdt <- ggdt[x_model == cvd_prediction_foldid & y_model != x_model & y_model != "avg"]
+score_scatter2 <- function(lambda, score_type) {
+  ggdt <- score_comp[lambda.fit == lambda & type == score_type]
+  ggdt <- ggdt[x_model == cvd_prediction_foldid & y_model != x_model]
   ggdt <- ggdt[, color_anno := sprintf("Test fold %s", y_model)]
+  ggdt[color_anno == "Test fold avg", color_anno := "Average score"]
+  ggdt[, color_annon := factor(color_anno, levels=c(paste("Test fold", 1:5), "Average score"))]
   ggdt[, facet_anno := sprintf("Test fold %s", x_model)]
 
   ggplot(ggdt) +
     aes(x=x_score, y=y_score, color=color_anno) +
-    facet_grid2(fct_rev(sex) ~ facet_anno, scales="free", independent="all") +
+    facet_grid2(endpoint + fct_rev(sex) ~ facet_anno, scales="free", independent="all") +
     rasterise(geom_point(alpha=0.5, shape=19, size=0.1)) +
     geom_abline(intercept=0, slope=1, linetype=2, color="red") +
+    scale_color_manual(values=structure(c(ggthemes::calc_pal()(5), "black"), names=c(paste("Test fold", 1:5), "Average score"))) +
     xlab("NMR score predicted in 20% of withheld test-fold data") +
     ylab("NMR scores including training data") + 
-    guides(color=guide_legend("Withheld test fold for score training", override.aes=list(size=1, alpha=1), title.position="top")) +
+    guides(color=guide_legend("Withheld test fold for score training", override.aes=list(size=1, alpha=1), title.position="top", nrow=1)) +
     theme_bw() +
     theme(
       axis.text=element_text(size=6), axis.title=element_text(size=8),
@@ -179,15 +183,11 @@ score_scatter2 <- function(lambda, outcome, score_type) {
     )
 }
 
-g1 <- score_scatter2("lambda.min", "CAD", "non-derived")
-g2 <- score_scatter2("lambda.min", "Stroke", "non-derived")
-g <- plot_grid(g1, g2, nrow=2, labels=c("CAD   ", "Stroke"), label_size=10)
-ggsave(g, width=7.2, height=7.2, file="analyses/nmr_score_training/non_derived_score_consistency_simplified.pdf")
+g <- score_scatter2("lambda.min", "non-derived")
+ggsave(g, width=7.2, height=6.6, file="analyses/nmr_score_training/non_derived_score_consistency_simplified.pdf")
 
-g1 <- score_scatter2("lambda.min", "CAD", "clinical")
-g2 <- score_scatter2("lambda.min", "Stroke", "clinical")
-g <- plot_grid(g1, g2, nrow=2, labels=c("CAD   ", "Stroke"), label_size=10)
-ggsave(g, width=7.2, height=7.2, file="analyses/nmr_score_training/clinical_score_consistency_simplified.pdf")
+g <- score_scatter2("lambda.min", "clinical")
+ggsave(g, width=7.2, height=6.6, file="analyses/nmr_score_training/clinical_score_consistency_simplified.pdf")
 
 # Compare average score to test score
 avg_vs_test_scatter <- function(lambda, score_type) {
@@ -561,5 +561,12 @@ g <- ggplot(ggdt) +
   )
 ggsave(g, width=7.2, height=6, file="analyses/nmr_score_training/coefficient_denisities_clinical.pdf")
 
-
+# Write out table of coefficients for supp
+dt <- avg_nmr_coef[lambda.fit == "lambda.min" & type == "non-derived"]
+dt[, sex := factor(sex, levels=c("Male", "Female"))]
+dt <- dcast(dt, coef ~ endpoint + sex, value.var="beta", fill=0)
+dt[nmr_scaling, on = .(coef=biomarker), c("mean", "sd") := .(i.mean, i.sd)]
+dt <- rbind(dt[!(coef %like% "^age")][order(tolower(coef))], dt[coef %like% "^age"][order(tolower(coef))])
+dt <- dt[,.(coef, mean, sd, CAD_Male, CAD_Female, Stroke_Male, Stroke_Female)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/nmr_score_training/supp_table_coefficients.txt")
   
