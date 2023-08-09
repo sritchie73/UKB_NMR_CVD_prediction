@@ -161,6 +161,18 @@ pred_scores <- pred_scores[, .(eid, sex, age, age_group, incident_cvd, incident_
 # Write out
 fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
 
+# Format and output representative weights for supp table
+dt <- cvd_weights[score_type == "non-derived", .(weight=mean(weight)), by=.(model, sex, score)]
+dt[, sex := factor(sex, levels=c("Male", "Female"))]
+dt[, score := factor(score, levels=c("CAD NMR score", "Stroke NMR score", "CAD metaGRS", "Stroke metaGRS"))]
+dt[, model := factor(model, levels=c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dt <- dcast(dt, model + score ~ sex, value.var="weight")
+prs_scaling <- fread("data/standardised/prs_scaling_factors.txt")
+prs_scaling[, PRS := gsub("_", " ", PRS)]
+dt[prs_scaling, on = .(score=PRS), c("mean", "sd") := .(i.mean, i.sd)]
+dt <- dt[,.(model, score, mean, sd, Male, Female)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/avg_cvd_score_weights_supp_table.txt")
+
 # Compute weighted versions of NMR scores, so that we can get estimates of HRs per SD
 weighted_NMR <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
   foreach(this_model = c("SCORE2 + NMR scores", "SCORE2 + NMR scores + PRSs"), .combine=rbind) %:%
