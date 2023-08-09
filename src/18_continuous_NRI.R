@@ -107,3 +107,16 @@ g <- ggplot(ggdt) +
   )
 ggsave(g, width=7.2, height=2, file="analyses/test/continuous_NRI.pdf")
 
+# Create table for supplement
+dt <- nri_estimates[risk_col == "uk_calibrated_risk" & metric %in% c("NRI+", "NRI-")]
+dt <- dt[!(sex == "Females" & model_comparison %in% c("SCORE2 vs. SCORE2 + NMR scores", "SCORE2 vs. SCORE2 + PRSs"))] # Change in C-index not significant, so NRI invalid
+dt[, case_status := ifelse(metric == "NRI+", "case", "control")]
+dt[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
+dt[, model_comparison := factor(model_comparison, levels=c("SCORE2 vs. SCORE2 + NMR scores", "SCORE2 vs. SCORE2 + PRSs", "SCORE2 vs. SCORE2 + NMR scores + PRSs"))]
+dt <- dcast(dt, sex + samples + cases + model_comparison ~ case_status, value.var=c("Estimate", "Lower", "Upper"))
+dt <- dt[,.(sex, samples, cases, model_comparison, Estimate_case, Lower_case, Upper_case, Estimate_control, Lower_control, Upper_control)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/continuous_NRI_for_supp.txt")
+
+
+
+
