@@ -8,7 +8,7 @@ source('src/utils/score_cindex.R')
 system("mkdir -p analyses/test")
 
 # Load required data
- dat <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+dat <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
 
 # Compute C-indices
 cinds <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbind) %:%
@@ -30,7 +30,7 @@ cinds[ref, on = .(sex), c("deltaC", "deltaC.L95", "deltaC.U95") := .(C.index - i
 cinds[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95") := NA]
 
 # Compute % improvement over SCORE2
-cinds[ref, on = .(sex), c("pct_change", "pct.L95", "pct.U95") := .(C.index/i.C.index*100-100, L95/i.C.index*100-100, U95/i.C.index*100-100)]
+cinds[ref, on = .(sex), c("pct_change", "pct.L95", "pct.U95") := .(deltaC/(i.C.index - 0.5)*100, deltaC.L95/(i.C.index - 0.5)*100, deltaC.U95/(i.C.index - 0.5)*100)]
 cinds[model == "SCORE2", c("pct_change", "pct.L95", "pct.U95") := NA]
 
 # Write out
@@ -180,4 +180,12 @@ g <- ggplot(cinds[model != "SCORE2"]) +
   )
 ggsave(g, width=7.2, height=3, file="analyses/test/pct_improvement_cindices_with_clinical_scores.pdf", device=cairo_pdf)
 
+# Create formatted table for manuscript
+dt <- cinds[score_type != "NMR biomarker scores trained from 21 clinically accredited biomarkers"]
+dt[, score_type := NULL]
+dt[, SE := NULL]
+dt[, pct_change := pct_change / 100]
+dt[, pct.L95 := pct.L95 / 100]
+dt[, pct.U95 := pct.U95 / 100]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/cindices_for_supp.txt")
 
