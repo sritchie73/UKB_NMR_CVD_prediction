@@ -385,3 +385,72 @@ ggsave(g, width=7.2, height=4.5, file="analyses/test/non_derived_score_HRs_indep
 g <- plot_hrs("clinical")
 ggsave(g, width=7.2, height=4.5, file="analyses/test/clinical_score_HRs_independent_of_score2_components.pdf")
 
+# Make supp figure
+ggdt <- rbind(idcol="model",
+  "Risk factors"=cvd_hrs2[score_type == "non-derived" & model == "SCORE2 + NMR scores + PRSs", .(sex, coefficient, HR, L95, U95, pval)],
+  "SCORE2"=cvd_hrs[score_type == "non-derived" & model == "SCORE2 + NMR scores + PRSs", .(sex=paste0(sex, "s"), coefficient=score, HR, L95, U95, pval)]
+)
+ggdt[model == "SCORE2", coefficient := paste(coefficient, "(per SD increase)")]
+ggdt[, coefficient := factor(coefficient, levels=c(
+  "Age (per 5-year increase)", "Smoking (current vs. other)", "SBP (per 20 mm Hg increase)",
+  "Total cholesterol (per 1.0 mmol/L increase)", "HDL cholesterol (per 0.5 mmol/L increase)",
+  "Age x smoking", "Age x SBP", "Age x total cholesterol",  "Age x HDL cholesterol",
+  "CAD NMR score (per SD increase)", "Stroke NMR score (per SD increase)", "CAD metaGRS (per SD increase)",
+  "Stroke metaGRS (per SD increase)"))]
+ggdt[, sex := factor(sex, levels=c("Males", "Females"))]
+ggdt[, model := factor(model, levels=c("SCORE2", "Risk factors"))]
+ggdt[, color_anno := fcase(
+  coefficient %like% "NMR", "NMR scores",
+  coefficient %like% "GRS", "PRSs",
+  default = "Component of SCORE2"
+)]
+ggdt[, color_anno := factor(color_anno, levels=c("Component of SCORE2", "NMR scores", "PRSs"))]
+
+g1 <- ggplot(ggdt[model == "SCORE2"]) +
+  aes(x = coefficient, y = HR, ymin = L95, ymax = U95, color=color_anno) +
+  facet_grid(sex ~ .) +
+  geom_hline(yintercept=1, linetype=2) +
+  geom_errorbar(width=0) +
+  geom_point(shape=23, fill="white") +
+  scale_color_manual(values=c("Component of SCORE2"="black", "NMR scores"="#762a83", "PRSs"="#1b7837")) +
+  scale_y_continuous("Hazard Ratio (95% CI)") +
+  guides(color=guide_legend(title="")) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8),
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5), axis.title.x=element_blank(),
+    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
+    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+    legend.text=element_text(size=6), legend.position="bottom"
+  )
+
+g2 <- ggplot(ggdt[model == "Risk factors"]) +
+  aes(x = coefficient, y = HR, ymin = L95, ymax = U95, color=color_anno) +
+  facet_grid(sex ~ .) +
+  geom_hline(yintercept=1, linetype=2) +
+  geom_errorbar(width=0) +
+  geom_point(shape=23, fill="white") +
+  scale_color_manual(values=c("Component of SCORE2"="black", "NMR scores"="#762a83", "PRSs"="#1b7837")) +
+  scale_y_continuous("Hazard Ratio (95% CI)") +
+  guides(color=guide_legend(title="")) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=6), axis.title.y=element_text(size=8),
+    axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5), axis.title.x=element_blank(),
+    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
+    panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+    legend.text=element_text(size=6), legend.position="bottom"
+  )
+
+g <- plot_grid(g1, g2, nrow=1, rel_widths=c(1, 3), align="hv")
+ggsave(g, width=7.2, height=5, file="analyses/test/multivariable_HRs_NMR_scores_and_PRSs.pdf")
+
+
+# Format table for supp
+dt <- dcast(ggdt, model + coefficient ~ sex, value.var=c("HR", "L95", "U95", "pval"))
+dt <- dt[, .(model, coefficient, HR_Males, L95_Males, U95_Males, pval_Males, HR_Females, L95_Females, U95_Females, pval_Females)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/multivariable_HRs_NMR_scores_and_PRSs.txt")
+
+
+
+
