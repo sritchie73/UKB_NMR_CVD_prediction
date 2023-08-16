@@ -275,6 +275,14 @@ update_sample_info <- function(step_name, dataset, last_dataset) {
   sample_info <<- rbind(sample_info, new_row) 
 }
 
+# Drop people with no linkage in electronic health records and update flow-chart
+dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)]
+update_sample_info("With EHR linkage")
+
+# Filter to people with NMR data
+dat <- dat[!(no_nmr_data)]
+update_sample_info("With NMR data")
+
 # Assess eligibility for SCORE2 screening
 dat_cpy <- copy(dat)
 dat <- dat[age >= 40]
@@ -318,9 +326,6 @@ dat <- dat[!is.na(sbp)]
 update_sample_info("With known SBP", dat, dat_cpy)
 
 # Flag issues with clinical biochemistry assays
-dat <- dat[!(no_blood_biomarkers)]
-update_sample_info("Clinical chemistry failed")
-
 update_sample_info("Missing HDL cholesterol:", dat[is.na(hdl)], dat[is.na(hdl)])
 update_sample_info("Missing Total cholesterol:", dat[is.na(tchol)], dat[is.na(tchol)])
 update_sample_info("Missing HDL and total cholesterol:", dat[is.na(hdl) & is.na(tchol) & is.na(ldl)], dat[is.na(hdl) & is.na(tchol) & is.na(ldl)])
@@ -331,27 +336,9 @@ update_sample_info("With non-missing data for HDL and total cholesterol", dat, d
 
 update_sample_info("With non-missing quantitative SCORE2 risk factors", dat, dat_cpy)
 
-# Filter to people with requisite data
-dat_cpy <- copy(dat)
-
-# Drop people with no linkage in electronic health records and update flow-chart
-dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)]
-update_sample_info("With EHR linkage")
-
-# Filter to people with blood samples
-dat <- dat[!(no_blood_sample)]
-update_sample_info("With blood samples")
-
-# Filter to people with NMR data
-dat <- dat[!(no_nmr_data)]
-update_sample_info("With NMR data")
-
 # Drop people without genetic data
 dat <- dat[!(no_genetics)]
 update_sample_info("With linked genotype information")
-
-# Add entry summarising steps
-update_sample_info("With EHR, NMR, and genotype data", dat, dat_cpy)
 
 # Flag data quality issues or other ineligibility criteria
 dat_cpy <- copy(dat)
