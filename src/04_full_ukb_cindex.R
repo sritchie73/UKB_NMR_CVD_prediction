@@ -164,16 +164,123 @@ setnames(prs_training, "eid")
 dat[, prs_training_samples := FALSE]
 dat[prs_training, on = .(eid), prs_training_samples := TRUE]
 
+# -------------------------------------------------------------------
 # Now do sample exclusions to derive analysis cohort
+# -------------------------------------------------------------------
+# Build second sample flowchart for full cohort
+sample_info <- data.table(step="Baseline (excl. withdrawals)",
+  samples=dat[,.N], CVD=NA_real_, exited=NA_real_, exited_cvd=NA_real_)
+
+# Function to update sample information
+update_sample_info <- function(step_name, dataset, last_dataset) {
+  if (missing(dataset)) {
+    dataset <- dat
+  }
+  current_samples <- dataset[,.N]
+  current_cvd <- sum(dataset$incident_cvd, na.rm=TRUE)
+  if (missing(last_dataset)) {
+    last_samples <- sample_info[.N, samples]
+    last_cvd <- sample_info[.N, CVD]
+  } else {
+    last_samples <- last_dataset[,.N]
+    last_cvd <- last_dataset[, sum(incident_cvd, na.rm=TRUE)]
+  }
+  new_row <- data.table(
+    step=step_name,
+    samples=current_samples,
+    CVD=current_cvd,
+    exited=last_samples - current_samples,
+    exited_cvd=ifelse(is.na(last_cvd), NA, last_cvd - current_cvd)
+  )
+  sample_info <<- rbind(sample_info, new_row)
+}
+
+# Flag withdrawal from EHR linkage
 dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)] # no EHR linkage
-dat <- dat[age >= 40 & age <= 69] # eligible age for SCORE2 risk prediction
-dat <- dat[!(ASCVD) | is.na(ASCVD)] # without established atherosclerotic CVD
-dat <- dat[!(prevalent_diabetes_mellitus) | is.na(prevalent_diabetes_mellitus)] # without prevalent diabetes
-dat <- dat[!(prevalent_CKD) | is.na(prevalent_CKD)] # without CKD
-dat <- dat[DLCN_FH_score < 6] # without probable familial hypercholesteremia
-dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)] # without lipid lowering medications
-dat <- dat[!is.na(sbp)] # missing SBP for SCORE2 
-dat <- dat[!is.na(hdl) & !is.na(tchol)] # missing HDL and total cholesterol for SCORE2
+update_sample_info("With EHR linkage")
+
+# Assess eligibility for SCORE2 screening
+dat_cpy <- copy(dat)
+dat <- dat[age >= 40]
+update_sample_info("40 years or older")
+
+dat <- dat[age <= 69]
+update_sample_info("69 years or younger")
+update_sample_info("Eligible age for SCORE2 risk prediction", dat, dat_cpy)
+
+dat <- dat[!(ASCVD) | is.na(ASCVD)]
+update_sample_info("Without established atherosclerotic CVD")
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!(prevalent_diabetes_mellitus) | is.na(prevalent_diabetes_mellitus)]
+update_sample_info("Without type 1 or type 1 diabetes", dat, dat_cpy2)
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!(prevalent_CKD) | is.na(prevalent_CKD)]
+update_sample_info("Without CKD", dat, dat_cpy2)
+
+dat_cpy2 <- copy(dat)
+update_sample_info("Definite FH (LDL ≥ 8.5 mmol/L and premature CAD or vascular disease):", dat[DLCN_FH_score > 8], dat[DLCN_FH_score > 8])
+update_sample_info("Probable FH (LDL ≥ 8.5 mmol/L)", dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)], dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)])
+update_sample_info("Probable FH (LDL ≥ 6.5 mmol/L and premature CAD or vascular disease)", dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease], dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease])
+update_sample_info("Possible FH (LDL ≥ 5 mmol/L)", dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5], dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5])
+update_sample_info("No FH (LDL < 5 mmol/L or missing)", dat[DLCN_FH_score < 3], dat[DLCN_FH_score < 3])
+dat <- dat[DLCN_FH_score < 6]
+update_sample_info("Without probable FH", dat, dat_cpy2)
+
+update_sample_info("Eligible for screening with SCORE2 according to ESC 2021 guidelines", dat, dat_cpy)
+
+# Exclude people on statins
+dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)]
+update_sample_info("Already treated with statins")
+
+# Drop people missing quantitative conventional risk factors
+dat_cpy <- copy(dat)
+
+dat <- dat[!is.na(sbp)]
+update_sample_info("With known SBP", dat, dat_cpy)
+
+dat <- dat[!(no_blood_sample)]
+update_sample_info("With blood sample taken")
+
+dat <- dat[!(no_blood_biomarkers)]
+update_sample_info("With data on any clinical biochemistry assays")
+
+# Flag issues with clinical biochemistry assays
+update_sample_info("Missing HDL cholesterol:", dat[is.na(hdl)], dat[is.na(hdl)])
+update_sample_info("Missing Total cholesterol:", dat[is.na(tchol)], dat[is.na(tchol)])
+update_sample_info("Missing HDL and total cholesterol:", dat[is.na(hdl) & is.na(tchol) & is.na(ldl)], dat[is.na(hdl) & is.na(tchol) & is.na(ldl)])
+
+dat_cpy2 <- copy(dat)
+dat <- dat[!is.na(hdl) & !is.na(tchol) & !is.na(ldl)]
+update_sample_info("With non-missing data for HDL and total cholesterol", dat, dat_cpy2)
+
+update_sample_info("With non-missing quantitative SCORE2 risk factors", dat, dat_cpy)
+
+
+# Format flowchart and add percentages
+sample_info[, exited_cvd := ifelse(
+  is.na(exited_cvd), NA_character_,
+  ifelse(exited == 0L, "0 (-%)",
+  sprintf("%s (%s%%)", format(exited_cvd, big.mark=","), round(exited_cvd/(exited_cvd + CVD)*100, digits=2))
+))]
+
+sample_info[, exited := ifelse(
+  is.na(exited), NA_character_,
+  ifelse(exited == 0L, "0 (-%)",
+  sprintf("%s (%s%%)", format(exited, big.mark=","), round(exited/(exited + samples)*100, digits=2))
+))]
+
+sample_info[, CVD := ifelse(
+  is.na(CVD), NA_character_,
+  ifelse(samples == 0L, "0 (-%)",
+  sprintf("%s (%s%%)", format(CVD, big.mark=","), round(CVD/samples*100, digits=2))
+))]
+
+sample_info[, samples := ifelse(is.na(samples), NA_character_, format(samples, big.mark=","))]
+
+# Write out sample information
+fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/full_UKB_sample_flowchart.txt")
 
 # Add SCORE2
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
