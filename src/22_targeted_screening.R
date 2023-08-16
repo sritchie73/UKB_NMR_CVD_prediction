@@ -19,7 +19,7 @@ models <- models[model != "SCORE2"]
 models[, colname := paste0("model", .I)]
 pred_risk[, colname := model]
 pred_risk[models, on = .(model), colname := i.colname]
-pred_risk <- dcast(pred_risk, eid + sex + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
+pred_risk <- dcast(pred_risk, eid + sex + age + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
 
 # Determine in each age-group and sex the proportion of participants determined to be high risk" 
 # along with the proportion of "high risk" individuals that go on to develop CVD. These proportions 
@@ -48,9 +48,9 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
 
         # Build empty results table to fill in
         res <- as.data.table(expand.grid(model=models$colname, metric=c(
-          "pct_high_risk_score2", "pct_high_risk_score2_cases",
-          "pct_medium_risk_score2", "pct_medium_risk_score2_cases",
-          "pct_reclassified", "pct_reclassified_cases"
+          "pct_cases_high_risk_score2", "pct_non_cases_high_risk_score2",
+          "pct_cases_medium_risk_score2", "pct_non_cases_medium_risk_score2",
+          "pct_cases_reclassified", "pct_non_cases_reclassified"
         )))
         res[, estimate := 0]
 
@@ -59,22 +59,22 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
         dt[, medium_risk_score2 := ifelse(!high_risk_score2 & SCORE2 >= medium_risk_threshold, TRUE, FALSE)]
         dt[, reclassified := ifelse(medium_risk_score2 & uk_calibrated_risk >= high_risk_threshold, TRUE, FALSE)]
     
-        metric1 <- dt[, .(metric="pct_high_risk_score2", estimate=sum(high_risk_score2)/.N), by=model]
+        metric1 <- dt[(incident_cvd), .(metric="pct_cases_high_risk_score2", estimate=sum(high_risk_score2)/.N), by=model]
         res[metric1, on = .(model, metric), estimate := i.estimate]
 
-        metric2 <- dt[(high_risk_score2), .(metric="pct_high_risk_score2_cases", estimate=sum(incident_cvd)/.N), by=model]
+        metric2 <- dt[!(incident_cvd), .(metric="pct_non_cases_high_risk_score2", estimate=sum(high_risk_score2)/.N), by=model]
         res[metric2, on = .(model, metric), estimate := i.estimate]
 
-        metric3 <- dt[, .(metric="pct_medium_risk_score2", estimate=sum(medium_risk_score2)/.N), by=model]
+        metric3 <- dt[(incident_cvd), .(metric="pct_cases_medium_risk_score2", estimate=sum(medium_risk_score2)/.N), by=model]
         res[metric3, on = .(model, metric), estimate := i.estimate]
 
-        metric4 <- dt[(medium_risk_score2), .(metric="pct_medium_risk_score2_cases", estimate=sum(incident_cvd)/.N), by=model]
+        metric4 <- dt[!(incident_cvd), .(metric="pct_non_cases_medium_risk_score2", estimate=sum(medium_risk_score2)/.N), by=model]
         res[metric4, on = .(model, metric), estimate := i.estimate]
        
-        metric5 <- dt[(medium_risk_score2), .(metric="pct_reclassified", estimate=sum(reclassified)/.N), by=model]
+        metric5 <- dt[(incident_cvd) & (medium_risk_score2), .(metric="pct_cases_reclassified", estimate=sum(reclassified)/.N), by=model]
         res[metric5, on = .(model, metric), estimate := i.estimate]
 
-        metric6 <- dt[(reclassified), .(metric="pct_reclassified_cases", estimate=sum(incident_cvd)/.N), by=model]
+        metric6 <- dt[!(incident_cvd) & (medium_risk_score2), .(metric="pct_non_cases_reclassified", estimate=sum(reclassified)/.N), by=model]
         res[metric6, on = .(model, metric), estimate := i.estimate]
 
         # return as flat vector, this needs to be mapped after bootstrapping
@@ -87,9 +87,9 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
 
       # Extract table of metrics
       res <- as.data.table(expand.grid(model=models$colname, metric=c(
-        "pct_high_risk_score2", "pct_high_risk_score2_cases",
-        "pct_medium_risk_score2", "pct_medium_risk_score2_cases",
-        "pct_reclassified", "pct_reclassified_cases"
+          "pct_cases_high_risk_score2", "pct_non_cases_high_risk_score2",
+          "pct_cases_medium_risk_score2", "pct_non_cases_medium_risk_score2",
+          "pct_cases_reclassified", "pct_non_cases_reclassified"
       )))
       res[models, on = .(model=colname), model := i.model]
       res[, estimate := this_group_res$t0]
@@ -117,36 +117,35 @@ fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modellin
 # Apply proportions to simulated population
 pop_boot <- risk_strata[ons_pop, on = .(sex, age_group)]
 
-pop_boot[, high_risk_score2 := floor(N * pct_high_risk_score2)]
-pop_boot[, medium_risk_score2 := floor(N * pct_medium_risk_score2)]
-pop_boot[, low_risk_score2 := N - high_risk_score2 - medium_risk_score2]
-
-pop_boot[, reclassified := floor(medium_risk_score2 * pct_reclassified)]
-pop_boot[, not_reclassified := medium_risk_score2 - reclassified]
-
-pop_boot[, high_risk := high_risk_score2 + reclassified]
-pop_boot[, low_risk := low_risk_score2 + not_reclassified]
-
-pop_boot[, high_risk_score2_cases := floor(high_risk_score2 * pct_high_risk_score2_cases)]
-pop_boot[, high_risk_score2_non_cases := high_risk_score2 - high_risk_score2_cases]
-
-pop_boot[, medium_risk_score2_cases := floor(medium_risk_score2 * pct_medium_risk_score2_cases)]
-pop_boot[, medium_risk_score2_non_cases := medium_risk_score2 - medium_risk_score2_cases]
-
+pop_boot[, high_risk_score2_cases := floor(cases * pct_cases_high_risk_score2)]
+pop_boot[, medium_risk_score2_cases := floor(cases * pct_cases_medium_risk_score2)]
 pop_boot[, low_risk_score2_cases := cases - high_risk_score2_cases - medium_risk_score2_cases]
-pop_boot[, low_risk_score2_non_cases := low_risk_score2 - low_risk_score2_cases]
 
-pop_boot[, reclassified_cases := floor(reclassified * pct_reclassified_cases)]
-pop_boot[, reclassified_non_cases := reclassified - reclassified_cases]
+pop_boot[, high_risk_score2_non_cases := floor(controls * pct_non_cases_high_risk_score2)]
+pop_boot[, medium_risk_score2_non_cases := floor(controls * pct_non_cases_medium_risk_score2)]
+pop_boot[, low_risk_score2_non_cases := controls - high_risk_score2_non_cases - medium_risk_score2_non_cases]
 
+pop_boot[, high_risk_score2 := high_risk_score2_cases + high_risk_score2_non_cases]
+pop_boot[, medium_risk_score2 := medium_risk_score2_cases + medium_risk_score2_non_cases]
+pop_boot[, low_risk_score2 := low_risk_score2_cases + low_risk_score2_non_cases]
+
+pop_boot[, reclassified_cases := floor(medium_risk_score2_cases * pct_cases_reclassified)]
 pop_boot[, not_reclassified_cases := medium_risk_score2_cases - reclassified_cases]
-pop_boot[, not_reclassified_non_cases := not_reclassified - not_reclassified_cases]
+
+pop_boot[, reclassified_non_cases := floor(medium_risk_score2_non_cases * pct_non_cases_reclassified)]
+pop_boot[, not_reclassified_non_cases := medium_risk_score2_non_cases - reclassified_non_cases]
+
+pop_boot[, reclassified := reclassified_cases + reclassified_non_cases]
+pop_boot[, not_reclassified := not_reclassified_cases + not_reclassified_non_cases]
 
 pop_boot[, high_risk_cases := high_risk_score2_cases + reclassified_cases]
-pop_boot[, high_risk_non_cases := high_risk_score2_non_cases + reclassified_non_cases]
-
 pop_boot[, low_risk_cases := low_risk_score2_cases + not_reclassified_cases]
+
+pop_boot[, high_risk_non_cases := high_risk_score2_non_cases + reclassified_non_cases]
 pop_boot[, low_risk_non_cases := low_risk_score2_non_cases + not_reclassified_non_cases]
+
+pop_boot[, high_risk := high_risk_cases + high_risk_non_cases]
+pop_boot[, low_risk := low_risk_cases + low_risk_non_cases]
 
 
 # Reorganise columns

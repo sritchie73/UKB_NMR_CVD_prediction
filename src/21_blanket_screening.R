@@ -17,14 +17,13 @@ pred_risk <- pred_risk[score_type == "non-derived"]
 models <- unique(pred_risk[,.(model)])
 models[, colname := paste0("model", .I)]
 pred_risk <- pred_risk[models, on = .(model)]
-pred_risk <- dcast(pred_risk, eid + sex + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
+pred_risk <- dcast(pred_risk, eid + sex + age + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
 
-# Determine in each age-group and sex the proportion of participants determined to be high risk" 
-# along with the proportion of "high risk" individuals that go on to develop CVD. These proportions 
-# will then be applied to the simulated population to estimate impact of screening in a hypothetical 
-# population of ~100,000 adults with proportions of age, sex, and 10-year CVD incidence similar to 
-# the general UK Population. Proportions will be estimated in a bootstrap procedure so we can get 
-# 95% confidence intervals of numbers.
+# Determine in each age-group and sex the proportion of cases and non-cases that are allocated to the 
+# high risk group by each model. These proportions will then be applied to the simulated population 
+# to estimate impact of screening in a hypothetical population of ~100,000 adults with proportions of 
+# age, sex, and 10-year CVD incidence similar to the general UK Population. Proportions will be 
+# estimated in a bootstrap procedure so we can get 95% confidence intervals of numbers.
 risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:% 
     foreach(this_age_group = sort(unique(pred_risk$age_group)), .combine=rbind) %dopar% {
       # Extract subset of predicted risks to work with in this loop iteration
@@ -43,16 +42,16 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
         dt <- melt(dt, measure.vars=patterns("^model"), variable.name="model", value.name="uk_calibrated_risk")
 
         # Build empty results table to fill in
-        res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_high_risk", "pct_high_risk_cases")))
+        res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_cases_high_risk", "pct_non_cases_high_risk")))
         res[, estimate := 0]
 
         # Compute % of group assigned to high risk and % of cases assigned to high risk for each model
         dt[, high_risk := ifelse(uk_calibrated_risk >= risk_threshold, TRUE, FALSE)]
     
-        metric1 <- dt[,.(metric="pct_high_risk", estimate=sum(high_risk)/.N), by=model]
+        metric1 <- dt[(incident_cvd),.(metric="pct_cases_high_risk", estimate=sum(high_risk)/.N), by=model]
         res[metric1, on = .(model, metric), estimate := i.estimate]
 
-        metric2 <- dt[(high_risk),.(metric="pct_high_risk_cases", estimate=sum(incident_cvd)/.N), by=model]
+        metric2 <- dt[!(incident_cvd),.(metric="pct_non_cases_high_risk", estimate=sum(high_risk)/.N), by=model]
         res[metric2, on = .(model, metric), estimate := i.estimate]
 
         # return as flat vector, this needs to be mapped after bootstrapping
@@ -64,7 +63,7 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
       this_group_res <- censboot(this_pred_risk, boot.stats, 1000, index=surv_cols_idx) # takes ~ 6 seconds to run
 
       # Extract table of metrics
-      res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_high_risk", "pct_high_risk_cases")))
+      res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_cases_high_risk", "pct_non_cases_high_risk")))
       res[models, on = .(model=colname), model := i.model]
       res[, estimate := this_group_res$t0]
       res <- cbind(sex=this_sex, age_group=this_age_group, res)
@@ -90,12 +89,12 @@ fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modellin
 
 # Apply proportions to simulated population
 pop_boot <- risk_strata[ons_pop, on = .(sex, age_group)]
-pop_boot[, high_risk := floor(N * pct_high_risk)]
-pop_boot[, low_risk := N - high_risk]
-pop_boot[, high_risk_cases := floor(high_risk * pct_high_risk_cases)]
+pop_boot[, high_risk_cases := floor(cases * pct_cases_high_risk)]
 pop_boot[, low_risk_cases := cases - high_risk_cases]
-pop_boot[, high_risk_non_cases := high_risk - high_risk_cases]
-pop_boot[, low_risk_non_cases := low_risk - low_risk_cases]
+pop_boot[, high_risk_non_cases := floor(controls * pct_non_cases_high_risk)]
+pop_boot[, low_risk_non_cases := controls - high_risk_non_cases]
+pop_boot[, high_risk := high_risk_cases + high_risk_non_cases]
+pop_boot[, low_risk := low_risk_cases + low_risk_non_cases]
 
 # Reorganise columns
 pop_boot <- pop_boot[,.(
