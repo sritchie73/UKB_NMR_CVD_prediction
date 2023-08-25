@@ -53,7 +53,7 @@ pred_risk <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.
 pred_risk <- pred_risk[score_type == "non-derived"]
 
 # Build comparison table of expected 10-year risk so we can fit recalibration models
-comp_risk <- pred_risk[, .(predicted=mean(uk_calibrated_risk)), by=.(model, sex, age_group)]
+comp_risk <- pred_risk[, .(predicted=mean(uncalibrated_risk)), by=.(model, sex, age_group)]
 comp_risk[CPRD, on = .(sex, age_group), CPRD := i.expected_risk]
 
 # Transform with link function
@@ -69,7 +69,7 @@ fwrite(recalibration_fit, sep="\t", quote=FALSE, file="analyses/risk_recalibrati
 # transforming the "true" risk of UK Biobank participants to the risk distribution that we would expect
 # in age-groups of those numbers if we had instead sampled from the general UK population
 pred_risk[recalibration_fit, on = .(model, sex), 
-  recalibrated_risk := 1 - exp(-exp(scale1 + scale2 * log(-log(1 - uk_calibrated_risk)))),
+  recalibrated_risk := 1 - exp(-exp(scale1 + scale2 * log(-log(1 - uncalibrated_risk)))),
 ]
 
 # Write out 
