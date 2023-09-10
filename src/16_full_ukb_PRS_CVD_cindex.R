@@ -3,7 +3,6 @@ library(foreach)
 library(survival)
 library(boot)
 library(ggplot2)
-library(ggh4x)
 library(ggstance)
 registerDoMC(7) # needs to run on compute node, taking ~40 minutes
 

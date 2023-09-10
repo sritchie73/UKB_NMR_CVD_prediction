@@ -110,7 +110,7 @@ ggdt[model == "SCORE2 + PRSs", score_type := NA]
 
 # Encode factors for plotting
 ggdt[, model := factor(model, levels=rev(c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs")))]
-ggdt[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
+ggdt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
 
 # Extract reference for SCORE2
 ref <- rbind(
@@ -158,7 +158,7 @@ ggsave(g, width=7.2, height=3.5, file="analyses/test/cindex_sex_specific.pdf")
 # Generate comparison plot showing clinical scores have worse performance:
 g <- ggplot(ggdt) +
   aes(x=estimate, xmin=L95, xmax=U95, y=model, color=score_type) +
-  facet_grid2(sex ~ metric, independent="x", scales="free_x") +
+  facet_grid(sex ~ metric, scales="free_x") +
   geom_vline(data=ref, aes(xintercept=estimate), linetype=2) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.6)) +
   geom_point(shape=23, size=2, fill="white", position=position_dodgev(height=0.6)) +
@@ -173,7 +173,6 @@ g <- ggplot(ggdt) +
     legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=8)
   )
 ggsave(g, width=7.2, height=5, file="analyses/test/cindex_with_clinical_scores.pdf")
-
 
 # Create formatted table for manuscript
 dt <- cinds[is.na(score_type) | score_type == "non-derived"]
