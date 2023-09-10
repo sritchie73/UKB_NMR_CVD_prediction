@@ -1,10 +1,10 @@
 library(data.table)
 library(foreach)
 library(boot)
-library(statmod)
 library(ggplot2)
 library(ggh4x)
 library(ggstance)
+registerDoMC(7) # needs to run on compute node, taking ~40 minutes
 
 # Make output directory
 system("mkdir -p analyses/test")
