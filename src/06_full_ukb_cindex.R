@@ -1,304 +1,134 @@
 library(data.table)
 library(foreach)
+library(doMC)
+library(boot)
 library(survival)
 library(ggplot2)
 library(ggh4x)
 library(forcats)
-source('src/utils/SCORE2.R')
-source('src/utils/score_cindex.R')
-registerDoMC(10)
+registerDoMC(30) # Takes ~2 hours?
 
-#####################################################################
-# Define analysis cohort without filtering to samples with NMR data
-#####################################################################
+# Create output directory
+system("mkdir -p analyses/univariate")
 
-# Load basic cohort information
-dat <- fread("data/ukb_7439/anthropometrics/output/anthropometrics.txt")
+# Load biomarker information sheets
+bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
 
-# Filter to baseline assessment
-dat <- dat[visit_index == 0]
+# Load dataset
+dat <- fread("data/cleaned/full_UKB_analysis_cohort.txt")
 
-# Extract relevant columns:
-dat <- dat[, .(eid, assessment_date, assessment_centre, age, age_decimal, sex, bmi)]
+# Get list of biomarkers to test
+test_assay <- bio_info[!is.na(UKB.Field.ID) & sample_type != "Urine" & var != "tchol" & var != "hdl", var]
 
-# Drop latest set of sample withdrawals
-withdrawals <- fread("data/ukb_7439/latest_withdrawals/output/latest_withdrawals.txt")
-dat <- dat[!withdrawals, on = .(eid)]
+# Build set of models to test
+model_info <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbind) %:%
+  foreach(this_model = c("SCORE2", "SCORE2_excl_UKB", paste("SCORE2 +", test_assay)), .combine=rbind) %do% {
+    data.table(sex=this_sex, model=this_model)
+}
+model_info[model != "SCORE2" & model != "SCORE2_excl_UKB", biomarker := gsub("SCORE2 \\+ ", "", model)]
+model_info[, model_var := paste0("model_", 1:.N), by=sex]
 
-# Add in systolic blood pressure
-bp <- fread("data/ukb_7439/blood_pressure/output/blood_pressure.txt")
-dat[bp[visit_index == 0], on = .(eid), sbp := i.sbp]
+# Convert sex to integer for strata
+strata_num <- dat[,.GRP, by=sex]
+dat[strata_num, on = .(sex), sex_int := i.GRP]
 
-# Add in medication usage
-meds_touchscreen <- fread("data/ukb_7439/medication/output/medications_simple.txt")
-meds_interview <- fread("data/ukb_7439/medication/output/detailed_medications_summarised.txt")
-meds <- merge(meds_touchscreen, meds_interview, by=c("eid", "visit_index"), all=TRUE)
+# Bootstrap package rejecs data with missing values, so we have to do some wrangling here.
+# The function we provide to the bootstrap procedure automatically handles missing data, so
+# here we set these to an indicator value to get past the censboot checks, before filtering 
+# in the function passed to the bootstrap procedure
+dat <- melt(dat, id.vars=c("eid", "sex", "sex_int", "incident_cvd_followup", "incident_cvd", "SCORE2", "SCORE2_excl_UKB"), measure.vars=test_assay)
+dat[is.na(value), value := -1]
+dat <- dcast(dat, eid + sex + sex_int + incident_cvd_followup + incident_cvd + SCORE2 + SCORE2_excl_UKB ~ variable, value.var="value")
 
-dat[meds[visit_index == 0], on = .(eid), cholesterol_medication := i.cholesterol_medication | i.lipid_lowering_medication]
+# Create bootstrap function that: 
+# (1) calculates the absolute C-index for each model
+# (2) calculates the C-index standard error for each model
+# (3) calculates the difference in C-index from SCORE2 for each model
+# (4) calculates the % change in C-index from SCORE2 for each model
+# For each entry in the model_info table
+boot.fun <- function(dt) {
+  model_cinds <- foreach(midx = model_info[,.I], .combine=rbind) %dopar% {
+    this_minfo <- model_info[midx]
+    if (this_minfo$model != "SCORE2" & this_minfo$model != "SCORE2_excl_UKB") {
+      # Drop missing data for this biomarker (masked with -1 to pass censboot checks)
+      this_dt <- dt[dt[[this_minfo$biomarker]] >= 0]
 
-# Add in smoking status
-smoking <- fread("data/ukb_7439/smoking/output/smoking_status.txt")
-dat[smoking[visit_index == 0], on = .(eid), smoking := i.current_smoker]
+      # Get C-index and SE from cox model
+      if (this_minfo$sex == "Sex-stratified") {
+        mf <- sprintf("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2_excl_UKB) + %s", this_minfo$biomarker)
+      } else {
+        this_dt <- dt[sex == gsub("s$", "", this_minfo$sex)]
+        mf <- sprintf("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB) + %s", this_minfo$biomarker)
+      }
+      cx <- coxph(as.formula(mf), data=this_dt)
+      C.index <- summary(cx)$concordance[1]
+      SE <- summary(cx)$concordance[2]
 
-# Add in diabetes status (Eastwood 2016 algorithm)
-diab_sr <- fread("data/ukb_7439/Eastwood_diabetes/output/prevalent_diabetes.txt")
-diab_hes <- fread("data/ukb_7439/Eastwood_diabetes/output/incident_diabetes.txt")
-diabetes <- merge(diab_sr, diab_hes, by=c("eid", "visit_index"), all=TRUE, suffixes=c("_self_report", "_hes"))
-dat[diabetes[visit_index == 0], on = .(eid), prevalent_diabetes_mellitus := fcase(
-  adjudicated_diabetes_self_report == "Probable type 2 diabetes", TRUE,
-  adjudicated_diabetes_self_report == "Probable type 1 diabetes", TRUE,
-  adjudicated_diabetes_self_report == "Possible type 2 diabetes", TRUE,
-  adjudicated_diabetes_self_report == "Possible type 1 diabetes", TRUE,
-  adjudicated_diabetes_hes == "Prevalent diabetes", TRUE,
-  default = FALSE
-)]
-# Add in prevalent CKD (UKB algorithmically defined outcome)
-ado <- fread("data/ukb_7439/algorithmically_defined_outcomes/output/algorithmically_defined_outcomes.txt")
-dat[ado, on = .(eid), prevalent_CKD := esrd_date < assessment_date]
-dat[is.na(prevalent_CKD), prevalent_CKD := FALSE]
+      # Compute C-index for SCORE2 in samples with non-missing data directly from linear predictor
+      this_y <- Surv(this_dt[["incident_cvd_followup"]], this_dt[["incident_cvd"]])
+      this_x <- this_dt[["SCORE2_excl_UKB"]]
+      if (this_minfo$sex == "Sex-stratified") {
+        cf <- survival::concordancefit(y = this_y, x = this_x, strata = this_dt[["sex_int"]], reverse = TRUE, timefix = TRUE)
+      } else {
+        cf <- survival::concordancefit(y = this_y, x = this_x, reverse = TRUE, timefix = TRUE)
+      }   
+      delta.C <- C.index - cf$concordance
+      pct_change <- delta.C/(C.index - 0.5)*100
 
-# Add in earliest onset of prevalent vascular disease and CAD (as defined by the Dutch Lipic Clinical Network) 
-# and determine where the event onset is premature, to be used in conjunction with LDL cholesterol 
-# to predict familiar hypercholesterolemia
-DLCN_vasc_disease <- fread("data/ukb_7439/endpoints/endpoints/DLCN_premature_vascular_disease/events_and_followup.txt")
-dat[DLCN_vasc_disease[visit_index == 0], on = .(eid), premature_vascular_disease := fcase(
-  prevalent_event & sex == "Male" & prevalent_event_age < 55, TRUE,
-  prevalent_event & sex == "Female" & prevalent_event_age < 60, TRUE,
-  prevalent_event & sex == "Male" & is.na(prevalent_event_age) & x.age < 55, TRUE,
-  prevalent_event & sex == "Female" & is.na(prevalent_event_age) & x.age < 60, TRUE,
-  default = FALSE
-)]
-
-DLCN_cad <- fread("data/ukb_7439/endpoints/endpoints/DLCN_premature_CAD/events_and_followup.txt")
-dat[DLCN_cad[visit_index == 0], on = .(eid), premature_cad := fcase(
-  prevalent_event & sex == "Male" & prevalent_event_age < 55, TRUE,
-  prevalent_event & sex == "Female" & prevalent_event_age < 60, TRUE,
-  prevalent_event & sex == "Male" & is.na(prevalent_event_age) & x.age < 55, TRUE,
-  prevalent_event & sex == "Female" & is.na(prevalent_event_age) & x.age < 60, TRUE,
-  default = FALSE
-)]
-
-# Add in established atherosclerotic cardiovascular disease: the ESC 2021 guidelines
-# (Table 4) pretty closely match CEU's prevalent vascular disease definition
-ascvd <- fread("data/ukb_7439/endpoints/endpoints/CEU_prevalent_vascular_disease/events_and_followup.txt")
-dat[ascvd[visit_index == 0], on = .(eid), ASCVD := i.prevalent_event]
-
-# Add in CVD endpoint (SCORE2 definition)
-cvd <- fread("data/ukb_7439/endpoints/endpoints/SCORE2_CVD/events_and_followup.txt")
-cvd <- cvd[visit_index == 0]
-dat[cvd, on = .(eid), incident_cvd := i.incident_event]
-dat[cvd, on = .(eid), incident_cvd_followup := i.incident_event_followup]
-dat[cvd, on = .(eid), incident_cvd_followup_date := i.incident_event_followup_date]
-dat[cvd, on = .(eid), incident_cvd_is_fatal := fcase(
-  i.incident_event_type == "death", TRUE,
-  i.incident_event_type == "hospitalisation", FALSE,
-  i.incident_event_type == "" & !is.na(i.incident_event), FALSE,
-  is.na(i.incident_event), NA
-)]
-dat[cvd, on = . (eid), cvd_is_primary_cause := fcase(
-  i.incident_cause_type == "primary", TRUE,
-  i.incident_cause_type == "secondary", FALSE,
-  i.incident_cause_type == "" & !is.na(i.incident_cause_type), FALSE,
-  is.na(i.incident_cause_type), NA
-)]
-
-# Get information on where participants resided at baseline assessment, 
-# maximum, and minimum follow-up available in hospital records (different
-# hospital systems have different follow-up time available depending on
-# nation of hospital)
-dat[cvd, on = .(eid), latest_hospital_nation := i.latest_hospital_nation]
-dat[ascvd, on = .(eid), earliest_hospital_nation := i.earliest_hospital_nation]
-
-# Get additional information on follow-up
-dat[cvd, on = .(eid), mortality_at_cvd_followup := i.mortality_at_followup_date]
-dat[cvd, on = .(eid), lost_at_cvd_followup := i.lost_to_followup_reason != ""]
-dat[cvd, on = .(eid), lost_at_cvd_followup_reason := i.lost_to_followup_reason]
-dat[, cvd_follow_lt10_Wales := !(incident_cvd) & !(lost_at_cvd_followup) & !(mortality_at_cvd_followup) & incident_cvd_followup < 10]
-stopifnot(all(dat[(cvd_follow_lt10_Wales), latest_hospital_nation == "Wales"]))
-
-# Add in biochemistry biomarker data
-bio <- fread("data/ukb_7439/biomarkers/output/biomarkers.txt")
-bio <- bio[visit_index == 0L]
-bio[, visit_index := NULL]
-dat <- merge(dat, bio, by="eid", all.x=TRUE)
-
-# Flag people missing blood biochemistry data
-bio_sinfo <- fread("data/ukb_7439/biomarkers/output/samples_not_measured.txt")
-bio_sinfo <- bio_sinfo[visit_index == 0L]
-bio_sinfo[, visit_index := NULL]
-dat[, no_blood_sample := FALSE]
-dat[, no_urine_sample := FALSE]
-dat[bio_sinfo, on = .(eid), no_blood_sample := i.no_blood_sample]
-dat[bio_sinfo, on = .(eid), no_urine_sample := i.no_urine_sample]
-
-blood_bio <- setdiff(names(bio), c("eid", "uriacc", "urianac", "uriamac", "uriakc"))
-urine_bio <- setdiff(names(bio), c("eid", blood_bio))
-dat[, no_blood_biomarkers := apply(as.matrix(dat[,blood_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
-dat[, no_urine_biomarkers := apply(as.matrix(dat[,urine_bio,with=FALSE]), 1, function(rr) { all(is.na(rr)) })]
-
-# Score FH status according to Dutch Lipid Clinic Network diagnosit criteria:
-dat[, DLCN_FH_score := 0]
-dat[(premature_cad), DLCN_FH_score := DLCN_FH_score + 2]
-dat[(premature_vascular_disease), DLCN_FH_score := DLCN_FH_score + 1]
-dat[ldl >= 8.5, DLCN_FH_score := DLCN_FH_score + 8]
-dat[ldl >= 6.5 & ldl < 8.5, DLCN_FH_score := DLCN_FH_score + 5]
-dat[ldl >= 5.0 & ldl < 6.5, DLCN_FH_score := DLCN_FH_score + 3]
-dat[ldl >= 4.0 & ldl < 5.0, DLCN_FH_score := DLCN_FH_score + 1]
-
-# Add PRSs
-PRSs <- rbind(idcol="PRS", fill=TRUE,
-  CAD_metaGRS = fread("data/ukb_7439/PRS/CAD_metaGRS/CAD_metaGRS_PGS000018_b097e681_P7439_from_dosage.sscore.gz"),
-  Stroke_metaGRS = fread("data/ukb_7439/PRS/Stroke_metaGRS/Stroke_metaGRS_PGS000039_6a7832a2_P7439_from_dosage.sscore.gz")
-)
-PRSs <- dcast(PRSs, IID ~ PRS, value.var="score_sum")
-dat[PRSs, on = .(eid = IID), CAD_metaGRS := i.CAD_metaGRS]
-dat[PRSs, on = .(eid = IID), Stroke_metaGRS := i.Stroke_metaGRS]
-dat[, no_genetics := ifelse(is.na(CAD_metaGRS), TRUE, FALSE)]
-
-# Set PRS to missing for people used to train the PRSs
-prs_training <- unique(rbind(
-  fread("data/ukb_7439/PRS/sample_splits/CAD_metaGRS_training_samples.txt"),
-  fread("data/ukb_7439/PRS/sample_splits/Stroke_metaGRS_training_samples.txt")
-))
-setnames(prs_training, "eid")
-dat[, prs_training_samples := FALSE]
-dat[prs_training, on = .(eid), prs_training_samples := TRUE]
-
-# -------------------------------------------------------------------
-# Now do sample exclusions to derive analysis cohort
-# -------------------------------------------------------------------
-# Build second sample flowchart for full cohort
-sample_info <- data.table(step="Baseline (excl. withdrawals)",
-  samples=dat[,.N], CVD=NA_real_, exited=NA_real_, exited_cvd=NA_real_)
-
-# Function to update sample information
-update_sample_info <- function(step_name, dataset, last_dataset) {
-  if (missing(dataset)) {
-    dataset <- dat
-  }
-  current_samples <- dataset[,.N]
-  current_cvd <- sum(dataset$incident_cvd, na.rm=TRUE)
-  if (missing(last_dataset)) {
-    last_samples <- sample_info[.N, samples]
-    last_cvd <- sample_info[.N, CVD]
-  } else {
-    last_samples <- last_dataset[,.N]
-    last_cvd <- last_dataset[, sum(incident_cvd, na.rm=TRUE)]
-  }
-  new_row <- data.table(
-    step=step_name,
-    samples=current_samples,
-    CVD=current_cvd,
-    exited=last_samples - current_samples,
-    exited_cvd=ifelse(is.na(last_cvd), NA, last_cvd - current_cvd)
-  )
-  sample_info <<- rbind(sample_info, new_row)
+      return(cbind(this_minfo, C.index, SE, delta.C, pct_change))
+    } else {
+      # Compute C-index from linear predictor directly for SCORE2
+      if (this_minfo$sex == "Sex-stratified") {
+        this_y <- Surv(dt[["incident_cvd_followup"]], dt[["incident_cvd"]])
+        this_x <- dt[[this_minfo$model]]
+        cf <- survival::concordancefit(y = this_y, x = this_x, strata = dt[["sex_int"]], reverse = TRUE, timefix = TRUE)
+      } else {
+        this_dt <- dt[sex == gsub("s$", "", this_minfo$sex)]
+        this_y <- Surv(this_dt[["incident_cvd_followup"]], this_dt[["incident_cvd"]])
+        this_x <- this_dt[[this_minfo$model]]
+        cf <- survival::concordancefit(y = this_y, x = this_x, reverse = TRUE, timefix = TRUE)
+      }    
+      return(cbind(this_minfo, C.index=cf$concordance, SE=sqrt(cf$var), delta.C=0, pct_change=0)) # jackknife SE computed same way as in coxph()
+    } 
+  } 
+  # Need to return as flat vector
+  res <- melt(model_cinds, measure.vars=c("C.index", "SE", "delta.C", "pct_change"))
+  res$value
 }
 
-# Flag withdrawal from EHR linkage
-dat <- dat[!cvd[(ehr_linkage_withdrawn)], on = .(eid)] # no EHR linkage
-update_sample_info("With EHR linkage")
+# Run bootstrap analysis
+surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(dat))
+boot_res <- censboot(dat, boot.fun, 1000, index=surv_cols_idx)
+saveRDS(boot_res, file="analyses/univariate/full_UKB_cindices_bootstraps.rds")
 
-# Assess eligibility for SCORE2 screening
-dat_cpy <- copy(dat)
-dat <- dat[age >= 40]
-update_sample_info("40 years or older")
+# Now we need to extract and collate the results
+cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .combine=rbind) %do% {
+  cbind(model_info, metric = this_metric)
+}
+cinds[, estimate := boot_res$t0]
+cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })]
+cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
+cinds[, pval := apply(boot_res$t, 2, function(v) {  (1 + sum(v <= 0))/(1000 + 1) })] # one-sided
 
-dat <- dat[age <= 69]
-update_sample_info("69 years or younger")
-update_sample_info("Eligible age for SCORE2 risk prediction", dat, dat_cpy)
+# Cast to wide
+cinds <- dcast(cinds, sex + model + biomarker ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
+cinds <- cinds[,.(sex, model, biomarker,
+  C.index = estimate_C.index, C.L95 = L95_C.index, C.U95 = U95_C.index,
+  SE = estimate_SE, SE.L95 = L95_SE, SE.U95 = U95_SE,
+  deltaC = estimate_delta.C, deltaC.L95 = L95_delta.C, deltaC.U95 = U95_delta.C, deltaC.pval = pval_delta.C,
+  pct_change = estimate_pct_change, pct.L95 = L95_pct_change, pct.U95 = U95_pct_change, pct.pval = pval_pct_change
+)]
 
-dat <- dat[!(ASCVD) | is.na(ASCVD)]
-update_sample_info("Without established atherosclerotic CVD")
+# Extract comparison of SCORE2 with and without UKB weights in full dataset
+score2_cinds <- cinds[model %in% c("SCORE2", "SCORE2_excl_UKB")]
+score2_cinds <- score2_cinds[, .(sex, SCORE2_method = ifelse(model == "SCORE2", "Weights derived from all datasets", "Weights derived excluding UK Biobank"),
+  C.index, C.L95, C.U95, SE, SE.L95, SE.U95)]
+fwrite(score2_cinds, sep="\t", quote=FALSE, file="analyses/test/full_UKB_cindex_by_SCORE2_method.txt")
 
-dat_cpy2 <- copy(dat)
-dat <- dat[!(prevalent_diabetes_mellitus) | is.na(prevalent_diabetes_mellitus)]
-update_sample_info("Without type 1 or type 1 diabetes", dat, dat_cpy2)
-
-dat_cpy2 <- copy(dat)
-dat <- dat[!(prevalent_CKD) | is.na(prevalent_CKD)]
-update_sample_info("Without CKD", dat, dat_cpy2)
-
-dat_cpy2 <- copy(dat)
-update_sample_info("Definite FH (LDL ≥ 8.5 mmol/L and premature CAD or vascular disease):", dat[DLCN_FH_score > 8], dat[DLCN_FH_score > 8])
-update_sample_info("Probable FH (LDL ≥ 8.5 mmol/L)", dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)], dat[DLCN_FH_score >= 6 & !(premature_vascular_disease)])
-update_sample_info("Probable FH (LDL ≥ 6.5 mmol/L and premature CAD or vascular disease)", dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease], dat[DLCN_FH_score >= 6 & DLCN_FH_score <= 8 & premature_vascular_disease])
-update_sample_info("Possible FH (LDL ≥ 5 mmol/L)", dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5], dat[DLCN_FH_score >= 3 & DLCN_FH_score <= 5])
-update_sample_info("No FH (LDL < 5 mmol/L or missing)", dat[DLCN_FH_score < 3], dat[DLCN_FH_score < 3])
-dat <- dat[DLCN_FH_score < 6]
-update_sample_info("Without probable FH", dat, dat_cpy2)
-
-update_sample_info("Eligible for screening with SCORE2 according to ESC 2021 guidelines", dat, dat_cpy)
-
-# Exclude people on statins
-dat <- dat[!(cholesterol_medication) | is.na(cholesterol_medication)]
-update_sample_info("Already treated with statins")
-
-# Drop people missing quantitative conventional risk factors
-dat_cpy <- copy(dat)
-
-dat <- dat[!is.na(sbp)]
-update_sample_info("With known SBP", dat, dat_cpy)
-
-dat <- dat[!(no_blood_sample)]
-update_sample_info("With blood sample taken")
-
-dat <- dat[!(no_blood_biomarkers)]
-update_sample_info("With data on any clinical biochemistry assays")
-
-# Flag issues with clinical biochemistry assays
-update_sample_info("Missing HDL cholesterol:", dat[is.na(hdl)], dat[is.na(hdl)])
-update_sample_info("Missing Total cholesterol:", dat[is.na(tchol)], dat[is.na(tchol)])
-update_sample_info("Missing HDL and total cholesterol:", dat[is.na(hdl) & is.na(tchol) & is.na(ldl)], dat[is.na(hdl) & is.na(tchol) & is.na(ldl)])
-
-dat_cpy2 <- copy(dat)
-dat <- dat[!is.na(hdl) & !is.na(tchol) & !is.na(ldl)]
-update_sample_info("With non-missing data for HDL and total cholesterol", dat, dat_cpy2)
-
-update_sample_info("With non-missing quantitative SCORE2 risk factors", dat, dat_cpy)
-
-
-# Format flowchart and add percentages
-sample_info[, exited_cvd := ifelse(
-  is.na(exited_cvd), NA_character_,
-  ifelse(exited == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(exited_cvd, big.mark=","), round(exited_cvd/(exited_cvd + CVD)*100, digits=2))
-))]
-
-sample_info[, exited := ifelse(
-  is.na(exited), NA_character_,
-  ifelse(exited == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(exited, big.mark=","), round(exited/(exited + samples)*100, digits=2))
-))]
-
-sample_info[, CVD := ifelse(
-  is.na(CVD), NA_character_,
-  ifelse(samples == 0L, "0 (-%)",
-  sprintf("%s (%s%%)", format(CVD, big.mark=","), round(CVD/samples*100, digits=2))
-))]
-
-sample_info[, samples := ifelse(is.na(samples), NA_character_, format(samples, big.mark=","))]
-
-# Write out sample information
-fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/full_UKB_sample_flowchart.txt")
-
-# Add SCORE2
-dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
-dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor", weights="excluding UK Biobank")]
-
-# Sanity check C-indices
-score2_cind <- rbind(idcol="SCORE2_method",
-  "Weights derived from all datasets"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2, data=.SD), by=.(sex=paste0(sex, "s"))],
-  "Weights derived from all datasets"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + strata(sex), data=.SD))],
-  "Weights derived excluding UK Biobank"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB, data=.SD), by=.(sex=paste0(sex, "s"))],
-  "Weights derived excluding UK Biobank"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB + strata(sex), data=.SD))]
-)
-fwrite(score2_cind, sep="\t", quote=FALSE, file="analyses/test/cindex_by_SCORE2_method_full_UKB.txt")
-
-score2_cind[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
-score2_cind[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
-g <- ggplot(score2_cind) + 
-  aes(x=C.index, xmin=L95, xmax=U95, y=SCORE2_method, color=SCORE2_method) +
+score2_cinds[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
+score2_cinds[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
+g <- ggplot(score2_cinds) +
+  aes(x=C.index, xmin=C.L95, xmax=C.U95, y=SCORE2_method, color=SCORE2_method) +
   facet_wrap(~ sex, scales="free_x") +
   geom_errorbarh(height=0) +
   geom_point(shape=18) +
@@ -310,177 +140,134 @@ g <- ggplot(score2_cind) +
     axis.text.y=element_blank(), axis.title.y=element_blank(), axis.ticks.y=element_blank(),
     axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"), 
+    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
     legend.text=element_text(size=6), legend.title=element_text(size=8)
   )
-ggsave(g, width=7.2, height=1.5, file="analyses/test/cindex_by_SCORE2_method_full_UKB.pdf")
+ggsave(g, width=7.2, height=1.5, file="analyses/test/full_UKB_cindex_by_SCORE2_method.pdf")
 
-# Write out analysis cohort
-fwrite(dat, sep="\t", quote=FALSE, file="data/cleaned/full_UKB_analysis_cohort.txt")
-
-#####################################################################
-# Fit C-index for individual biochemistry biomarkers
-#####################################################################
-
-# Code risk factors as per SCORE2
-dat[, age := (age - 60)/5]
-dat[is.na(smoking), smoking := FALSE]
-dat[, smoking := factor(smoking, levels=c(FALSE, TRUE))]
-dat[, sbp := (sbp - 120)/20]
-dat[, tchol := (tchol - 6)/1]
-dat[, hdl := (hdl - 1.3)/0.5]
-
-# Load biomarker information sheets
-bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
-
-# Code factors, using non-risk/lower-risk group as reference
-dat[, sex := factor(sex, levels=c("Female", "Male"))]
-
-# Get list of biomarkers to test
-test_assay <- bio_info[!is.na(UKB.Field.ID) & sample_type != "Urine" & var != "tchol" & var != "hdl", var]
-
-# Build set of models to test
-models <- rbind(
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ age", type="risk_factors", name="age"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ smoking", type="risk_factors", name="smoking"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ sbp", type="risk_factors", name="sbp"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ tchol", type="risk_factors", name="tchol"),
-  data.table(formula="Surv(incident_cvd_followup, incident_cvd) ~ hdl", type="risk_factors", name="hdl"),
-  data.table(formula=sprintf("Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB) + scale(%s)", test_assay), type="assays", name=test_assay)
-)
-
-# Compute C-indices
-cinds <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbind) %do% {
-
-  # Extract subset of data needed
-  if (this_sex == "Males") {
-    this_dat <- dat[sex == "Male"]
-  } else if (this_sex == "Females") {
-    this_dat <- dat[sex == "Female"]
-  } else {
-    this_dat <- dat
-  }
-
-  # Fit individual models
-  foreach(midx = models[,.I], .combine=rbind) %dopar% {
-    # Extract model information
-    this_model <- models[midx]
-
-    # Set up formula
-    mf <- this_model$formula
-    if (this_sex == "Sex-stratified") {
-      mf <- paste(mf, "+ strata(sex)")
-    }
-
-    # Fit Cox proportional hazards model
-    cph <- coxph(as.formula(mf), data=this_dat)
-
-    # Get C-index and its 95% CI 
-    cindex <- summary(cph)$concordance[1]
-    cindex.se <- summary(cph)$concordance[2]
-    cindex.l95 <- cindex - qnorm(0.975)*cindex.se
-    cindex.u95 <- cindex + qnorm(0.975)*cindex.se
-
-    # Return results
-    cbind(this_model, sex=this_sex, samples=cph$n, cases=cph$nevent,
-      C.index=cindex, L95=cindex.l95, U95=cindex.u95)
-  }
-}
-
-# Load in and add SCORE2 C-index
-score2_cindex <- fread("analyses/test/cindex_by_SCORE2_method_full_UKB.txt")
-score2_cindex <- score2_cindex[SCORE2_method == "Weights derived excluding UK Biobank"]
-score2_cindex[, formula := "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB)"]
-score2_cindex[, type := "SCORE2"]
-score2_cindex[, name := "SCORE2"]
-score2_cindex[sex == "Males", c("samples", "cases") := dat[sex == "Male", .(.N, sum(incident_cvd))]]
-score2_cindex[sex == "Females", c("samples", "cases") := dat[sex == "Female", .(.N, sum(incident_cvd))]]
-score2_cindex[sex == "Females", c("samples", "cases") := dat[sex == "Female", .(.N, sum(incident_cvd))]]
-score2_cindex[sex == "Sex-stratified", c("samples", "cases") := dat[, .(.N, sum(incident_cvd))]]
-score2_cindex[, c("SCORE2_method", "SE") := NULL]
-cinds <- rbind(cinds, score2_cindex)
-
-# Add in missing strata term to documented formula
-cinds[sex == "Sex-stratified" & name != "sex", formula := paste(formula, "+ strata(sex)")]
-
-# Add in delta change compared to SCORE2
-score2_ref <- cinds[name == "SCORE2"]
-score2_ref[, type := "assays"]
-cinds[score2_ref, on = .(type, sex), c("deltaC", "deltaC.L95", "deltaC.U95") := .(C.index - i.C.index, L95 - i.C.index, U95 - i.C.index)]
+# Now extract the per-biomarker C-indices
+cinds <- cinds[model != "SCORE2"]
+cinds[model == "SCORE2_excl_UKB", model := "SCORE2"]
 
 # Add human friendly display name
-cinds[, display_name := name]
-cinds[name == "age", display_name := "Age"]
-cinds[name == "sex", display_name := "Sex"]
-cinds[name == "smoking", display_name := "Smoker"]
-cinds[name == "sbp", display_name := "SBP"]
-cinds[name == "hdl", display_name := "HDL cholesterol"]
-cinds[name == "tchol", display_name := "Total cholesterol"]
-cinds[name %in% test_assay, display_name := fcase(
-  name == "alb", "Albumin",
-  name == "alt", "ALT",
-  name == "alp", "ALP",
-  name == "apoa1", "ApoA1",
-  name == "apob", "ApoB",
-  name == "asp", "AST",
-  name == "dbili", "Bilirubin (direct)",
-  name == "tbili", "Bilirubin (total)",
-  name == "calcium", "Calcium",
-  name == "creat", "Creatinine",
-  name == "crp", "CRP",
-  name == "cyst", "Cystatin-C",
-  name == "ggt", "GGT",
-  name == "glucose", "Glucose",
-  name == "hba1c", "HbA1c",
-  name == "igf1", "IGF-1",
-  name == "lpa", "Lp(a)",
-  name == "ldl", "LDL cholesterol",
-  name == "oest", "Oestradiol",
-  name == "phos", "Phosphate",
-  name == "rheuf", "RF",
-  name == "shbg", "SHBG",
-  name == "testos", "Testosterone",
-  name == "protein", "Total protein",
-  name == "trig", "Triglycerides",
-  name == "uric", "Urate",
-  name == "urea", "Urea",
-  name == "vitd25", "Vitamin D"
-)]
+cinds[model != "SCORE2", model := paste("SCORE2 +", fcase(
+  biomarker == "alb", "Albumin",
+  biomarker == "alt", "ALT",
+  biomarker == "alp", "ALP",
+  biomarker == "apoa1", "ApoA1",
+  biomarker == "apob", "ApoB",
+  biomarker == "asp", "AST",
+  biomarker == "dbili", "Bilirubin (direct)",
+  biomarker == "tbili", "Bilirubin (total)",
+  biomarker == "calcium", "Calcium",
+  biomarker == "creat", "Creatinine",
+  biomarker == "crp", "CRP",
+  biomarker == "cyst", "Cystatin-C",
+  biomarker == "ggt", "GGT",
+  biomarker == "glucose", "Glucose",
+  biomarker == "hba1c", "HbA1c",
+  biomarker == "igf1", "IGF-1",
+  biomarker == "lpa", "Lp(a)",
+  biomarker == "ldl", "LDL cholesterol",
+  biomarker == "oest", "Oestradiol",
+  biomarker == "phos", "Phosphate",
+  biomarker == "rheuf", "RF",
+  biomarker == "shbg", "SHBG",
+  biomarker == "testos", "Testosterone",
+  biomarker == "protein", "Total protein",
+  biomarker == "trig", "Triglycerides",
+  biomarker == "uric", "Urate",
+  biomarker == "urea", "Urea",
+  biomarker == "vitd25", "Vitamin D"
+))]
+
 
 # Write out
-fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/cindices_full_UKB.txt")
+fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/full_UKB_cindex.txt")
 
-# Plot
+# Plot Sex-stratified results
 ggdt <- rbind(
-  cinds[type == "SCORE2"],
-  cinds[type == "assays"][order(-C.index)]
+  cinds[model == "SCORE2"],
+  cinds[model != "SCORE2"][order(-deltaC)]
 )
-ggdt[type != "SCORE2", display_name := paste("SCORE2 +", display_name)]
-ggdt[, sex := factor(sex, c("Males", "Females", "Sex-stratified"))]
-ggdt[, type := factor(type, levels=c("SCORE2", "assays"))]
-ggdt <- ggdt[order(sex)]
-ggdt[, rank := factor(.I)]
+ggdt <- ggdt[sex == "Sex-stratified"]
+ggdt[model != "SCORE2", fdr := p.adjust(deltaC.pval), by=sex]
+ggdt[, model := factor(model, levels=rev(unique(model)))]
+ggdt <- rbind(
+  ggdt[, .(sex, model, metric="C.index", estimate=C.index, L95=C.L95, U95=C.U95, sig=TRUE)],
+  ggdt[model != "SCORE2", .(sex, model, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95, sig=ifelse(fdr < 0.05, TRUE, FALSE))]
+)
+ref <- rbind(
+  ggdt[model == "SCORE2", .(sex, model, metric="C.index", estimate)],
+  ggdt[model == "SCORE2", .(sex, model, metric="deltaC", estimate=0)]
+)
 
 g <- ggplot(ggdt) +
-  aes(y=fct_rev(rank), x=C.index, xmin=L95, xmax=U95, color=type) +
-  facet_grid2(. ~ sex, scales="free", independent="all") +
+  aes(x=estimate, xmin=L95, xmax=U95, y=model, fill=sig) +
+  facet_wrap(~ metric, nrow=1, scales="free_x") +
+  geom_vline(data=ref, aes(xintercept=estimate), linetype=2) +
   geom_errorbarh(height=0) +
-  geom_point(shape=23, fill="white", size=1.2) +
-  scale_color_manual(values=c("SCORE2"="#2166ac", "assays"="black")) +
-  geom_vline(data=ggdt[type == "SCORE2"], aes(xintercept=C.index), linetype=2, color="#4393c3") +
-  scale_y_discrete(labels=structure(ggdt$display_name, names=as.character(ggdt$rank))) +
-  xlab("C-index (95% CI)") +
+  geom_point(shape=23, size=2) +
+  scale_fill_manual(values=c("TRUE"="white", "FALSE"="black")) +
+  ylab("") + xlab("Estimate (95% CI)") +
   theme_bw() +
   theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
     axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    axis.text.y=element_text(size=6, color="black"), axis.title.y=element_blank(),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
     legend.position="none"
   )
-ggsave(g, width=7.2, height=4, file="analyses/univariate/assays.pdf")
+ggsave(g, width=7.2, height=4.5, file="analyses/univariate/full_UKB_cindex_sex_stratified.pdf")
 
 # Format table for output
+dt <- rbind(
+  cinds[model == "SCORE2"],
+  cinds[model != "SCORE2"][order(-deltaC)]
+)
+dt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
+dt <- dt[order(sex)]
+dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
+dt[, pct.pval := NULL]
+dt[, pct_change := pct_change / 100]
+dt[, pct.L95 := pct.L95 / 100]
+dt[, pct.U95 := pct.U95 / 100]
+dt[, deltaC.fdr := p.adjust(deltaC.pval), by=sex]
+
+# Need to also tabulate complete data
+dat <- melt(dat, id.vars=c("eid", "sex", "incident_cvd"), measure.vars=c("SCORE2", test_assay), variable.name="biomarker")
+dat <- rbind(idcol="sex", 
+  "Sex-stratified"=dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker],
+  "Males"=dat[sex == "Male", .(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker],
+  "Females"=dat[sex == "Female", .(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker]
+)
+dat[biomarker == "SCORE2", biomarker := NA]
+dt <- dat[dt, on = .(sex, biomarker)]
+dt[, biomarker := NULL]
+dt <- dcast(dt, model ~ sex, value.var=setdiff(names(dt), c("model", "sex")))
+dt <- dt[,.(model, 
+  `samples_Sex-stratified`, `cases_Sex-stratified`, `C.index_Sex-stratified`, `C.L95_Sex-stratified`, `C.U95_Sex-stratified`, 
+  `SE_Sex-stratified`, `SE.L95_Sex-stratified`, `SE.U95_Sex-stratified`, `deltaC_Sex-stratified`, `deltaC.L95_Sex-stratified`,
+  `deltaC.U95_Sex-stratified`, `deltaC.pval_Sex-stratified`, `deltaC.fdr_Sex-stratified`, `pct_change_Sex-stratified`, 
+  `pct.L95_Sex-stratified`, `pct.U95_Sex-stratified`,
+  samples_Males, cases_Males, C.index_Males, C.L95_Males, C.U95_Males, 
+  SE_Males, SE.L95_Males, SE.U95_Males, deltaC_Males, deltaC.L95_Males,
+  deltaC.U95_Males, deltaC.pval_Males, deltaC.fdr_Males, pct_change_Males, 
+  pct.L95_Males, pct.U95_Males,
+  samples_Females, cases_Females, C.index_Females, C.L95_Females, C.U95_Females, 
+  SE_Females, SE.L95_Females, SE.U95_Females, deltaC_Females, deltaC.L95_Females,
+  deltaC.U95_Females, deltaC.pval_Females, deltaC.fdr_Females, pct_change_Females, 
+  pct.L95_Females, pct.U95_Females
+)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/full_UKB_cindex_for_supp.txt")
+
+
+
+
+
+
+
+
 dt <- cinds[type %in% c("SCORE2", "assays")]
 dt <- dcast(dt, display_name ~ sex, value.var=c("samples", "cases", "C.index", "L95", "U95", "deltaC", "deltaC.L95", "deltaC.U95"))
 dt <- dt[,.SD, .SDcols=c("display_name",
