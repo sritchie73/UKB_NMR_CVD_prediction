@@ -1,6 +1,9 @@
 library(data.table)
+library(foreach)
+library(doMC)
 library(boot)
 library(ggplot2)
+registerDoMC(6) # bootstraps take ~ 30 mins
 
 system("mkdir -p analyses/test/")
 
