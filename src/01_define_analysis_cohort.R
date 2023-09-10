@@ -2,7 +2,6 @@ library(data.table)
 library(ggplot2)
 library(caret)
 source('src/utils/SCORE2.R')
-source('src/utils/score_cindex.R')
 
 # Make output directories
 system("mkdir -p data/cleaned/")
@@ -449,37 +448,6 @@ fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/sample_flowchart.txt")
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
 dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor", weights="excluding UK Biobank")]
 
-# Sanity check C-indices
-system("mkdir -p analyses/test/")
-score2_cind <- rbind(idcol="SCORE2_method",
-  "Weights derived from all datasets"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2, data=.SD), by=.(sex=paste0(sex, "s"))],
-  "Weights derived from all datasets"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2 + strata(sex), data=.SD))],
-  "Weights derived excluding UK Biobank"=dat[, score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB, data=.SD), by=.(sex=paste0(sex, "s"))],
-  "Weights derived excluding UK Biobank"=dat[, .(sex="Sex-stratified", score_cindex(Surv(incident_cvd_followup, incident_cvd) ~ SCORE2_excl_UKB + strata(sex), data=.SD))]
-)
-fwrite(score2_cind, sep="\t", quote=FALSE, file="analyses/test/cindex_by_SCORE2_method.txt")
-
-score2_cind[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
-score2_cind[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
-g <- ggplot(score2_cind) + 
-  aes(x=C.index, xmin=L95, xmax=U95, y=SCORE2_method, color=SCORE2_method) +
-  facet_wrap(~ sex, scales="free_x") +
-  geom_errorbarh(height=0) +
-  geom_point(shape=18) +
-  scale_color_manual(values=c("Weights derived excluding UK Biobank"="#2166ac", "Weights derived from all datasets"="#b2182b")) +
-  xlab("C-index (95% CI)") +
-  guides(color=guide_legend(title="SCORE2 model", reverse=TRUE)) +
-  theme_bw() +
-  theme(
-    axis.text.y=element_blank(), axis.title.y=element_blank(), axis.ticks.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    strip.background=element_blank(), strip.text=element_text(size=8, face="bold"), 
-    legend.text=element_text(size=6), legend.title=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=1.5, file="analyses/test/cindex_by_SCORE2_method.pdf")
-
-
 # We will perform nested cross-validation to train NMR scores for CAD and stroke. Here, we split the data into
 # 5-folds, balancing case status and sex, then later we will split each 4/5ths of the data into 10-folds for
 # elasticnet cross-validation. We want to define the top level in advance as we'll distribute each of the 
@@ -489,3 +457,4 @@ dat[, cvd_prediction_foldid := createFolds(paste(incident_cvd, sex), k=5, list=F
 
 # Write out analysis cohort
 fwrite(dat, sep="\t", quote=FALSE, file="data/cleaned/analysis_cohort.txt")
+
