@@ -181,35 +181,24 @@ cinds[model != "SCORE2", model := paste("SCORE2 +", fcase(
   biomarker == "vitd25", "Vitamin D"
 ))]
 
+# Compute FDR- adjusted P-value
+cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=sex]
 
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/full_UKB_cindex.txt")
 
-# Plot Sex-stratified results
+# Plot delta C-index for top-10 biomarkers in Sex-stratified results
 ggdt <- rbind(
-  cinds[model == "SCORE2"],
-  cinds[model != "SCORE2"][order(-deltaC)]
+  cinds[model != "SCORE2" & sex == "Sex-stratified"][order(-deltaC)][1:10]
 )
-ggdt <- ggdt[sex == "Sex-stratified"]
-ggdt[model != "SCORE2", fdr := p.adjust(deltaC.pval), by=sex]
 ggdt[, model := factor(model, levels=rev(unique(model)))]
-ggdt <- rbind(
-  ggdt[, .(sex, model, metric="C.index", estimate=C.index, L95=C.L95, U95=C.U95, sig=TRUE)],
-  ggdt[model != "SCORE2", .(sex, model, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95, sig=ifelse(fdr < 0.05, TRUE, FALSE))]
-)
-ref <- rbind(
-  ggdt[model == "SCORE2", .(sex, model, metric="C.index", estimate)],
-  ggdt[model == "SCORE2", .(sex, model, metric="deltaC", estimate=0)]
-)
 
 g <- ggplot(ggdt) +
-  aes(x=estimate, xmin=L95, xmax=U95, y=model, fill=sig) +
-  facet_wrap(~ metric, nrow=1, scales="free_x") +
-  geom_vline(data=ref, aes(xintercept=estimate), linetype=2) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model) +
+  geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0) +
-  geom_point(shape=23, size=2) +
-  scale_fill_manual(values=c("TRUE"="white", "FALSE"="black")) +
-  ylab("") + xlab("Estimate (95% CI)") +
+  geom_point(shape=23, size=2, fill="white") +
+  scale_x_continuous("delta C-index (95% CI)", limits=c(0, 0.01)) +
   theme_bw() +
   theme(
     axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
@@ -218,46 +207,29 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=7.2, height=4.5, file="analyses/univariate/full_UKB_cindex_sex_stratified.pdf")
+ggsave(g, width=3.5, height=2, file="analyses/univariate/full_UKB_cindex_sex_stratified.pdf")
 
-# Format table for output
-dt <- rbind(
-  cinds[model == "SCORE2"],
-  cinds[model != "SCORE2"][order(-deltaC)]
-)
-dt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
-dt <- dt[order(sex)]
+# Create formatted table for manuscript
+dt <- cinds[sex == "Sex-stratified"]
 dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
 dt[, pct.pval := NULL]
 dt[, pct_change := pct_change / 100]
 dt[, pct.L95 := pct.L95 / 100]
 dt[, pct.U95 := pct.U95 / 100]
-dt[, deltaC.fdr := p.adjust(deltaC.pval), by=sex]
+dt <- dt[order(-deltaC, na.last=FALSE)][order(pval, na.last=FALSE)]
 
 # Need to also tabulate complete data
+dat <- fread("data/cleaned/full_UKB_analysis_cohort.txt")
 dat <- melt(dat, id.vars=c("eid", "sex", "incident_cvd"), measure.vars=c("SCORE2", test_assay), variable.name="biomarker")
-dat <- rbind(idcol="sex", 
-  "Sex-stratified"=dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker],
-  "Males"=dat[sex == "Male", .(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker],
-  "Females"=dat[sex == "Female", .(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker]
-)
-dat[biomarker == "SCORE2", biomarker := NA]
-dt <- dat[dt, on = .(sex, biomarker)]
-dt[, biomarker := NULL]
-dt <- dcast(dt, model ~ sex, value.var=setdiff(names(dt), c("model", "sex")))
-dt <- dt[,.(model, 
-  `samples_Sex-stratified`, `cases_Sex-stratified`, `C.index_Sex-stratified`, `C.L95_Sex-stratified`, `C.U95_Sex-stratified`, 
-  `SE_Sex-stratified`, `SE.L95_Sex-stratified`, `SE.U95_Sex-stratified`, `deltaC_Sex-stratified`, `deltaC.L95_Sex-stratified`,
-  `deltaC.U95_Sex-stratified`, `deltaC.pval_Sex-stratified`, `deltaC.fdr_Sex-stratified`, `pct_change_Sex-stratified`, 
-  `pct.L95_Sex-stratified`, `pct.U95_Sex-stratified`,
-  samples_Males, cases_Males, C.index_Males, C.L95_Males, C.U95_Males, 
-  SE_Males, SE.L95_Males, SE.U95_Males, deltaC_Males, deltaC.L95_Males,
-  deltaC.U95_Males, deltaC.pval_Males, deltaC.fdr_Males, pct_change_Males, 
-  pct.L95_Males, pct.U95_Males,
-  samples_Females, cases_Females, C.index_Females, C.L95_Females, C.U95_Females, 
-  SE_Females, SE.L95_Females, SE.U95_Females, deltaC_Females, deltaC.L95_Females,
-  deltaC.U95_Females, deltaC.pval_Females, deltaC.fdr_Females, pct_change_Females, 
-  pct.L95_Females, pct.U95_Females
-)]
+dat <- dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker]
+dat <- dat[biomarker == "SCORE2", biomarker := NA]
+dt <- dat[dt, on = .(biomarker)]
+
+# Reorganize columns and write out
+dt <- dt[,.(model, samples, cases, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
+  deltaC.pval, deltaC.fdr, pct_change, pct.L95, pct.U95)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/full_UKB_cindex_for_supp.txt")
+
+
+
 
