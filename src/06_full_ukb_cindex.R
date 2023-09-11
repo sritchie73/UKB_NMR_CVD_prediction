@@ -261,23 +261,3 @@ dt <- dt[,.(model,
 )]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/full_UKB_cindex_for_supp.txt")
 
-
-
-
-
-
-
-
-dt <- cinds[type %in% c("SCORE2", "assays")]
-dt <- dcast(dt, display_name ~ sex, value.var=c("samples", "cases", "C.index", "L95", "U95", "deltaC", "deltaC.L95", "deltaC.U95"))
-dt <- dt[,.SD, .SDcols=c("display_name",
-  sapply(c("_Males", "_Females", "_Sex-stratified"), function(f) {
-    paste0(c("samples", "cases", "C.index", "L95", "U95", "deltaC", "deltaC.L95", "deltaC.U95"), f)
-  })
-)]
-
-dt <- dt[order(-C.index_Males)]
-dt <- rbind(dt[display_name == "SCORE2"], dt[display_name != "SCORE2"])
-dt[display_name != "SCORE2", display_name := paste("SCORE2 +", display_name)]
-fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/assays_cindex_supp.txt")
-
