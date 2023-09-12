@@ -1,0 +1,175 @@
+library(data.table)
+library(foreach)
+library(survival)
+library(ggplot2)
+library(cowplot)
+source("src/utils/SCORE2.R")
+source('src/utils/mean_pvalue.R')
+source('src/utils/format_pval.R')
+
+# Make output directory
+system("mkdir -p analyses/CVD_weight_training", wait=TRUE)
+
+# Load required data
+dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "age", "incident_cvd_followup", "incident_cvd", "cvd_prediction_foldid", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
+setnames(dat, "SCORE2_excl_UKB", "SCORE2")
+
+# Add in test scores
+test_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
+setnames(test_scores, gsub("NMR", "non_derived_NMR", names(test_scores)))
+dat <- dat[test_scores, on = .(eid)]
+
+test_scores <- fread("analyses/nmr_score_training/aggregate_test_clinical_NMR_scores.txt")
+setnames(test_scores, gsub("NMR", "clinical_NMR", names(test_scores)))
+dat <- dat[test_scores, on = .(eid)]
+
+# Standardise PRSs
+dat[, CAD_metaGRS := scale(CAD_metaGRS)]
+dat[, Stroke_metaGRS := scale(Stroke_metaGRS)]
+
+# Estimate weights using Cox proportional hazards models
+cvd_weights <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
+  foreach(this_model = c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=rbind) %:%
+    foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
+      foreach(this_test_fold = 1:5, .combine=rbind) %do% {
+        # extract training data
+        this_dat <- dat[cvd_prediction_foldid != this_test_fold & sex == this_sex]
+  
+        # Build model formula
+        mf <- "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2)"
+        if (this_model %in% c("SCORE2 + NMR scores", "SCORE2 + NMR scores + PRSs")) {
+          if (this_score_type == "non-derived") {
+            mf <- paste(mf, "+ CAD_non_derived_NMR_score + Stroke_non_derived_NMR_score")
+          } else {
+            mf <- paste(mf, "+ CAD_clinical_NMR_score + Stroke_clinical_NMR_score")
+          }
+        }
+        if (this_model %in% c("SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs")) {
+          mf <- paste(mf, "+ CAD_metaGRS + Stroke_metaGRS")
+        }
+   
+        # Fit cox model
+        cx <- coxph(as.formula(mf), data=this_dat)
+
+        # Extract relevant coefficients
+        ci <- confint(cx)
+        cf <- as.data.table(coef(summary(cx)), keep.rownames="score")
+        cf[, score := gsub("_non_derived", "", score)]
+        cf[, score := gsub("_clinical", "", score)]
+        cf[, score := gsub("_", " ", score)]
+        cf <- cf[, .(score, weight=coef, L95=ci[,1], U95=ci[,2], pval=`Pr(>|z|)`)]
+
+        # add information
+        cbind(test_fold = this_test_fold, sex = this_sex, model = this_model, score_type = this_score_type, cf)
+}
+
+# Compute average weights
+avg_cvd_weights <- cvd_weights[, .(
+  weight=round(mean(weight), digits=3),
+  L95=round(mean(L95), digits=3),
+  U95=round(mean(U95), digits=3),
+  pval=format_pval(mean_pvalue(pval, weight))
+), by=.(sex, model, score_type, score)]
+
+# Write out
+fwrite(cvd_weights, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/cvd_score_weights_in_5fold_cross_validation.txt")
+fwrite(avg_cvd_weights, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/average_cvd_score_weights.txt")
+
+# Factor levels for plot ordering
+cvd_weights[, model := factor(model, levels=c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+cvd_weights[, score := factor(score, levels=c("CAD NMR score", "Stroke NMR score", "CAD metaGRS", "Stroke metaGRS"))]
+
+# Plot weight consistencies
+plot_weights <- function(this_sex, this_score_type) {
+  ggplot(cvd_weights[sex == this_sex & score_type == this_score_type]) +
+    aes(x = score, y = weight, ymin = L95, ymax = U95, color = paste("Test fold", test_fold)) +
+    facet_grid(. ~ model, space="free_x", scales="free_x") +
+    geom_errorbar(position=position_dodge(width=0.75), alpha=0.6, width=0) +
+    geom_point(shape=19, alpha=0.6, position=position_dodge(width=0.75)) +
+    geom_hline(yintercept=0, linetype=2) +
+    xlab("") + ylab("Weight") +
+    guides(color=guide_legend(title="")) +
+    theme_bw() +
+    theme(
+      axis.text.y=element_text(size=6), axis.title.y=element_text(size=8),
+      axis.text.x=element_text(size=6, angle=90, hjust=1, vjust=0.5),
+      strip.background=element_blank(), strip.text=element_text(size=8, face="bold"),
+      panel.grid.major.x=element_blank(), panel.grid.minor.x=element_blank(),
+      legend.position="bottom", legend.text=element_text(size=6),
+      legend.box.margin=margin(-7,-3,0,-3), legend.margin=margin(-3,-3,-3,-3)
+    )
+}
+
+g1 <- plot_weights("Male", "non-derived")
+g2 <- plot_weights("Female", "non-derived")
+g <- plot_grid(g1, g2, nrow=2, labels=c("Males  ", "Females"), label_size=10)
+ggsave(g, width=7.2, height=4.5, file="analyses/CVD_weight_training/non_derived_NMR_scores_weights.pdf")
+
+g1 <- plot_weights("Male", "clinical")
+g2 <- plot_weights("Female", "clinical")
+g <- plot_grid(g1, g2, nrow=2, labels=c("Males  ", "Females"), label_size=10)
+ggsave(g, width=7.2, height=4.5, file="analyses/CVD_weight_training/clinical_NMR_scores_weights.pdf")
+
+# Extract linear predictors in each test fold for downstream analyses
+pred_scores <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
+  foreach(this_model = c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=rbind) %:%
+    foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
+      foreach(this_test_fold = 1:5, .combine=rbind) %do% {
+        # extract test data
+        this_dat <- dat[cvd_prediction_foldid == this_test_fold & sex == this_sex]
+
+        # Melt columns of interest to long format for summing
+        if (this_score_type == "non-derived") {
+          setnames(this_dat, gsub("_non_derived", "", names(this_dat)))
+        } else {
+          setnames(this_dat, gsub("_clinical", "", names(this_dat)))
+        }
+        lp_cols <- "SCORE2"
+        if (this_model %like% "NMR") {
+          lp_cols <- c(lp_cols, "CAD_NMR_score", "Stroke_NMR_score")
+        } 
+        if (this_model %like% "PRS") {
+          lp_cols <- c(lp_cols, "CAD_metaGRS", "Stroke_metaGRS")
+        }
+        this_dat <- melt(this_dat, id.vars=c("eid", "sex", "age", "incident_cvd", "incident_cvd_followup", "cvd_prediction_foldid"), measure.vars=lp_cols, variable.name="score")
+
+        # Multiply scores by weights
+        this_weights <- cvd_weights[test_fold == this_test_fold & sex == this_sex & model == this_model & score_type == this_score_type]
+        this_weights[, score := gsub(" ", "_", score)]
+        this_dat[this_weights, on = .(score), value := value * i.weight]
+      
+        # Sum to obtain linear predictor
+        this_dat <- this_dat[, .(linear_predictor=sum(value)), by=.(eid, sex, age, incident_cvd, incident_cvd_followup, cvd_prediction_foldid)]
+   
+        # add model info
+        cbind(score_type = this_score_type, model = this_model, this_dat)
+}
+
+# Add five year age group (downstream analyses uses these)
+pred_scores[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
+
+# Compute absolute risk using SCORE2 baseline hazards
+pred_scores[, uncalibrated_risk := score2_absrisk(sex, linear_predictor)]
+
+# Compute absolute risk recalibrated to low-risk european region (including UK)
+pred_scores[, uk_calibrated_risk := score2_recalibration(sex, uncalibrated_risk, "low")]
+
+# Reorganize columns
+pred_scores <- pred_scores[, .(eid, sex, age, age_group, incident_cvd, incident_cvd_followup, cvd_prediction_foldid,
+  model, score_type, linear_predictor, uncalibrated_risk, uk_calibrated_risk)]
+
+# Write out
+fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+
+# Format and output representative weights for supp table
+dt <- cvd_weights[score_type == "non-derived", .(weight=mean(weight)), by=.(model, sex, score)]
+dt[, sex := factor(sex, levels=c("Male", "Female"))]
+dt[, score := factor(score, levels=c("CAD NMR score", "Stroke NMR score", "CAD metaGRS", "Stroke metaGRS"))]
+dt[, model := factor(model, levels=c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dt <- dcast(dt, model + score ~ sex, value.var="weight")
+prs_scaling <- fread("data/standardised/prs_scaling_factors.txt")
+prs_scaling[, PRS := gsub("_", " ", PRS)]
+dt[prs_scaling, on = .(score=PRS), c("mean", "sd") := .(i.mean, i.sd)]
+dt <- dt[,.(model, score, mean, sd, Male, Female)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/avg_cvd_score_weights_supp_table.txt")
+
