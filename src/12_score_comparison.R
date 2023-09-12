@@ -28,6 +28,14 @@ score_comp <- foreach(this_rn = unique(dat$score), .combine=rbind) %:%
 score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 
+# Get pairwise correlation coefficient statistics:
+cor_stats <- score_comp[x_score != y_score, {
+  cc <- cor.test(x_value, y_value)
+  list(estimate=cc$estimate, L95=cc$conf.int[1], U95=cc$conf.int[2], pval=cc$p.value)
+}, by=.(sex, x_score, y_score)]
+fwrite(cor_stats, sep="\t", quote=FALSE, file="analyses/test/pairwise_correlations_sex_specific_scores.txt")
+
+# Make pairwise scatterplots
 score_scatter <- function(score_comp) {
   cor_anno <- score_comp[,.(label=sprintf("r=%.2f\np=%.2f",
     cor(x_value, y_value),
