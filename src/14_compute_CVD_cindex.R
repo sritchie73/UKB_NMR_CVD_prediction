@@ -1,9 +1,6 @@
 library(data.table)
 library(foreach)
 library(boot)
-library(ggplot2)
-library(ggh4x)
-library(ggstance)
 registerDoMC(7) # needs to run on compute node, taking ~40 minutes
 
 # Make output directory
@@ -99,90 +96,4 @@ cinds <- cinds[,.(sex, model, score_type,
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/test/cindices.txt")
 
-# Extract data for plotting
-ggdt <- rbind(
-  cinds[,.(sex, model, score_type, metric="C.index", estimate=C.index, L95=C.L95, U95=C.U95)],
-  cinds[model != "SCORE2",.(sex, model, score_type, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95)]
-)
-
-ggdt <- ggdt[!(model == "SCORE2 + PRSs" & score_type == "clinical")]
-ggdt[model == "SCORE2 + PRSs", score_type := NA]
-
-# Encode factors for plotting
-ggdt[, model := factor(model, levels=rev(c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs")))]
-ggdt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
-
-# Extract reference for SCORE2
-ref <- rbind(
-  ggdt[model == "SCORE2", .(sex, metric, estimate)],
-  ggdt[model == "SCORE2", .(sex, metric="deltaC", estimate=0)]
-)
-
-# Plot sex-stratified analysis for full biomarker scores
-g <- ggplot(ggdt[(is.na(score_type) | score_type == "non-derived") & sex == "Sex-stratified"]) +
-  aes(x=estimate, xmin=L95, xmax=U95, y=model) +
-  facet_wrap(~ metric, nrow=1, scales="free_x") +
-  geom_vline(data=ref[sex == "Sex-stratified"], aes(xintercept=estimate), linetype=2) + 
-  geom_errorbarh(height=0) +
-  geom_point(shape=23, size=2, fill="white") + 
-  ylab("") + xlab("Estimate (95% CI)") +
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    legend.position="none"
-  )
-ggsave(g, width=7.2, height=2, file="analyses/test/cindex_sex_stratified.pdf")
-
-# Plot analysis in males and females separately
-g <- ggplot(ggdt[(is.na(score_type) | score_type == "non-derived") & sex != "Sex-stratified"]) +
-  aes(x=estimate, xmin=L95, xmax=U95, y=model, color=sex) +
-  facet_grid2(sex ~ metric, independent="x", scales="free_x") +
-  geom_vline(data=ref[sex != "Sex-stratified"], aes(xintercept=estimate), linetype=2) +
-  geom_errorbarh(height=0) +
-  geom_point(shape=23, size=2, fill="white") +
-  scale_color_manual("Sex", values=c("Males"="#e41a1c", "Females"="#377eb8")) +
-  ylab("") + xlab("Estimate (95% CI)") +
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    legend.position="none"
-  )
-ggsave(g, width=7.2, height=3.5, file="analyses/test/cindex_sex_specific.pdf")
-
-# Generate comparison plot showing clinical scores have worse performance:
-g <- ggplot(ggdt) +
-  aes(x=estimate, xmin=L95, xmax=U95, y=model, color=score_type) +
-  facet_grid(sex ~ metric, scales="free_x") +
-  geom_vline(data=ref, aes(xintercept=estimate), linetype=2) +
-  geom_errorbarh(height=0, position=position_dodgev(height=0.6)) +
-  geom_point(shape=23, size=2, fill="white", position=position_dodgev(height=0.6)) +
-  scale_color_manual(values=c("non-derived"="black", "clinical"="red"), labels=c("non-derived"="Full NMR scores", "clinical"="Clinical biomarkers")) +
-  ylab("") + xlab("Estimate (95% CI)") +
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=8)
-  )
-ggsave(g, width=7.2, height=5, file="analyses/test/cindex_with_clinical_scores.pdf")
-
-# Create formatted table for manuscript
-dt <- cinds[is.na(score_type) | score_type == "non-derived"]
-dt[, score_type := NULL]
-dt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
-dt <- dt[order(sex)]
-dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
-dt[, pct.pval := NULL]
-dt[, pct_change := pct_change / 100]
-dt[, pct.L95 := pct.L95 / 100]
-dt[, pct.U95 := pct.U95 / 100]
-fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/cindex_for_supp.txt")
 
