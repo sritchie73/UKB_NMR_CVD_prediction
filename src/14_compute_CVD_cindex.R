@@ -96,4 +96,17 @@ cinds <- cinds[,.(sex, model, score_type,
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/test/cindices.txt")
 
+# Create table for supp containing sex-stratified analysis
+dt <- cinds[sex == "Sex-stratified" & (score_type == "non-derived" | model == "SCORE2")]
+dt <- dt[order(C.index), .(model, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95, deltaC.pval, pct_change, pct.L95, pct.U95)]
+dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
+dt[, pct_change := pct_change / 100]
+dt[, pct.L95 := pct.L95 / 100]
+dt[, pct.U95 := pct.U95 / 100]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/sex_stratified_cindices_for_supp.txt")
+
+
+
+
+
 
