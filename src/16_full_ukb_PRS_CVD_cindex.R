@@ -96,31 +96,19 @@ cinds <- cinds[,.(sex, model,
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/test/full_UKB_cindices.txt")
 
-# Extract data for plotting
-ggdt <- rbind(
-  cinds[,.(sex, model, metric="C.index", estimate=C.index, L95=C.L95, U95=C.U95)],
-  cinds[model != "SCORE2",.(sex, model, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95)]
-)
-
-# Encode factors for plotting
-ggdt[, model := factor(model, levels=rev(c("SCORE2", "SCORE2 + PRSs")))]
+# Prepare for plotting
+ggdt <- cinds[model == "SCORE2 + PRSs"]
 ggdt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
 
-# Extract reference for SCORE2
-ref <- rbind(
-  ggdt[model == "SCORE2", .(sex, metric, estimate)],
-  ggdt[model == "SCORE2", .(sex, metric="deltaC", estimate=0)]
-)
-
-# Create composite plot
+# Plot analysis in males and females separately
 g <- ggplot(ggdt) +
-  aes(x=estimate, xmin=L95, xmax=U95, y=model, color=sex) +
-  facet_grid(sex ~ metric, scales="free_x") +
-  geom_vline(data=ref, aes(xintercept=estimate), linetype=2) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model, color=sex) +
+  facet_wrap(~ sex, ncol=1) +
+  geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0) +
   geom_point(shape=23, size=2, fill="white") +
-  scale_color_manual("Sex", values=c("Males"="#e41a1c", "Females"="#377eb8", "Sex-stratified"="#006d2c")) +
-  ylab("") + xlab("Estimate (95% CI)") +
+  scale_color_manual("Sex", values=c("Sex-stratified"="#006d2c", "Males"="#e41a1c", "Females"="#377eb8")) +
+  scale_x_continuous("Change in C-index (95% CI)", breaks=c(0, 0.01, 0.02), limits=c(0,0.025)) +
   theme_bw() +
   theme(
     axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
@@ -129,7 +117,7 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=7.2, height=3.5, file="analyses/test/full_UKB_PRS_cindex.pdf")
+ggsave(g, width=3.5, height=2, file="analyses/test/full_UKB_cindex_sex_specific.pdf")
 
 # Create formatted table for manuscript
 dt <- cinds
@@ -141,12 +129,4 @@ dt[, pct_change := pct_change / 100]
 dt[, pct.L95 := pct.L95 / 100]
 dt[, pct.U95 := pct.U95 / 100]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/full_UKB_cindex_for_supp.txt")
-
-
-
-
-
-
-
-
 
