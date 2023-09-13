@@ -1,6 +1,8 @@
 library(data.table)
 library(foreach)
 library(boot)
+library(ggplot2)
+library(ggstance)
 registerDoMC(7) # needs to run on compute node, taking ~40 minutes
 
 # Make output directory
@@ -104,6 +106,80 @@ dt[, pct_change := pct_change / 100]
 dt[, pct.L95 := pct.L95 / 100]
 dt[, pct.U95 := pct.U95 / 100]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/sex_stratified_cindices_for_supp.txt")
+
+# Create table for supp containing sex-specific analysis
+dt <- cinds[sex != "Sex-stratified" & (score_type == "non-derived" | model == "SCORE2")]
+dt <- dt[, .(sex, model, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95, deltaC.pval, pct_change, pct.L95, pct.U95)]
+dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
+dt[, pct_change := pct_change / 100]
+dt[, pct.L95 := pct.L95 / 100]
+dt[, pct.U95 := pct.U95 / 100]
+dt <- dt[order(C.index)][order(sex)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/sex_specific_cindices_for_supp.txt")
+
+# Prepare for plotting
+ggdt <- cinds[!(model == "SCORE2 + PRSs" & score_type == "clinical")]
+ggdt[model == "SCORE2 + PRSs", score_type := NA]
+
+ggdt[, model := factor(model, levels=rev(c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs")))]
+ggdt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
+
+# Plot sex-stratified analysis for full biomarker scores
+g <- ggplot(ggdt[(is.na(score_type) | score_type == "non-derived") & sex == "Sex-stratified"]) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model) +
+  geom_vline(xintercept=0, linetype=2) +
+  geom_errorbarh(height=0) +
+  geom_point(shape=23, size=2, fill="white") + 
+  ylab("") + xlab("Change in C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
+ggsave(g, width=3.5, height=2, file="analyses/test/cindex_sex_stratified.pdf")
+
+# Plot analysis in males and females separately
+g <- ggplot(ggdt[(is.na(score_type) | score_type == "non-derived") & sex != "Sex-stratified"]) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model, color=sex) +
+  facet_grid(~ sex) +
+  geom_vline(xintercept=0, linetype=2) +
+  geom_errorbarh(height=0) +
+  geom_point(shape=23, size=2, fill="white") +
+  scale_color_manual("Sex", values=c("Males"="#e41a1c", "Females"="#377eb8")) +
+  ylab("") + xlab("Change in C-index (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
+ggsave(g, width=7.2, height=2, file="analyses/test/cindex_sex_specific.pdf")
+
+
+# Generate comparison plot showing clinical scores have worse performance:
+g <- ggplot(ggdt[model != "SCORE2"]) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model, color=score_type) +
+  facet_grid(~ sex) +
+  geom_vline(xintercept=0, linetype=2) +
+  geom_errorbarh(height=0, position=position_dodgev(height=0.6)) +
+  geom_point(shape=23, size=2, fill="white", position=position_dodgev(height=0.6)) +
+  scale_color_manual(values=c("non-derived"="black", "clinical"="red"), labels=c("non-derived"="elasticnet on 106 non-derived biomarkers", "clinical"="elasticnet on 28 clinical biomarkers")) +
+  scale_x_continuous("Change in C-index relative to SCORE2 (95% CI)", breaks=c(0, 0.01, 0.02)) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=8)
+  )
+ggsave(g, width=7.2, height=2, file="analyses/test/cindex_with_clinical_scores.pdf")
+
 
 
 
