@@ -163,7 +163,7 @@ dt[, pct.pval := NULL]
 dt[, pct_change := pct_change / 100]
 dt[, pct.L95 := pct.L95 / 100]
 dt[, pct.U95 := pct.U95 / 100]
-dt <- dt[order(-deltaC, na.last=FALSE)][order(pval, na.last=FALSE)]
+dt <- dt[order(-deltaC, na.last=FALSE)][order(deltaC.pval, na.last=FALSE)]
 
 # Need to also tabulate complete data
 dat <- fread("data/cleaned/analysis_cohort.txt")
