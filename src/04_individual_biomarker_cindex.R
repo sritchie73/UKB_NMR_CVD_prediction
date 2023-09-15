@@ -12,19 +12,27 @@ system("mkdir -p analyses/univariate")
 
 # Load biomarker information sheet
 nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
+assay_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
 
 # Load analysis cohort
 dat <- fread("data/cleaned/analysis_cohort.txt")
 
 # Get list of biomarkers to test
 test_nmr <- nmr_info[(Nightingale), Biomarker]
+test_assay <- assay_info[sample_type != "Urine" & !is.na(UKB.Field.ID), var]
+test_assay <- setdiff(test_assay, c("hdl", "tchol"))
 
 # Build set of models to test
 model_info <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbind) %:%
-  foreach(this_model = c("SCORE2", paste("SCORE2 +", test_nmr)), .combine=rbind) %do% {
+  foreach(this_model = c("SCORE2", paste("SCORE2 +", test_nmr), paste("SCORE2 +", test_assay)), .combine=rbind) %do% {
     data.table(sex=this_sex, model=this_model)
 }
 model_info[model != "SCORE2", biomarker := gsub("SCORE2 \\+ ", "", model)]
+model_info[, model_type := fcase(
+  model == "SCORE2", "SCORE2",
+  biomarker %in% test_assay, "assays",
+  biomarker %in% test_nmr, "NMR"
+)]
 model_info[, model_var := paste0("model_", 1:.N), by=sex]
 
 # Convert sex to integer for strata
@@ -35,7 +43,7 @@ dat[strata_num, on = .(sex), sex_int := i.GRP]
 # The function we provide to the bootstrap procedure automatically handles missing data, so
 # here we set these to an indicator value to get past the censboot checks, before filtering 
 # in the function passed to the bootstrap procedure
-dat <- melt(dat, id.vars=c("eid", "sex", "sex_int", "incident_cvd_followup", "incident_cvd", "SCORE2_excl_UKB"), measure.vars=test_nmr)
+dat <- melt(dat, id.vars=c("eid", "sex", "sex_int", "incident_cvd_followup", "incident_cvd", "SCORE2_excl_UKB"), measure.vars=c(test_nmr, test_assay))
 dat[is.na(value), value := -1]
 dat <- dcast(dat, eid + sex + sex_int + incident_cvd_followup + incident_cvd + SCORE2_excl_UKB ~ variable, value.var="value")
 
@@ -111,8 +119,8 @@ cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
 cinds[, pval := apply(boot_res$t, 2, function(v) {  (1 + sum(v <= 0))/(1000 + 1) })] # one-sided
 
 # Cast to wide
-cinds <- dcast(cinds, sex + model + biomarker ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
-cinds <- cinds[,.(sex, model, biomarker,
+cinds <- dcast(cinds, sex + model + model_type + biomarker ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
+cinds <- cinds[,.(sex, model, model_type, biomarker,
   C.index = estimate_C.index, C.L95 = L95_C.index, C.U95 = U95_C.index,
   SE = estimate_SE, SE.L95 = L95_SE, SE.U95 = U95_SE,
   deltaC = estimate_delta.C, deltaC.L95 = L95_delta.C, deltaC.U95 = U95_delta.C, deltaC.pval = pval_delta.C,
@@ -120,23 +128,53 @@ cinds <- cinds[,.(sex, model, biomarker,
 )]
 
 # Add human friendly display name
-cinds[, model := gsub("_pct", " %", model)]
-cinds[, model := gsub("_by_", " / ", model)]
-cinds[, model := gsub("_", "-", model)]
-cinds[, model := gsub("Clinical-", "Clinical ", model)]
-cinds[, model := gsub("Total-", "Total ", model)]
-cinds[, model := gsub("Remnant-", "Remnant ", model)]
-cinds[, model := gsub("-size", " size", model)]
+cinds[model_type == "NMR", model := gsub("_pct", " %", model)]
+cinds[model_type == "NMR", model := gsub("_by_", " / ", model)]
+cinds[model_type == "NMR", model := gsub("_", "-", model)]
+cinds[model_type == "NMR", model := gsub("Clinical-", "Clinical ", model)]
+cinds[model_type == "NMR", model := gsub("Total-", "Total ", model)]
+cinds[model_type == "NMR", model := gsub("Remnant-", "Remnant ", model)]
+cinds[model_type == "NMR", model := gsub("-size", " size", model)]
+cinds[model_type == "assays", model := paste("SCORE2 +", fcase(
+  biomarker == "alb", "Albumin",
+  biomarker == "alt", "ALT",
+  biomarker == "alp", "ALP",
+  biomarker == "apoa1", "ApoA1",
+  biomarker == "apob", "ApoB",
+  biomarker == "asp", "AST",
+  biomarker == "dbili", "Bilirubin (direct)",
+  biomarker == "tbili", "Bilirubin (total)",
+  biomarker == "calcium", "Calcium",
+  biomarker == "creat", "Creatinine",
+  biomarker == "crp", "CRP",
+  biomarker == "cyst", "Cystatin-C",
+  biomarker == "ggt", "GGT",
+  biomarker == "glucose", "Glucose",
+  biomarker == "hba1c", "HbA1c",
+  biomarker == "igf1", "IGF-1",
+  biomarker == "lpa", "Lp(a)",
+  biomarker == "ldl", "LDL cholesterol",
+  biomarker == "oest", "Oestradiol",
+  biomarker == "phos", "Phosphate",
+  biomarker == "rheuf", "RF",
+  biomarker == "shbg", "SHBG",
+  biomarker == "testos", "Testosterone",
+  biomarker == "protein", "Total protein",
+  biomarker == "trig", "Triglycerides",
+  biomarker == "uric", "Urate",
+  biomarker == "urea", "Urea",
+  biomarker == "vitd25", "Vitamin D"
+))]
 
 # Compute FDR- adjusted P-value
-cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=sex]
+cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(sex)]
 
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/cindices.txt")
 
-# Plot delta C-index for top-10 biomarkers in Sex-stratified results
+# Plot delta C-index for top-10 NMR biomarkers in Sex-stratified results
 ggdt <- rbind(
-  cinds[model != "SCORE2" & sex == "Sex-stratified"][order(-deltaC)][1:10]
+  cinds[model != "SCORE2" & sex == "Sex-stratified" & model_type == "NMR"][order(-deltaC)][1:10]
 )
 ggdt[, model := factor(model, levels=rev(unique(model)))]
 
@@ -154,7 +192,29 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=3.5, height=2, file="analyses/univariate/cindex_sex_stratified.pdf")
+ggsave(g, width=3.5, height=2, file="analyses/univariate/top10_NMR_cindex_sex_stratified.pdf")
+
+# Plot delta C-index for top-10 assayed biomarkers in Sex-stratified results
+ggdt <- rbind(
+  cinds[model != "SCORE2" & sex == "Sex-stratified" & model_type == "assays"][order(-deltaC)][1:10]
+)
+ggdt[, model := factor(model, levels=rev(unique(model)))]
+
+g <- ggplot(ggdt) +
+  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model) +
+  geom_vline(xintercept=0, linetype=2) +
+  geom_errorbarh(height=0) +
+  geom_point(shape=23, size=2, fill="white") +
+  scale_x_continuous("delta C-index (95% CI)", limits=c(0, 0.01)) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
+ggsave(g, width=3.5, height=2, file="analyses/univariate/top10_assayed_cindex_sex_stratified.pdf")
 
 # Create formatted table for manuscript
 dt <- cinds[sex == "Sex-stratified"]
@@ -167,13 +227,13 @@ dt <- dt[order(-deltaC, na.last=FALSE)][order(deltaC.pval, na.last=FALSE)]
 
 # Need to also tabulate complete data
 dat <- fread("data/cleaned/analysis_cohort.txt")
-dat <- melt(dat, id.vars=c("eid", "sex", "incident_cvd"), measure.vars=c("SCORE2", test_nmr), variable.name="biomarker")
+dat <- melt(dat, id.vars=c("eid", "sex", "incident_cvd"), measure.vars=c("SCORE2", test_nmr, test_assay), variable.name="biomarker")
 dat <- dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=biomarker]
 dat <- dat[biomarker == "SCORE2", biomarker := NA]
 dt <- dat[dt, on = .(biomarker)]
 
 # Reorganize columns and write out
-dt <- dt[,.(model, samples, cases, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
+dt <- dt[,.(model, model_type, samples, cases, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
   deltaC.pval, deltaC.fdr, pct_change, pct.L95, pct.U95)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/cindex_for_supp.txt")
 
