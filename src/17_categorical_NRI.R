@@ -66,6 +66,7 @@ nri_estimates <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1
   }))
 }))
 
+
 # Extract tables of reclassifications for categorical nris
 reclassified_cases <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
   rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
@@ -119,3 +120,125 @@ g <- ggplot(ggdt) +
     legend.box.background=element_blank(), legend.background=element_blank()
   )
 ggsave(g, width=7.2, height=3.5, file="analyses/test/categorical_NRI.pdf", device=cairo_pdf)
+
+# Create table of risk strata
+risk <- dat[score_type == "non-derived"]
+risk[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+risk[, age_group := ifelse(age < 50, "40-<50 years of age", "50-<70 years of age")]
+risk[, age_group := factor(age_group, levels=c("40-<50 years of age", "50-<70 years of age"))]
+risk[, sex := factor(sex, levels=c("Male", "Female"))]
+risk[, risk_group := fcase(
+  age < 50 & uk_calibrated_risk < 0.025, "Low-to-moderate risk",
+  age < 50 & uk_calibrated_risk >= 0.025 & uk_calibrated_risk < 0.075, "High risk",
+  age < 50 & uk_calibrated_risk >= 0.075, "Very high risk",
+  age >= 50 & uk_calibrated_risk < 0.05, "Low-to-moderate risk",
+  age >= 50 & uk_calibrated_risk >= 0.05 & uk_calibrated_risk < 0.10, "High risk",
+  age >= 50 & uk_calibrated_risk >= 0.10, "Very high risk"
+)]
+risk[, risk_group := factor(risk_group, levels=c("Low-to-moderate risk", "High risk", "Very high risk"))]
+risk <- risk[, .N, by=.(sex, age_group, model, risk_group)]
+
+group_totals <- risk[, .(total=sum(N)), by=.(sex, age_group, model)]
+risk[group_totals, on = .(sex, age_group, model), pct := N/total]
+risk[, text := sprintf("%s (%.2f%%)", format(N, big.mark=",", trim=TRUE), round(pct*100, digits=2))]
+
+risk <- dcast(risk, age_group + risk_group ~ sex + model, value.var="text", fill="0 (0.00%)")
+fwrite(risk, sep="\t", quote=FALSE, file="analyses/test/ESC_2021_risk_strata.txt")
+
+# Create NRI table for supp
+dt <- nri_estimates[,.(sex, model_comparison)]
+dt <- unique(dt)
+dt <- rbind(unique(dt[,.(sex, model_comparison="SCORE2")]), dt)
+dt[, model := gsub("SCORE2 vs. ", "", model_comparison)]
+dt[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
+dt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dt <- dt[order(model)][order(sex)]
+
+# How many cases are at high risk?
+score2_high_risk <- reclassified[Old == "< 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Cases=sum(Cases)), by=.(sex)]
+new_high_risk <- reclassified[New == "< 0.1", .(Cases=sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_high_risk, on = .(sex, model_comparison), Cases_high_risk := i.Cases]
+dt[new_high_risk, on = .(sex, model_comparison), Cases_high_risk := i.Cases]
+
+# How many low-to-moderate risk are reclassified as high risk?
+reclassified_high_risk <- reclassified[Old == "< 0.05" & New == "< 0.1", .(Cases=sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_high_risk, on = .(sex, model_comparison), Cases_high_risk_reclassified := i.Cases]
+
+# How many cases are at very high risk?
+score2_very_high_risk <- reclassified[Old == ">= 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Cases=sum(Cases)), by=.(sex)]
+new_very_high_risk <- reclassified[New == ">= 0.1", .(Cases=sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_very_high_risk, on = .(sex, model_comparison), Cases_very_high_risk := i.Cases]
+dt[new_very_high_risk, on = .(sex, model_comparison), Cases_very_high_risk := i.Cases]
+
+# How many are reclassified as very high risk
+reclassified_very_high_risk <- reclassified[Old != ">= 0.1" & New == ">= 0.1", .(Cases=sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_very_high_risk, on = .(sex, model_comparison), Cases_very_high_risk_reclassified := i.Cases]
+
+# Add in case NRI
+dt[nri_estimates[metric == "NRI+"], on = .(sex, model_comparison), c("Case_NRI", "Case_NRI_L95", "Case_NRI_U95") := .(Estimate, Lower, Upper)]
+
+# Compute bootstrap P-value
+case_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
+  rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
+    nulls <- sum(l2$bootstrapsample[, "NRI+"] <= 0)
+    n <- nrow(l2$bootstrapsample)
+    data.table("pval"=(nulls + 1)/(n + 1))
+  }))
+}))
+dt[case_NRI_pval, on = .(sex, model_comparison), Case_NRI_pval := i.pval]
+
+# How many controls are at high risk?
+score2_high_risk <- reclassified[Old == "< 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All) - sum(Cases)), by=.(sex)]
+new_high_risk <- reclassified[New == "< 0.1", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_high_risk, on = .(sex, model_comparison), Controls_high_risk := i.Controls]
+dt[new_high_risk, on = .(sex, model_comparison), Controls_high_risk := i.Controls]
+
+# How many very high risk are reclassified as high risk?
+reclassified_high_risk <- reclassified[Old == ">= 0.1" & New == "< 0.1", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_high_risk, on = .(sex, model_comparison), Controls_high_risk_reclassified := i.Controls]
+
+# How many controls are at low-to-moderate risk
+score2_low_risk <- reclassified[Old == "< 0.05" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All) - sum(Cases)), by=.(sex)]
+new_low_risk <- reclassified[New == "< 0.05", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
+dt[new_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
+
+# How many very low risk are reclassified as low risk?
+reclassified_low_risk <- reclassified[Old != "< 0.05" & New == "< 0.05", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_low_risk, on = .(sex, model_comparison), Controls_low_risk_reclassified := i.Controls]
+
+# Add in control NRI
+dt[nri_estimates[metric == "NRI-"], on = .(sex, model_comparison), c("Control_NRI", "Control_NRI_L95", "Control_NRI_U95") := .(Estimate, Lower, Upper)]
+
+# Compute bootstrap P-value
+case_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
+  rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
+    nulls <- sum(l2$bootstrapsample[, "NRI-"] <= 0)
+    n <- nrow(l2$bootstrapsample)
+    data.table("pval"=(nulls + 1)/(n + 1))
+  }))
+}))
+dt[case_NRI_pval, on = .(sex, model_comparison), Control_NRI_pval := i.pval]
+
+# Write out
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/categorical_NRI_for_supp.txt")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
