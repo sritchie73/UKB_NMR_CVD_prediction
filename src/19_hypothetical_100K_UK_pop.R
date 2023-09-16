@@ -35,9 +35,6 @@ CPRD <- fread("analyses/risk_recalibration/CPRD_incidence_and_risk.txt")
 ons_pop[CPRD, on = .(sex, age_group), cases := floor(N * expected_risk)]
 ons_pop[, controls := N - cases]
 
-# Recode sex
-ons_pop[, sex := paste0(sex, "s")]
-
 # Summarise all to population totals
 ons_pop_summary <- ons_pop[, .(N=sum(N), cases=sum(cases), controls=sum(controls)), by=sex]
 
