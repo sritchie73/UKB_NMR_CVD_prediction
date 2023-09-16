@@ -29,7 +29,8 @@ risk[, risk_group := fcase(
   age >= 50 & uk_calibrated_risk >= 0.10, "Very high risk"
 )]
 risk[, risk_group := factor(risk_group, levels=c("Low-to-moderate risk", "High risk", "Very high risk"))]
-risk <- risk[, .N, by=.(model, risk_group)]
+risk[, cvd_group := ifelse(incident_cvd, "Cases", "Non-cases")]
+risk <- risk[, .N, by=.(cvd_group, model, risk_group)]
 
 nri <- nri[sex == "Sex-stratified" & metric %in% c("NRI+", "NRI-")]
 nri[, model := gsub("SCORE2 vs. ", "", model_comparison)]
@@ -53,6 +54,7 @@ g1 <- ggplot(cinds) +
 
 g2 <- ggplot(risk) +
   aes(x=N, y=fct_rev(model), fill=risk_group) +
+  facet_grid(. ~ cvd_group) +
   geom_col(position="fill") +
   geom_vline(xintercept=seq(0,1,by=0.1), color="white", alpha=0.6, linewidth=0.4) +
   scale_x_continuous("UK Biobank participants", labels=percent, expand=c(0,0.01)) +
@@ -118,7 +120,8 @@ risk[, risk_group := fcase(
   age >= 50 & uk_calibrated_risk >= 0.10, "Very high risk"
 )]
 risk[, risk_group := factor(risk_group, levels=c("Low-to-moderate risk", "High risk", "Very high risk"))]
-risk <- risk[, .N, by=.(sex, model, risk_group)]
+risk[, cvd_group := ifelse(incident_cvd, "Cases", "Non-cases")]
+risk <- risk[, .N, by=.(sex, cvd_group, model, risk_group)]
 risk[, sex := factor(sex, levels=c("Male", "Female"))]
 
 nri <- nri[sex != "Sex-stratified" & metric %in% c("NRI+", "NRI-")]
@@ -146,7 +149,7 @@ g1 <- ggplot(cinds) +
 
 g2 <- ggplot(risk) +
   aes(x=N, y=fct_rev(model), fill=risk_group) +
-  facet_grid(sex ~ .) +
+  facet_grid(sex ~ cvd_group) +
   geom_col(position="fill") +
   geom_vline(xintercept=seq(0,1,by=0.1), color="white", alpha=0.6, linewidth=0.4) +
   scale_x_continuous("UK Biobank participants", labels=percent, expand=c(0,0.01)) +
