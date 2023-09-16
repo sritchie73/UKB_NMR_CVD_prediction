@@ -122,8 +122,9 @@ g <- ggplot(ggdt) +
 ggsave(g, width=7.2, height=3.5, file="analyses/test/categorical_NRI.pdf", device=cairo_pdf)
 
 # Create table of risk strata
-risk <- dat[score_type == "non-derived"]
+risk <- copy(dat)
 risk[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+risk[, cvd_group := ifelse(incident_cvd, "Case", "Non-case")]
 risk[, age_group := ifelse(age < 50, "40-<50 years of age", "50-<70 years of age")]
 risk[, age_group := factor(age_group, levels=c("40-<50 years of age", "50-<70 years of age"))]
 risk[, sex := factor(sex, levels=c("Male", "Female"))]
@@ -136,13 +137,13 @@ risk[, risk_group := fcase(
   age >= 50 & uk_calibrated_risk >= 0.10, "Very high risk"
 )]
 risk[, risk_group := factor(risk_group, levels=c("Low-to-moderate risk", "High risk", "Very high risk"))]
-risk <- risk[, .N, by=.(sex, age_group, model, risk_group)]
+risk <- risk[, .N, by=.(cvd_group, sex, age_group, model, risk_group)]
 
-group_totals <- risk[, .(total=sum(N)), by=.(sex, age_group, model)]
-risk[group_totals, on = .(sex, age_group, model), pct := N/total]
+group_totals <- risk[, .(total=sum(N)), by=.(cvd_group, sex, age_group, model)]
+risk[group_totals, on = .(cvd_group, sex, age_group, model), pct := N/total]
 risk[, text := sprintf("%s (%.2f%%)", format(N, big.mark=",", trim=TRUE), round(pct*100, digits=2))]
 
-risk <- dcast(risk, age_group + risk_group ~ sex + model, value.var="text", fill="0 (0.00%)")
+risk <- dcast(risk, cvd_group + age_group + risk_group ~ sex + model, value.var="text", fill="0 (0.00%)")
 fwrite(risk, sep="\t", quote=FALSE, file="analyses/test/ESC_2021_risk_strata.txt")
 
 # Create NRI table for supp
