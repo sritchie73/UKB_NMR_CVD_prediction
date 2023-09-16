@@ -4,7 +4,7 @@ library(survival)
 library(boot)
 
 # create output directory
-system("mkdir -p analyses/public_health_modelling/blanket_screening")
+system("mkdir -p analyses/public_health_modelling/targeted_screening")
 
 # Load hypothetical population 
 ons_pop <- fread("analyses/public_health_modelling/ONS_hypothetical_100k_pop_by_age_sex.txt")
@@ -15,15 +15,18 @@ pred_risk <- pred_risk[score_type == "non-derived"]
 
 # Reformat to wide table so all models have same bootstraps applied
 models <- unique(pred_risk[,.(model)])
+models <- models[model != "SCORE2"]
 models[, colname := paste0("model", .I)]
-pred_risk <- pred_risk[models, on = .(model)]
+pred_risk[, colname := model]
+pred_risk[models, on = .(model), colname := i.colname]
 pred_risk <- dcast(pred_risk, eid + sex + age + age_group + incident_cvd_followup + incident_cvd ~ colname, value.var="uk_calibrated_risk")
 
-# Determine in each age-group and sex the proportion of cases and non-cases that are allocated to the 
-# high risk group by each model. These proportions will then be applied to the simulated population 
-# to estimate impact of screening in a hypothetical population of ~100,000 adults with proportions of 
-# age, sex, and 10-year CVD incidence similar to the general UK Population. Proportions will be 
-# estimated in a bootstrap procedure so we can get 95% confidence intervals of numbers.
+# Determine in each age-group and sex the proportion of participants determined to be high risk" 
+# along with the proportion of "high risk" individuals that go on to develop CVD. These proportions 
+# will then be applied to the simulated population to estimate impact of screening in a hypothetical 
+# population of ~100,000 adults with proportions of age, sex, and 10-year CVD incidence similar to 
+# the general UK Population. Proportions will be estimated in a bootstrap procedure so we can get 
+# 95% confidence intervals of numbers.
 risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:% 
     foreach(this_age_group = sort(unique(pred_risk$age_group)), .combine=rbind) %dopar% {
       # Extract subset of predicted risks to work with in this loop iteration
@@ -33,26 +36,46 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
       boot.stats <- function(dt) {
         # ESC 2021 guidelines use different cut-offs depending on age
         if (dt$age[1] >= 50) {
-          risk_threshold <- 0.1    
+          high_risk_threshold <- 0.1    
+          medium_risk_threshold <- 0.075
         } else {
-          risk_threshold <- 0.075
+          high_risk_threshold <- 0.075
+          medium_risk_threshold <- 0.05
         }
       
         # Put boostrapped input data into long format to simplify model comparison
         dt <- melt(dt, measure.vars=patterns("^model"), variable.name="model", value.name="uk_calibrated_risk")
 
         # Build empty results table to fill in
-        res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_cases_high_risk", "pct_non_cases_high_risk")))
+        res <- as.data.table(expand.grid(model=models$colname, metric=c(
+          "pct_cases_high_risk_score2", "pct_non_cases_high_risk_score2",
+          "pct_cases_medium_risk_score2", "pct_non_cases_medium_risk_score2",
+          "pct_cases_reclassified", "pct_non_cases_reclassified"
+        )))
         res[, estimate := 0]
 
         # Compute % of group assigned to high risk and % of cases assigned to high risk for each model
-        dt[, high_risk := ifelse(uk_calibrated_risk >= risk_threshold, TRUE, FALSE)]
+        dt[, high_risk_score2 := ifelse(SCORE2 >= high_risk_threshold, TRUE, FALSE)]
+        dt[, medium_risk_score2 := ifelse(!high_risk_score2 & SCORE2 >= medium_risk_threshold, TRUE, FALSE)]
+        dt[, reclassified := ifelse(medium_risk_score2 & uk_calibrated_risk >= high_risk_threshold, TRUE, FALSE)]
     
-        metric1 <- dt[(incident_cvd),.(metric="pct_cases_high_risk", estimate=sum(high_risk)/.N), by=model]
+        metric1 <- dt[(incident_cvd), .(metric="pct_cases_high_risk_score2", estimate=sum(high_risk_score2)/.N), by=model]
         res[metric1, on = .(model, metric), estimate := i.estimate]
 
-        metric2 <- dt[!(incident_cvd),.(metric="pct_non_cases_high_risk", estimate=sum(high_risk)/.N), by=model]
+        metric2 <- dt[!(incident_cvd), .(metric="pct_non_cases_high_risk_score2", estimate=sum(high_risk_score2)/.N), by=model]
         res[metric2, on = .(model, metric), estimate := i.estimate]
+
+        metric3 <- dt[(incident_cvd), .(metric="pct_cases_medium_risk_score2", estimate=sum(medium_risk_score2)/.N), by=model]
+        res[metric3, on = .(model, metric), estimate := i.estimate]
+
+        metric4 <- dt[!(incident_cvd), .(metric="pct_non_cases_medium_risk_score2", estimate=sum(medium_risk_score2)/.N), by=model]
+        res[metric4, on = .(model, metric), estimate := i.estimate]
+       
+        metric5 <- dt[(incident_cvd) & (medium_risk_score2), .(metric="pct_cases_reclassified", estimate=sum(reclassified)/.N), by=model]
+        res[metric5, on = .(model, metric), estimate := i.estimate]
+
+        metric6 <- dt[!(incident_cvd) & (medium_risk_score2), .(metric="pct_non_cases_reclassified", estimate=sum(reclassified)/.N), by=model]
+        res[metric6, on = .(model, metric), estimate := i.estimate]
 
         # return as flat vector, this needs to be mapped after bootstrapping
         res[,estimate]
@@ -63,7 +86,11 @@ risk_strata <- foreach(this_sex = c("Males", "Females"), .combine=rbind) %:%
       this_group_res <- censboot(this_pred_risk, boot.stats, 1000, index=surv_cols_idx) # takes ~ 6 seconds to run
 
       # Extract table of metrics
-      res <- as.data.table(expand.grid(model=models$colname, metric=c("pct_cases_high_risk", "pct_non_cases_high_risk")))
+      res <- as.data.table(expand.grid(model=models$colname, metric=c(
+          "pct_cases_high_risk_score2", "pct_non_cases_high_risk_score2",
+          "pct_cases_medium_risk_score2", "pct_non_cases_medium_risk_score2",
+          "pct_cases_reclassified", "pct_non_cases_reclassified"
+      )))
       res[models, on = .(model=colname), model := i.model]
       res[, estimate := this_group_res$t0]
       res <- cbind(sex=this_sex, age_group=this_age_group, res)
@@ -83,24 +110,54 @@ risk_strata <- dcast(risk_strata, sex + age_group + model + bootstrap ~ metric, 
 risk_strata[is.na(bootstrap), bootstrap := 0] # simplify sorting and joining
 risk_strata <- risk_strata[order(bootstrap)]
 
-fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/ukb_risk_strata_proportions_with_bootstraps.txt")
+fwrite(risk_strata, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/ukb_risk_strata_proportions_with_bootstraps.txt")
 
 ###########
 
 # Apply proportions to simulated population
 pop_boot <- risk_strata[ons_pop, on = .(sex, age_group)]
-pop_boot[, high_risk_cases := floor(cases * pct_cases_high_risk)]
-pop_boot[, low_risk_cases := cases - high_risk_cases]
-pop_boot[, high_risk_non_cases := floor(controls * pct_non_cases_high_risk)]
-pop_boot[, low_risk_non_cases := controls - high_risk_non_cases]
+
+pop_boot[, high_risk_score2_cases := floor(cases * pct_cases_high_risk_score2)]
+pop_boot[, medium_risk_score2_cases := floor(cases * pct_cases_medium_risk_score2)]
+pop_boot[, low_risk_score2_cases := cases - high_risk_score2_cases - medium_risk_score2_cases]
+
+pop_boot[, high_risk_score2_non_cases := floor(controls * pct_non_cases_high_risk_score2)]
+pop_boot[, medium_risk_score2_non_cases := floor(controls * pct_non_cases_medium_risk_score2)]
+pop_boot[, low_risk_score2_non_cases := controls - high_risk_score2_non_cases - medium_risk_score2_non_cases]
+
+pop_boot[, high_risk_score2 := high_risk_score2_cases + high_risk_score2_non_cases]
+pop_boot[, medium_risk_score2 := medium_risk_score2_cases + medium_risk_score2_non_cases]
+pop_boot[, low_risk_score2 := low_risk_score2_cases + low_risk_score2_non_cases]
+
+pop_boot[, reclassified_cases := floor(medium_risk_score2_cases * pct_cases_reclassified)]
+pop_boot[, not_reclassified_cases := medium_risk_score2_cases - reclassified_cases]
+
+pop_boot[, reclassified_non_cases := floor(medium_risk_score2_non_cases * pct_non_cases_reclassified)]
+pop_boot[, not_reclassified_non_cases := medium_risk_score2_non_cases - reclassified_non_cases]
+
+pop_boot[, reclassified := reclassified_cases + reclassified_non_cases]
+pop_boot[, not_reclassified := not_reclassified_cases + not_reclassified_non_cases]
+
+pop_boot[, high_risk_cases := high_risk_score2_cases + reclassified_cases]
+pop_boot[, low_risk_cases := low_risk_score2_cases + not_reclassified_cases]
+
+pop_boot[, high_risk_non_cases := high_risk_score2_non_cases + reclassified_non_cases]
+pop_boot[, low_risk_non_cases := low_risk_score2_non_cases + not_reclassified_non_cases]
+
 pop_boot[, high_risk := high_risk_cases + high_risk_non_cases]
 pop_boot[, low_risk := low_risk_cases + low_risk_non_cases]
+
 
 # Reorganise columns
 pop_boot <- pop_boot[,.(
   sex, age_group, people=N, cases, non_cases=controls, model, bootstrap,
   high_risk, low_risk, high_risk_cases, low_risk_cases,
-  high_risk_non_cases, low_risk_non_cases
+  high_risk_non_cases, low_risk_non_cases,
+  high_risk_score2, medium_risk_score2, low_risk_score2,
+  high_risk_score2_cases, medium_risk_score2_cases, low_risk_score2_cases,
+  high_risk_score2_non_cases, medium_risk_score2_non_cases, low_risk_score2_non_cases,
+  reclassified, not_reclassified, reclassified_cases, not_reclassified_cases,
+  reclassified_non_cases, not_reclassified_non_cases
 )]
 
 # Compute screening statistics
@@ -108,23 +165,39 @@ pop_boot[, events_prevented := floor(high_risk_cases * 0.2)] # assuming 20% redu
 pop_boot[, NNS := ceiling(people / events_prevented)] # Number needed to screen per event prevented
 pop_boot[, NNT := ceiling(high_risk / events_prevented)] # Number of statins prescribed per event prevented
 
+pop_boot[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assuming 20% reduction due to statins
+pop_boot[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
+pop_boot[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
+
+pop_boot[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
+pop_boot[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 # Write out
-fwrite(pop_boot, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/ons_pop_stratified_with_bootstraps.txt")
+fwrite(pop_boot, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/ons_pop_stratified_with_bootstraps.txt")
 
 ###########
 
 # Convert to longer format to make aggregation simpler
 pop_boot <- melt(pop_boot, id.vars=c("sex", "age_group", "model", "bootstrap"), variable.name="number", value.name="estimate")
-pop_boot <- pop_boot[!(number %in% c("events_prevented", "NNS", "NNT"))] # not valid when summed
+pop_boot <- pop_boot[!(number %in% c("events_prevented", "events_prevented_score2", "NNS", "NNS_score2", "NNT", "NNT_score2"))] # not valid when summed
 
 ###########
 
 # Get aggregate statistics by age-group
 group_agg <- pop_boot[,.(estimate=sum(estimate)), by=.(bootstrap, sex, age_group, model, number)]
 group_agg <- dcast(group_agg, bootstrap + sex + age_group + model ~ number, value.var="estimate")
+
 group_agg[, events_prevented := floor(high_risk_cases * 0.2)] # assuming 20% reduction due to statins
 group_agg[, NNS := ceiling(people / events_prevented)] # Number needed to screen per event prevented
 group_agg[, NNT := ceiling(high_risk / events_prevented)] # Number of statins prescribed per event prevented
+
+group_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assuming 20% reduction due to statins
+group_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
+group_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
+
+group_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
+group_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 group_agg <- melt(group_agg, id.vars=c("sex", "age_group", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
 # Extract estimates and 95% CIs
@@ -139,17 +212,25 @@ group_screen_95ci <- dcast(group_screen_95ci, sex + age_group + people + cases +
 group_screen <- group_screen_estimates[group_screen_95ci, on = .(sex, age_group, people, cases, non_cases, model, number)]
 
 # Write out
-fwrite(group_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/population_screening_by_sex_and_age_group.txt")
-
+fwrite(group_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/population_screening_by_sex_and_age_group.txt")
 
 ###########
 
 # Get aggregate statistics in males and females
 sex_agg <- pop_boot[,.(estimate=sum(estimate)), by=.(bootstrap, sex, model, number)]
 sex_agg <- dcast(sex_agg, bootstrap + sex + model ~ number, value.var="estimate")
+
 sex_agg[, events_prevented := floor(high_risk_cases * 0.2)] # assuming 20% reduction due to statins
 sex_agg[, NNS := ceiling(people / events_prevented)] # Number needed to screen per event prevented
 sex_agg[, NNT := ceiling(high_risk / events_prevented)] # Number of statins prescribed per event prevented
+
+sex_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assuming 20% reduction due to statins
+sex_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
+sex_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
+
+sex_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
+sex_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 sex_agg <- melt(sex_agg, id.vars=c("sex", "people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
 # Extract estimates and 95% CIs
@@ -164,16 +245,25 @@ sex_screen_95ci <- dcast(sex_screen_95ci, sex + people + cases + non_cases + mod
 sex_screen <- sex_screen_estimates[sex_screen_95ci, on = .(sex, people, cases, non_cases, model, number)]
 
 # Write out
-fwrite(sex_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/population_screening_by_sex.txt")
+fwrite(sex_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/population_screening_by_sex.txt")
 
 ###########
 
 # Get aggregate statistics in the total population
 pop_agg <- pop_boot[,.(estimate=sum(estimate)), by=.(bootstrap, model, number)]
 pop_agg <- dcast(pop_agg, bootstrap + model ~ number, value.var="estimate")
+
 pop_agg[, events_prevented := floor(high_risk_cases * 0.2)] # assuming 20% reduction due to statins
 pop_agg[, NNS := ceiling(people / events_prevented)] # Number needed to screen per event prevented
 pop_agg[, NNT := ceiling(high_risk / events_prevented)] # Number of statins prescribed per event prevented
+
+pop_agg[, events_prevented_score2 := floor(high_risk_score2_cases * 0.2)] # assuming 20% reduction due to statins
+pop_agg[, NNS_score2 := ceiling(people / events_prevented_score2)] # Number needed to screen per event prevented
+pop_agg[, NNT_score2 := ceiling(high_risk_score2 / events_prevented_score2)] # Number of statins prescribed per event prevented
+
+pop_agg[, delta_high_risk_cases := high_risk_cases - high_risk_score2_cases]
+pop_agg[, delta_events_prevented := events_prevented - events_prevented_score2]
+
 pop_agg <- melt(pop_agg, id.vars=c("people", "cases", "non_cases", "model", "bootstrap"), variable.name="number", value.name="estimate")
 
 # Extract estimates and 95% CIs
@@ -188,5 +278,5 @@ pop_screen_95ci <- dcast(pop_screen_95ci, people + cases + non_cases + model + n
 pop_screen <- pop_screen_estimates[pop_screen_95ci, on = .(people, cases, non_cases, model, number)]
 
 # Write out
-fwrite(pop_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/blanket_screening/population_screening.txt")
+fwrite(pop_screen, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_screening/population_screening.txt")
 

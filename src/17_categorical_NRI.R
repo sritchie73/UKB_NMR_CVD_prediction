@@ -163,7 +163,7 @@ case_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1
   rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
     nulls <- pmin(sum(l2$bootstrapsample[, "NRI+"] <= 0), sum(l2$bootstrapsample[, "NRI+"] >= 0))
     n <- nrow(l2$bootstrapsample)
-    data.table("pval"=(nulls + 1)/(n + 2)*2)
+    data.table("pval"=pmin(2*(nulls + 1)/(n + 1), 1))
   }))
 }))
 dt[case_NRI_pval, on = .(sex, model_comparison), Case_NRI_pval := i.pval]
@@ -206,7 +206,7 @@ control_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function
   rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
     nulls <- pmin(sum(l2$bootstrapsample[, "NRI-"] <= 0), sum(l2$bootstrapsample[, "NRI-"] >= 0))
     n <- nrow(l2$bootstrapsample)
-    data.table("pval"=(nulls + 1)/(n + 2)*2)
+    data.table("pval"=pmin(2*(nulls + 1)/(n + 1), 1))
   }))
 }))
 dt[control_NRI_pval, on = .(sex, model_comparison), Control_NRI_pval := i.pval]
