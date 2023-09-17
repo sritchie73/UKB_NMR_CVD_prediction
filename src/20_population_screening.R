@@ -2,6 +2,9 @@ library(data.table)
 library(foreach)
 library(survival)
 library(boot)
+library(ggplot2)
+library(forcats)
+library(cowplot)
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
@@ -263,44 +266,69 @@ dt[long[metric == "NNT"], on = .(strategy, sex, model),
 
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/public_health_modelling/screening_table_for_supp.txt")
 
-# Additional supp table for targeted screening
-long <- long[strategy == "targeted"]
-dt <- foreach(this_sex = c("Combined", "Male", "Female"), .combine=rbind) %:%
-  foreach(this_model = c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=rbind) %do% {
-    data.table(sex=this_sex, model=this_model)
-}
+# Create plot for main figure
+ggdt <- agg_estimates[metric %in% c("N_treated", "cases_treated", "events_prevented", "NNS", "NNT")]
+ggdt[, metric := factor(metric, levels=c("N_treated", "cases_treated", "events_prevented", "NNS", "NNT"))]
+ggdt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
 
-dt[long[metric == "reclassified"], on = .(sex, model),
-  c("reclassified", "reclassified.L95", "reclassified.U95", "delta.reclassified", "delta.reclassified.L95", "delta.reclassified.U95", "delta.reclassified.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
-]
+g <- ggplot(ggdt[model != "SCORE2"]) + 
+  aes(x=delta, xmin=delta.L95, xmax=delta.U95, y=fct_rev(model), color=metric) +
+  facet_grid(strategy ~ metric, scales="free") + 
+  geom_vline(xintercept=0, linetype=2) + 
+  geom_errorbarh(height=0) + 
+  geom_point(shape=23, fill="white", size=1.2) +
+  scale_color_manual(values=c("N_treated"="#f8766d", "cases_treated"="#a3a500", "events_prevented"="#00bf7d", "NNS"="#00b0f6", "NNT"="#e76bf3")) + 
+  xlab("Change relative to population-wide screening with SCORE2 alone (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.background=element_blank(), strip.text=element_text(size=6, face="bold"),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
 
-dt[long[metric == "reclassified_cases"], on = .(sex, model),
-  c("reclassified_cases", "reclassified_cases.L95", "reclassified_cases.U95", "delta.reclassified_cases", "delta.reclassified_cases.L95", "delta.reclassified_cases.U95", "delta.reclassified_cases.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
-]
+ggsave(g, width=7.2, height=2, file="analyses/public_health_modelling/screening_comparison.pdf")
 
-dt[long[metric == "additional_prevented"], on = .(sex, model),
-  c("additional_prevented", "additional_prevented.L95", "additional_prevented.U95", "delta.additional_prevented", "delta.additional_prevented.L95", "delta.additional_prevented.U95", "delta.additional_prevented.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
-]
+# Create supp plot by sex
+ggdt <- sex_estimates[metric %in% c("N_treated", "cases_treated", "events_prevented", "NNS", "NNT")]
+ggdt[, metric := factor(metric, levels=c("N_treated", "cases_treated", "events_prevented", "NNS", "NNT"))]
+ggdt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
 
-fwrite(dt, sep="\t", quote=FALSE, file="analyses/public_health_modelling/targeted_table_for_supp.txt")
+g1 <- ggplot(ggdt[model != "SCORE2" & sex == "Male"]) + 
+  aes(x=delta, xmin=delta.L95, xmax=delta.U95, y=fct_rev(model), color=metric) +
+  facet_grid(strategy ~ metric, scales="free") + 
+  geom_vline(xintercept=0, linetype=2) + 
+  geom_errorbarh(height=0) + 
+  geom_point(shape=23, fill="white", size=1.2) +
+  scale_color_manual(values=c("N_treated"="#f8766d", "cases_treated"="#a3a500", "events_prevented"="#00bf7d", "NNS"="#00b0f6", "NNT"="#e76bf3")) + 
+  xlab("Change relative to population-wide screening with SCORE2 alone (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.background=element_blank(), strip.text=element_text(size=6, face="bold"),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
 
+g2 <- ggplot(ggdt[model != "SCORE2" & sex == "Female"]) + 
+  aes(x=delta, xmin=delta.L95, xmax=delta.U95, y=fct_rev(model), color=metric) +
+  facet_grid(strategy ~ metric, scales="free") + 
+  geom_vline(xintercept=0, linetype=2) + 
+  geom_errorbarh(height=0) + 
+  geom_point(shape=23, fill="white", size=1.2) +
+  scale_color_manual(values=c("N_treated"="#f8766d", "cases_treated"="#a3a500", "events_prevented"="#00bf7d", "NNS"="#00b0f6", "NNT"="#e76bf3")) + 
+  xlab("Change relative to population-wide screening with SCORE2 alone (95% CI)") +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.background=element_blank(), strip.text=element_text(size=6, face="bold"),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="none"
+  )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+g <- plot_grid(g1, g2, nrow=2, align="hv") 
+ggsave(g, width=7.2, height=2, file="analyses/public_health_modelling/screening_comparison_sex_specific.pdf")
 
