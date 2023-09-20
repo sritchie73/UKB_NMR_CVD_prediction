@@ -82,7 +82,11 @@ cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .com
 cinds[, estimate := boot_res$t0]
 cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })]
 cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
-cinds[, pval := apply(boot_res$t, 2, function(v) {  (1 + sum(v <= 0))/(1000 + 1) })] # one-sided
+cinds[, pval := apply(boot_res$t, 2, function(v) {
+  nulls <- pmin(sum(v <= 0), sum(v >= 0))
+  n <- nrow(boot_res$t)
+  pmin(2*(nulls + 1)/(n + 1), 1)
+})]
 
 # Cast to wide
 cinds <- dcast(cinds, sex + model ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
