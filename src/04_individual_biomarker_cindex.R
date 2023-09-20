@@ -107,7 +107,7 @@ boot.fun <- function(dt) {
 # Run bootstrap analysis
 surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(dat))
 boot_res <- censboot(dat, boot.fun, 1000, index=surv_cols_idx)
-saveRDS(boot_res, fil="analyses/univariate/cindices_bootstraps.rds")
+saveRDS(boot_res, file="analyses/univariate/cindices_bootstraps.rds")
 
 # Now we need to extract and collate the results
 cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .combine=rbind) %do% {
@@ -116,7 +116,11 @@ cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .com
 cinds[, estimate := boot_res$t0]
 cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })]
 cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
-cinds[, pval := apply(boot_res$t, 2, function(v) {  (1 + sum(v <= 0))/(1000 + 1) })] # one-sided
+cinds[, pval := apply(boot_res$t, 2, function(v) {
+  nulls <- pmin(sum(v <= 0), sum(v >= 0))
+  n <- nrow(boot_res$t)
+  pmin(2*(nulls + 1)/(n + 1), 1) 
+})]
 
 # Cast to wide
 cinds <- dcast(cinds, sex + model + model_type + biomarker ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
@@ -236,4 +240,5 @@ dt <- dat[dt, on = .(biomarker)]
 dt <- dt[,.(model, model_type, samples, cases, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
   deltaC.pval, deltaC.fdr, pct_change, pct.L95, pct.U95)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/cindex_for_supp.txt")
+
 
