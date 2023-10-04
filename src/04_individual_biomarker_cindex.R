@@ -4,7 +4,7 @@ library(doMC)
 library(boot)
 library(survival)
 library(ggplot2)
-library(ggh4x)
+library(ggstance)
 registerDoMC(30) # Takes ~11 hours to run
 
 # Create output directory
@@ -176,49 +176,6 @@ cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/cindices.txt")
 
-# Plot delta C-index for top-10 NMR biomarkers in Sex-stratified results
-ggdt <- rbind(
-  cinds[model != "SCORE2" & sex == "Sex-stratified" & model_type == "NMR"][order(-deltaC)][1:10]
-)
-ggdt[, model := factor(model, levels=rev(unique(model)))]
-
-g <- ggplot(ggdt) +
-  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model) +
-  geom_vline(xintercept=0, linetype=2) +
-  geom_errorbarh(height=0) +
-  geom_point(shape=23, size=2, fill="white") +
-  scale_x_continuous("delta C-index (95% CI)", limits=c(0, 0.01)) +
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    legend.position="none"
-  )
-ggsave(g, width=3.5, height=2, file="analyses/univariate/top10_NMR_cindex_sex_stratified.pdf")
-
-# Plot delta C-index for top-10 assayed biomarkers in Sex-stratified results
-ggdt <- rbind(
-  cinds[model != "SCORE2" & sex == "Sex-stratified" & model_type == "assays"][order(-deltaC)][1:10]
-)
-ggdt[, model := factor(model, levels=rev(unique(model)))]
-
-g <- ggplot(ggdt) +
-  aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model) +
-  geom_vline(xintercept=0, linetype=2) +
-  geom_errorbarh(height=0) +
-  geom_point(shape=23, size=2, fill="white") +
-  scale_x_continuous("delta C-index (95% CI)", limits=c(0, 0.01)) +
-  theme_bw() +
-  theme(
-    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
-    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
-    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
-    legend.position="none"
-  )
-ggsave(g, width=3.5, height=2, file="analyses/univariate/top10_assayed_cindex_sex_stratified.pdf")
 
 # Create formatted table for manuscript
 dt <- cinds[sex == "Sex-stratified"]
@@ -236,9 +193,48 @@ dat <- dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd
 dat <- dat[biomarker == "SCORE2", biomarker := NA]
 dt <- dat[dt, on = .(biomarker)]
 
+# Compute hazard ratios
+dat <- fread("data/cleaned/analysis_cohort.txt")
+hrs <- foreach(this_var = c(test_nmr, test_assay), .combine=rbind) %do% {
+  mf <- sprintf("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2_excl_UKB) + scale(%s)", this_var)
+  cx <- coxph(as.formula(mf), data=dat)
+  cf <- coef(summary(cx))
+  ci <- confint(cx)
+  data.table(biomarker=this_var, HR=cf[2], HR.L95=exp(ci[1]), HR.U95=exp(ci[2]), HR.pval=cf[5])
+}
+hrs[, HR.fdr := p.adjust(HR.pval, method="fdr")]
+dt <- hrs[dt, on = .(biomarker)]
+
 # Reorganize columns and write out
-dt <- dt[,.(model, model_type, samples, cases, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
+dt <- dt[,.(model, model_type, samples, cases, HR, HR.L95, HR.U95, HR.pval, HR.fdr, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
   deltaC.pval, deltaC.fdr, pct_change, pct.L95, pct.U95)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/cindex_for_supp.txt")
 
+# Plot top 10 biomarkers
+ggdt <- dt[model %in% dt[,unique(model)][1:10]]
+ggdt <- rbind(
+  ggdt[,.(model, model_type, metric="HR", estimate=HR, L95=HR.L95, U95=HR.U95)],
+  ggdt[,.(model, model_type, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95)]
+)
+ggdt[, model := factor(model, levels=rev(unique(model)))]
+ggdt[, metric := factor(metric, levels=c("HR", "deltaC"))] 
+ggref <- data.table(metric=c("HR", "HR", "HR", "deltaC", "deltaC"), null=c(0.8, 1, 1.2, 0, 0.01))
+
+g <- ggplot(ggdt) +
+  aes(x=estimate, xmin=L95, xmax=U95, y=model, color=model_type) +
+  facet_grid(~ metric, scales="free_x") + 
+  geom_vline(data=ggref, aes(xintercept=null), linetype=2) +
+  geom_errorbarh(height=0, position=position_dodgev(height=0.6)) +
+  geom_point(shape=23, size=2, fill="white", position=position_dodgev(height=0.6)) +
+  scale_x_continuous("estimate (95% CI)") +
+  scale_color_manual(values=c("assays"="#aa4400", "NMR"="#8800aa")) +
+  theme_bw() +
+  theme(
+    axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
+    axis.text.x=element_text(size=6), axis.title.x=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
+    legend.position="bottom", legend.text=element_text(size=7), legend.title=element_blank()
+  )
+ggsave(g, width=7.2, height=3, file="analyses/univariate/top10_biomarkers.pdf")
 
