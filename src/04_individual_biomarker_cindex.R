@@ -20,7 +20,6 @@ dat <- fread("data/cleaned/analysis_cohort.txt")
 # Get list of biomarkers to test
 test_nmr <- nmr_info[(Nightingale), Biomarker]
 test_assay <- assay_info[sample_type != "Urine" & !is.na(UKB.Field.ID), var]
-test_assay <- setdiff(test_assay, c("hdl", "tchol"))
 
 # Build set of models to test
 model_info <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine=rbind) %:%
@@ -109,27 +108,28 @@ surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(dat))
 boot_res <- censboot(dat, boot.fun, 1000, index=surv_cols_idx)
 saveRDS(boot_res, file="analyses/univariate/cindices_bootstraps.rds")
 
-# Now we need to extract and collate the results
+# Now we need to extract and collate the relevant results
 cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .combine=rbind) %do% {
   cbind(model_info, metric = this_metric)
 }
 cinds[, estimate := boot_res$t0]
-cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })]
-cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
-cinds[, pval := apply(boot_res$t, 2, function(v) {
-  nulls <- pmin(sum(v <= 0), sum(v >= 0))
-  n <- nrow(boot_res$t)
-  pmin(2*(nulls + 1)/(n + 1), 1) 
-})]
+cinds[, SD := apply(boot_res$t, 2, sd)]
 
 # Cast to wide
-cinds <- dcast(cinds, sex + model + model_type + biomarker ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
-cinds <- cinds[,.(sex, model, model_type, biomarker,
-  C.index = estimate_C.index, C.L95 = L95_C.index, C.U95 = U95_C.index,
-  SE = estimate_SE, SE.L95 = L95_SE, SE.U95 = U95_SE,
-  deltaC = estimate_delta.C, deltaC.L95 = L95_delta.C, deltaC.U95 = U95_delta.C, deltaC.pval = pval_delta.C,
-  pct_change = estimate_pct_change, pct.L95 = L95_pct_change, pct.U95 = U95_pct_change, pct.pval = pval_pct_change
-)]
+cinds <- dcast(cinds, sex + model + model_type + biomarker ~ metric, value.var=c("estimate", "SD"))
+cinds <- cinds[,.(sex, model, model_type, biomarker, C.index = estimate_C.index, SE = estimate_SE, deltaC = estimate_delta.C, deltaC.SE=SD_delta.C)]
+cinds[model == "SCORE2", c("deltaC", "deltaC.SE") := NA]
+
+# Drop assayed HDL and total cholesterol, which were included in SCORE2 (but for which we ran the bootstraps for in the saved .rds object)
+cinds <- cinds[(biomarker != "hdl" & biomarker != "tchol") | is.na(biomarker)]
+
+# Compute 95% CIs and P-values
+cinds[, L95 := C.index - qnorm(1-(0.05/2))*SE]
+cinds[, U95 := C.index + qnorm(1-(0.05/2))*SE]
+cinds[model != "SCORE2", deltaC.L95 := deltaC - qnorm(1-(0.05/2))*deltaC.SE]
+cinds[model != "SCORE2", deltaC.U95 := deltaC + qnorm(1-(0.05/2))*deltaC.SE]
+cinds[model != "SCORE2", deltaC.pval := pmin(1, pnorm(deltaC/deltaC.SE, lower.tail=FALSE)*2)]
+cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(sex)]
 
 # Add human friendly display name
 cinds[model_type == "NMR", model := gsub("_pct", " %", model)]
@@ -170,20 +170,11 @@ cinds[model_type == "assays", model := paste("SCORE2 +", fcase(
   biomarker == "vitd25", "Vitamin D"
 ))]
 
-# Compute FDR- adjusted P-value
-cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(sex)]
-
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/univariate/cindices.txt")
 
-
 # Create formatted table for manuscript
 dt <- cinds[sex == "Sex-stratified"]
-dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
-dt[, pct.pval := NULL]
-dt[, pct_change := pct_change / 100]
-dt[, pct.L95 := pct.L95 / 100]
-dt[, pct.U95 := pct.U95 / 100]
 dt <- dt[order(-deltaC, na.last=FALSE)][order(deltaC.pval, na.last=FALSE)]
 
 # Need to also tabulate complete data
@@ -206,12 +197,12 @@ hrs[, HR.fdr := p.adjust(HR.pval, method="fdr")]
 dt <- hrs[dt, on = .(biomarker)]
 
 # Reorganize columns and write out
-dt <- dt[,.(model, model_type, samples, cases, HR, HR.L95, HR.U95, HR.pval, HR.fdr, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95,
-  deltaC.pval, deltaC.fdr, pct_change, pct.L95, pct.U95)]
+dt <- dt[,.(model, model_type, samples, cases, HR, HR.L95, HR.U95, HR.pval, HR.fdr, C.index, SE, L95, U95, deltaC, deltaC.SE, deltaC.L95, deltaC.U95, deltaC.pval, deltaC.fdr)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/cindex_for_supp.txt")
 
 # Plot top 10 biomarkers
-ggdt <- dt[model %in% dt[,unique(model)][1:10]]
+ggdt <- dt[order(-deltaC)]
+ggdt <- ggdt[model %in% ggdt[, unique(model)][1:10]]
 ggdt <- rbind(
   ggdt[,.(model, model_type, metric="HR", estimate=HR, L95=HR.L95, U95=HR.U95)],
   ggdt[,.(model, model_type, metric="deltaC", estimate=deltaC, L95=deltaC.L95, U95=deltaC.U95)]
