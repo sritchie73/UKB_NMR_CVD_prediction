@@ -31,9 +31,9 @@ dat <- dat[sex == this_sex & cvd_prediction_foldid != this_test_fold]
 
 # Extract columns required for model training
 if (this_endpoint == "CAD") {
-  dat <- dat[!(prevalent_cad) | is.na(prevalent_cad), .(eid, age, SCORE2_excl_UKB, event=incident_cad, followup=incident_cad_followup)]
+  dat <- dat[!(prevalent_cad) | is.na(prevalent_cad), .(eid, SCORE2_excl_UKB, event=incident_cad, followup=incident_cad_followup)]
 } else if (this_endpoint == "Stroke") {
-  dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, age, SCORE2_excl_UKB, event=incident_stroke, followup=incident_stroke_followup)]
+  dat <- dat[!(prevalent_stroke) | is.na(prevalent_stroke), .(eid, SCORE2_excl_UKB, event=incident_stroke, followup=incident_stroke_followup)]
 }
 
 # Allocate samples to 10-folds for cross-validation, balancing folds by cases status
@@ -46,16 +46,12 @@ fwrite(dat[,.(eid, elasticnet_cv_foldid)], sep="\t", quote=FALSE, file=sprintf("
 nmr_scaled <- fread("data/standardised/nmr_concentrations.txt")
 dat <- dat[nmr_scaled, on = .(eid), nomatch=0]
 
-# Convert age into 5-year age group centered at 60 years to match SCORE2 interaction terms
-dat[, age := (age - 60)/5]
-
 # Setup list of alpha mixing parameters to search across (controls balance of ridge vs. lasso)
 alphas <- c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1) # 0 = ridge, 1 = lasso
 
 # We're going to train two different scores: 
 # (1) Using the subset of 21 clinically accredited biomarkers (excluding 3 composite and 9 ratios, and HDL, LDL, and total cholesterol)
 # (2) Using the subset of 106 non-derived biomarkers
-
 training_runs <- foreach(this_type = c("non-derived", "clinical")) %do% {
   # Get list of candidate biomarkers
   if (this_type == "non-derived") {
@@ -67,16 +63,10 @@ training_runs <- foreach(this_type = c("non-derived", "clinical")) %do% {
   }
 
   # Set up model matrix formula
-  mf <- as.formula(sprintf("~0 + %s", 
-    paste(sprintf("age*%s", biomarkers), collapse=" + ")
-  ))
+  mf <- as.formula(sprintf("~0 + %s", paste(biomarkers, collapse=" + ")))
 
   # Create model matrix of predictor terms
   inmat <- model.matrix(mf, dat)
-
-  # Drop the age column created by the model matrix (due to the age interactions) -
-  # age is captured in the SCORE2 linear predictor offset
-  inmat <- inmat[, -which(colnames(inmat) == "age")]
 
   # Run elastinet with the given alpha
   cv.coxnet.list <- foreach(this_alpha = alphas, .inorder=TRUE) %do% {
