@@ -563,10 +563,11 @@ ggsave(g, width=7.2, height=6, file="analyses/nmr_score_training/coefficient_den
 
 # Write out table of coefficients for supp
 dt <- avg_nmr_coef[lambda.fit == "lambda.min" & type == "non-derived"]
+dt[nmr_scaling, on = .(coef=biomarker, sex), c("scaling_mean", "scaling_sd") := .(i.mean, i.sd)]
 dt[, sex := factor(sex, levels=c("Male", "Female"))]
-dt <- dcast(dt, coef ~ endpoint + sex, value.var="beta", fill=0)
-dt[nmr_scaling, on = .(coef=biomarker), c("mean", "sd") := .(i.mean, i.sd)]
-dt <- rbind(dt[!(coef %like% "^age")][order(tolower(coef))], dt[coef %like% "^age"][order(tolower(coef))])
-dt <- dt[,.(coef, mean, sd, CAD_Male, CAD_Female, Stroke_Male, Stroke_Female)]
+dt <- dcast(dt, coef ~ endpoint + sex, value.var=c("scaling_mean", "scaling_sd", "beta"), fill=0)
+dt <- dt[,.(coef, scaling_mean_Male=scaling_mean_CAD_Male, scaling_sd_Male=scaling_sd_CAD_Male, CAD_Male=beta_CAD_Male, Stroke_Male=beta_Stroke_Male,
+  scaling_mean_Female=scaling_mean_CAD_Female, scaling_sd_Female=scaling_sd_CAD_Female, CAD_Female=beta_CAD_Female, Stroke_Female=beta_Stroke_Female)]
+dt <- dt[order(tolower(coef))]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/nmr_score_training/supp_table_coefficients.txt")
   
