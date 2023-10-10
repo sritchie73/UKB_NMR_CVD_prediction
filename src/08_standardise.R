@@ -9,9 +9,10 @@ dat <- fread("data/imputed/analysis_cohort.txt")
 nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
 non_derived <- nmr_info[Type == "Non-derived", Biomarker]
 non_derived <- setdiff(non_derived, "Clinical_LDL_C")
+composite <- nmr_info[Type == "Composite", Biomarker]
 
 # Compute means and standard deviations of non-derived and composite NMR biomarkers
-nmr_long <- melt(dat, id.vars=c("eid", "sex"), measure.vars=non_derived,
+nmr_long <- melt(dat, id.vars=c("eid", "sex"), measure.vars=c(non_derived, composite),
   variable.name="biomarker", value.name="concentration")
 
 nmr_scaling <- nmr_long[,.(mean=mean(concentration), sd=sd(concentration)), by=.(sex, biomarker)]
