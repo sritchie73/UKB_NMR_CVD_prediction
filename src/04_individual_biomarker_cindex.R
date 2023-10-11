@@ -128,7 +128,7 @@ cinds[, L95 := C.index - qnorm(1-(0.05/2))*SE]
 cinds[, U95 := C.index + qnorm(1-(0.05/2))*SE]
 cinds[model != "SCORE2", deltaC.L95 := deltaC - qnorm(1-(0.05/2))*deltaC.SE]
 cinds[model != "SCORE2", deltaC.U95 := deltaC + qnorm(1-(0.05/2))*deltaC.SE]
-cinds[model != "SCORE2", deltaC.pval := pmin(1, pnorm(deltaC/deltaC.SE, lower.tail=FALSE)*2)]
+cinds[model != "SCORE2", deltaC.pval := pmin(1, pnorm(abs(deltaC/deltaC.SE), lower.tail=FALSE)*2)]
 cinds[model != "SCORE2", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(sex)]
 
 # Add human friendly display name
