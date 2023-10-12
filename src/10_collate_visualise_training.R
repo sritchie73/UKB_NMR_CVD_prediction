@@ -44,8 +44,17 @@ bestcoef <- foreach(this_test_fold = 1:5, .combine=rbind) %do% {
 }
 bestcoef <- bestcoef[!is.na(beta)]
 
+# Compute proportion of variance explained by each biomarker
+bestcoef[, r2 := beta^2]
+bestcoef[, prop_r2 := r2/sum(r2), by=.(prediction_cv_testfold, endpoint, sex, lambda.fit, type)]
+
 # Combine coefficients across test folds
-avgbestcoef <- bestcoef[,.(beta=sum(beta)/5, sd=sd(beta), min=min(beta), max=max(beta), non_zero=.N, sig=sum(round(beta, digits=3) != 0)),by=.(endpoint, sex, lambda.fit, type, coef)]
+avgbestcoef <- bestcoef[,.(
+  beta=mean(beta), min=min(beta), max=max(beta), 
+  prop_r2=mean(prop_r2), min_prop_r2=min(prop_r2), max_prop_r2=max(prop_r2), 
+  non_zero=.N, sig=sum(round(beta, digits=3) != 0)
+), by=.(endpoint, sex, lambda.fit, type, coef)]
+
 avgbestcoef <- avgbestcoef[order(-abs(beta))][order(type)][order(lambda.fit)][order(sex)][order(endpoint)]
 
 # Write out collated stats
