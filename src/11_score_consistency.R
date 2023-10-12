@@ -285,6 +285,15 @@ g2 <- clinical_vs_non_derived_scatter("lambda.min", "Stroke")
 g <- plot_grid(g1, g2, nrow=2, labels=c("CAD   ", "Stroke"), label_size=10)
 ggsave(g, width=7, height=5.5, file="analyses/nmr_score_training/clinical_vs_non_derived_biomarker_scores.pdf")
 
+# Write out full scores including training data
+full_scores <- scores[lambda.fit == "lambda.min" & type == "non-derived"]
+full_scores <- full_scores[,.(eid, sex, cvd_prediction_foldid, prediction_cv_testfold, endpoint, linear_predictor)]
+fwrite(full_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/non_derived_NMR_scores.txt")
+
+full_scores <- scores[lambda.fit == "lambda.min" & type == "clinical"]
+full_scores <- full_scores[,.(eid, sex, cvd_prediction_foldid, prediction_cv_testfold, endpoint, linear_predictor)]
+fwrite(full_scores, sep="\t", quote=FALSE, file="analyses/nmr_score_training/clinical_NMR_scores.txt")
+
 # Write out aggregate scores
 test_scores <- scores[lambda.fit == "lambda.min" & prediction_cv_testfold == cvd_prediction_foldid & type == "non-derived"]
 test_scores <- dcast(test_scores, eid  ~ endpoint, value.var="linear_predictor")
@@ -565,9 +574,9 @@ ggsave(g, width=7.2, height=6, file="analyses/nmr_score_training/coefficient_den
 dt <- avg_nmr_coef[lambda.fit == "lambda.min" & type == "non-derived"]
 dt[nmr_scaling, on = .(coef=biomarker, sex), c("scaling_mean", "scaling_sd") := .(i.mean, i.sd)]
 dt[, sex := factor(sex, levels=c("Male", "Female"))]
-dt <- dcast(dt, coef ~ endpoint + sex, value.var=c("scaling_mean", "scaling_sd", "beta"), fill=0)
-dt <- dt[,.(coef, scaling_mean_Male=scaling_mean_CAD_Male, scaling_sd_Male=scaling_sd_CAD_Male, CAD_Male=beta_CAD_Male, Stroke_Male=beta_Stroke_Male,
-  scaling_mean_Female=scaling_mean_CAD_Female, scaling_sd_Female=scaling_sd_CAD_Female, CAD_Female=beta_CAD_Female, Stroke_Female=beta_Stroke_Female)]
+dt <- dcast(dt, coef ~ endpoint + sex, value.var=c("scaling_mean", "scaling_sd", "beta", "prop_r2"), fill=0)
+dt <- dt[,.(coef, scaling_mean_Male=scaling_mean_CAD_Male, scaling_sd_Male=scaling_sd_CAD_Male, CAD_Male=beta_CAD_Male, Stroke_Male=beta_Stroke_Male, prop_r2_CAD_Male, prop_r2_Stroke_Male,
+  scaling_mean_Female=scaling_mean_CAD_Female, scaling_sd_Female=scaling_sd_CAD_Female, CAD_Female=beta_CAD_Female, Stroke_Female=beta_Stroke_Female, prop_r2_CAD_Female, prop_r2_Stroke_Female)]
 dt <- dt[order(tolower(coef))]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/nmr_score_training/supp_table_coefficients.txt")
   
