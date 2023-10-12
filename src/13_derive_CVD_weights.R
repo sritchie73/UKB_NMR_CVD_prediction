@@ -18,8 +18,9 @@ train_scores <- rbind(idcol="type",
   "clinical"=fread("analyses/nmr_score_training/clinical_NMR_scores.txt")
 )
 
-# Compute sex-specific centering factors in the reference group matched to SCORE2 risk factor reference
-# so that baseline hazards are appropriate later when computing absolute risk from combined scores
+# Define population matching SCORE2 risk factor reference distributions so that
+# we can center NMR scores and PRSs to match appropriate baseline survival used
+# by SCORE2 compute absolute risk and its subsequent recalibration
 ref_dat <- dat[
   (age >= 55 & age <= 65) &
   (is.na(smoking) | !(smoking)) &
@@ -28,6 +29,40 @@ ref_dat <- dat[
   (hdl >= 0.8 & hdl <= 1.8)
 ]
 
+# Explore distributions of SCORE2, PRSs, and NMR scores in the full training and reference populations
+comp <- train_scores[type == "non-derived"]
+comp[, dataset := ifelse(cvd_prediction_foldid == prediction_cv_testfold, "test", "training")]
+comp[, score := paste(sex, endpoint, "NMR_score", prediction_cv_testfold, dataset, sep="_")]
+comp <- comp[,.(eid, score, linear_predictor)]
+comp <- rbind(comp, melt(dat, id.vars="eid", measure.vars=c("CAD_metaGRS", "Stroke_metaGRS", "SCORE2"), variable.name="score", value.name="linear_predictor"))
+comp[dat, on = .(eid), sex := i.sex]
+comp[score %in% c("CAD_metaGRS", "Stroke_metaGRS", "SCORE2"), score := paste0(sex, "_", score)]
+score_order <- c(paste0("CAD_NMR_score_", 1:5, "_training"), paste0("CAD_NMR_score_", 1:5, "_test"), paste0("Stroke_NMR_score_", 1:5, "_training"), paste0("Stroke_NMR_score_", 1:5, "_test"))
+score_order <- c("SCORE2", "CAD_metaGRS", "Stroke_metaGRS", score_order)
+score_order <- c(paste0("Male_", score_order), paste0("Female_", score_order))
+comp[,score := factor(score, levels=score_order)]
+comp <- rbind(idcol="population",
+  "All 168,517 study participants"=comp,
+  "18,673 study participants within 1 SD of SCORE2 risk factor means"=comp[eid %in% ref_dat$eid]
+)
+comp[, population := factor(population, levels=c("All 168,517 study participants", "18,673 study participants within 1 SD of SCORE2 risk factor means"))]
+
+g <- ggplot(comp) + 
+  aes(x=linear_predictor, color=population) +
+  facet_wrap(~ score, nrow=6) +
+  geom_density() +
+  geom_vline(xintercept=0, linetype=2) +
+  xlab("Linear predictor") +
+  theme_bw() +
+  theme(
+    axis.text=element_text(size=6), axis.title=element_text(size=8),
+    strip.background=element_blank(), strip.text=element_text(size=5, face="bold"),
+    legend.position="bottom", legend.text=element_text(size=7), legend.title=element_blank()
+  )
+ggsave(g, width=12, height=8, file="analyses/CVD_weight_training/score_distributions.pdf")
+  
+# Compute sex-specific centering factors in the reference group matched to SCORE2 risk factor reference
+# so that baseline hazards are appropriate later when computing absolute risk from combined scores
 prs_scaling <- melt(ref_dat, id.vars=c("eid", "sex"), measure.vars=c("CAD_metaGRS", "Stroke_metaGRS"), variable.name="score", value.name="level")
 prs_scaling <- prs_scaling[, .(mean=mean(level)), by=.(sex, score)]
 
@@ -42,6 +77,38 @@ fwrite(nmr_score_scaling, sep="\t", quote=FALSE, file="analyses/CVD_weight_train
 dat[prs_scaling[score == "CAD_metaGRS"], on = .(sex), CAD_metaGRS := (CAD_metaGRS - i.mean)]
 dat[prs_scaling[score == "Stroke_metaGRS"], on = .(sex), Stroke_metaGRS := (Stroke_metaGRS - i.mean)]
 train_scores[nmr_score_scaling, on = .(type, sex, endpoint, prediction_cv_testfold), linear_predictor := (linear_predictor - i.mean)]
+
+# Explore distributions of SCORE2, PRSs, and NMR scores in the full training and reference populations after centering
+comp <- train_scores[type == "non-derived"]
+comp[, dataset := ifelse(cvd_prediction_foldid == prediction_cv_testfold, "test", "training")]
+comp[, score := paste(sex, endpoint, "NMR_score", prediction_cv_testfold, dataset, sep="_")]
+comp <- comp[,.(eid, score, linear_predictor)]
+comp <- rbind(comp, melt(dat, id.vars="eid", measure.vars=c("CAD_metaGRS", "Stroke_metaGRS", "SCORE2"), variable.name="score", value.name="linear_predictor"))
+comp[dat, on = .(eid), sex := i.sex]
+comp[score %in% c("CAD_metaGRS", "Stroke_metaGRS", "SCORE2"), score := paste0(sex, "_", score)]
+score_order <- c(paste0("CAD_NMR_score_", 1:5, "_training"), paste0("CAD_NMR_score_", 1:5, "_test"), paste0("Stroke_NMR_score_", 1:5, "_training"), paste0("Stroke_NMR_score_", 1:5, "_test"))
+score_order <- c("SCORE2", "CAD_metaGRS", "Stroke_metaGRS", score_order)
+score_order <- c(paste0("Male_", score_order), paste0("Female_", score_order))
+comp[,score := factor(score, levels=score_order)]
+comp <- rbind(idcol="population",
+  "All 168,517 study participants"=comp,
+  "18,673 study participants within 1 SD of SCORE2 risk factor means"=comp[eid %in% ref_dat$eid]
+)
+comp[, population := factor(population, levels=c("All 168,517 study participants", "18,673 study participants within 1 SD of SCORE2 risk factor means"))]
+
+g <- ggplot(comp) + 
+  aes(x=linear_predictor, color=population) +
+  facet_wrap(~ score, nrow=6) +
+  geom_density() +
+  geom_vline(xintercept=0, linetype=2) +
+  xlab("Linear predictor") +
+  theme_bw() +
+  theme(
+    axis.text=element_text(size=6), axis.title=element_text(size=8),
+    strip.background=element_blank(), strip.text=element_text(size=5, face="bold"),
+    legend.position="bottom", legend.text=element_text(size=7), legend.title=element_blank()
+  )
+ggsave(g, width=12, height=8, file="analyses/CVD_weight_training/score_distributions_after_centering.pdf")
 
 # Estimate per-score weights to use when combining with SCORE2 using Cox proportional hazards models
 cvd_weights <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
@@ -175,4 +242,32 @@ pred_scores <- pred_scores[, .(eid, sex, age, age_group, incident_cvd, incident_
 
 # Write out
 fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+
+# Compare abs-risk distributions 
+comp <- pred_scores[score_type == "non-derived"]
+comp <- dcast(comp, eid + sex ~ model, value.var="uk_calibrated_risk")
+comp <- melt(comp, id.vars=c("eid", "sex", "SCORE2"), variable.name="model", value.name="new_absrisk")
+
+comp[, sex := factor(sex, levels=c("Male", "Female"))]
+comp[, model := factor(model, levels=c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+
+g <- ggplot(comp) +
+  aes(x = SCORE2, y = new_absrisk) + 
+  facet_grid(sex ~ model) +
+  geom_hex() + 
+  geom_abline(slope=1, intercept=0, linetype=2, color="red") +
+  scale_fill_gradient(name="Participants", low="lightblue1", high="darkblue", trans="log10") +
+  xlab("10-year CVD risk with SCORE2 alone") +
+  ylab("10-year CVD risk with new model") +
+  theme_bw() +
+  theme(
+    axis.text=element_text(size=6), axis.title=element_text(size=8),
+    strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
+    legend.title=element_text(size=7), legend.text=element_text(size=6)
+  )
+ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/absrisk_comparisons.pdf")
+
+
+
+
 
