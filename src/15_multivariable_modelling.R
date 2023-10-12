@@ -127,7 +127,7 @@ g <- ggplot(ggdt) +
   geom_errorbar(width=0, position=position_dodge(width=0.6)) +
   geom_point(shape=23, fill="white", position=position_dodge(width=0.6)) +
   ylab("HR per SD (95% CI)") +
-  scale_x_discrete(labels=unique(structure(ggdt$variable, names=as.character(ggdt$xorder)))) +
+  scale_x_discrete(labels=structure(ggdt$variable, names=as.character(ggdt$xorder))) +
   scale_color_manual("Sex", values=c("Males"="#e41a1c", "Females"="#377eb8", "Sex-stratified"="#006d2c")) +
   theme_bw() + 
   theme(
@@ -138,7 +138,7 @@ g <- ggplot(ggdt) +
     legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=8)
   )
 
-ggsave(g, width=7, height=5, file="analyses/test/sex_specific_HRs.pdf")
+ggsave(g, width=7, height=4, file="analyses/test/sex_specific_HRs.pdf")
 
 # Construct table for supplement
 dt <- dcast(ggdt, model + variable  ~ sex, value.var=c("HR", "L95", "U95", "pval"))
