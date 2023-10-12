@@ -1,5 +1,6 @@
 library(data.table)
 library(foreach)
+library(survival)
 library(boot)
 library(ggplot2)
 library(ggstance)
@@ -82,43 +83,39 @@ cinds <- foreach(this_metric = c("C.index", "SE", "delta.C", "pct_change"), .com
   cbind(model_info, metric = this_metric)
 }
 cinds[, estimate := boot_res$t0]
-cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })] 
-cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })] 
-cinds[, pval := apply(boot_res$t, 2, function(v) {
-  nulls <- pmin(sum(v <= 0), sum(v >= 0))
-  n <- nrow(boot_res$t)
-  pmin(2*(nulls + 1)/(n + 1), 1)
-})]
+cinds[, SD := apply(boot_res$t, 2, sd)]
 
 # Cast to wide
-cinds <- dcast(cinds, sex + model + score_type ~ metric, value.var=c("estimate", "L95", "U95", "pval"))
-cinds <- cinds[,.(sex, model, score_type, 
-  C.index = estimate_C.index, C.L95 = L95_C.index, C.U95 = U95_C.index,
-  SE = estimate_SE, SE.L95 = L95_SE, SE.U95 = U95_SE, 
-  deltaC = estimate_delta.C, deltaC.L95 = L95_delta.C, deltaC.U95 = U95_delta.C, deltaC.pval = pval_delta.C,
-  pct_change = estimate_pct_change, pct.L95 = L95_pct_change, pct.U95 = U95_pct_change, pct.pval = pval_pct_change
-)]
+cinds <- dcast(cinds, sex + model + score_type ~ metric, value.var=c("estimate", "SD"))
+cinds <- cinds[,.(sex, model, score_type, C.index = estimate_C.index, SE = estimate_SE, deltaC = estimate_delta.C, deltaC.SE=SD_delta.C, pct_change=estimate_pct_change)]
+
+# Compute 95% CIs and P-values
+cinds[, L95 := C.index - qnorm(1-(0.05/2))*SE]
+cinds[, U95 := C.index + qnorm(1-(0.05/2))*SE]
+cinds[model != "SCORE2", deltaC.L95 := deltaC - qnorm(1-(0.05/2))*deltaC.SE]
+cinds[model != "SCORE2", deltaC.U95 := deltaC + qnorm(1-(0.05/2))*deltaC.SE]
+cinds[model != "SCORE2", deltaC.pval := pmin(1, pnorm(abs(deltaC/deltaC.SE), lower.tail=FALSE)*2)]
 
 # Write out
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/test/cindices.txt")
 
 # Create table for supp containing sex-stratified analysis
 dt <- cinds[sex == "Sex-stratified" & (score_type == "non-derived" | model == "SCORE2")]
-dt <- dt[order(C.index), .(model, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95, deltaC.pval, pct_change, pct.L95, pct.U95)]
-dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
+dt <- dt[order(C.index), .(model, C.index, SE, L95, U95, deltaC, deltaC.SE, deltaC.L95, deltaC.U95, deltaC.pval, pct_change)]
+dt[model == "SCORE2", c("deltaC", "pct_change") := NA]
 dt[, pct_change := pct_change / 100]
-dt[, pct.L95 := pct.L95 / 100]
-dt[, pct.U95 := pct.U95 / 100]
+dt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dt <- dt[order(model)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/sex_stratified_cindices_for_supp.txt")
 
 # Create table for supp containing sex-specific analysis
 dt <- cinds[sex != "Sex-stratified" & (score_type == "non-derived" | model == "SCORE2")]
-dt <- dt[, .(sex, model, C.index, C.L95, C.U95, SE, SE.L95, SE.U95, deltaC, deltaC.L95, deltaC.U95, deltaC.pval, pct_change, pct.L95, pct.U95)]
-dt[model == "SCORE2", c("deltaC", "deltaC.L95", "deltaC.U95", "deltaC.pval", "pct_change", "pct.L95", "pct.U95") := NA]
+dt <- dt[order(C.index), .(sex, model, C.index, SE, L95, U95, deltaC, deltaC.SE, deltaC.L95, deltaC.U95, deltaC.pval, pct_change)]
+dt[model == "SCORE2", c("deltaC", "pct_change") := NA]
 dt[, pct_change := pct_change / 100]
-dt[, pct.L95 := pct.L95 / 100]
-dt[, pct.U95 := pct.U95 / 100]
-dt <- dt[order(C.index)][order(sex)]
+dt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"))]
+dt[, sex := factor(sex, levels=c("Males", "Females"))]
+dt <- dt[order(model)][order(sex)]
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/sex_specific_cindices_for_supp.txt")
 
 # Prepare for plotting
@@ -164,7 +161,6 @@ g <- ggplot(ggdt[(is.na(score_type) | score_type == "non-derived") & sex != "Sex
   )
 ggsave(g, width=7.2, height=2, file="analyses/test/cindex_sex_specific.pdf")
 
-
 # Generate comparison plot showing clinical scores have worse performance:
 g <- ggplot(ggdt[model != "SCORE2"]) +
   aes(x=deltaC, xmin=deltaC.L95, xmax=deltaC.U95, y=model, color=score_type) +
@@ -183,10 +179,4 @@ g <- ggplot(ggdt[model != "SCORE2"]) +
     legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=8)
   )
 ggsave(g, width=7.2, height=2, file="analyses/test/cindex_with_clinical_scores.pdf")
-
-
-
-
-
-
 
