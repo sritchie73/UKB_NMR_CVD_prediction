@@ -122,6 +122,7 @@ cinds[model == "SCORE2", c("deltaC", "deltaC.SE") := NA]
 
 # Drop assayed HDL and total cholesterol, which were included in SCORE2 (but for which we ran the bootstraps for in the saved .rds object)
 cinds <- cinds[(biomarker != "hdl" & biomarker != "tchol") | is.na(biomarker)]
+test_assay <- setdiff(test_assay, c("hdl", "tchol"))
 
 # Compute 95% CIs and P-values
 cinds[, L95 := C.index - qnorm(1-(0.05/2))*SE]
@@ -228,4 +229,33 @@ g <- ggplot(ggdt) +
     legend.position="bottom", legend.text=element_text(size=7), legend.title=element_blank()
   )
 ggsave(g, width=7.2, height=3, file="analyses/univariate/top10_biomarkers.pdf")
+
+# Create supp table with sex-specific results
+dt <- cinds[sex != "Sex-stratified"]
+dt <- dt[order(-deltaC, na.last=FALSE)][order(deltaC.pval, na.last=FALSE)][order(sex)]
+dt[, sex := gsub("s$", "", sex)]
+
+# Need to also tabulate complete data
+dat <- fread("data/cleaned/analysis_cohort.txt")
+dat <- melt(dat, id.vars=c("eid", "sex", "incident_cvd"), measure.vars=c("SCORE2", test_nmr, test_assay), variable.name="biomarker")
+dat <- dat[,.(samples=sum(!is.na(value)), cases=sum(!is.na(value) & incident_cvd)), by=.(sex, biomarker)]
+dat <- dat[biomarker == "SCORE2", biomarker := NA]
+dt <- dat[dt, on = .(biomarker, sex)]
+
+# Compute hazard ratios
+dat <- fread("data/cleaned/analysis_cohort.txt")
+hrs <- foreach(this_sex = c("Male", "Female"), .combine=rbind) %:% foreach(this_var = c(test_nmr, test_assay), .combine=rbind) %do% {
+  mf <- sprintf("Surv(incident_cvd_followup, incident_cvd) ~ strata(sex) + offset(SCORE2_excl_UKB) + scale(%s)", this_var)
+  cx <- coxph(as.formula(mf), data=dat[sex == this_sex])
+  cf <- coef(summary(cx))
+  ci <- confint(cx)
+  data.table(sex=this_sex, biomarker=this_var, HR=cf[2], HR.L95=exp(ci[1]), HR.U95=exp(ci[2]), HR.pval=cf[5])
+}
+hrs[, HR.fdr := p.adjust(HR.pval, method="fdr"), by=sex]
+dt <- hrs[dt, on = .(biomarker, sex)]
+
+# Reorganize columns and write out
+dt <- dt[,.(sex, model, model_type, samples, cases, HR, HR.L95, HR.U95, HR.pval, HR.fdr, C.index, SE, L95, U95, deltaC, deltaC.SE, deltaC.L95, deltaC.U95, deltaC.pval, deltaC.fdr)]
+fwrite(dt, sep="\t", quote=FALSE, file="analyses/univariate/cindex_for_supp_sex_specific.txt")
+
 
