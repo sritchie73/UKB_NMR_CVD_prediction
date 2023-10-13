@@ -5,6 +5,7 @@ library(forcats)
 library(ggrastr)
 library(ggpp)
 library(ggh4x)
+library(scales)
 
 options("ggrastr.default.dpi" = 300)
 
@@ -35,8 +36,8 @@ cor_stats <- score_comp[x_score != y_score, {
 }, by=.(sex, x_score, y_score)]
 fwrite(cor_stats, sep="\t", quote=FALSE, file="analyses/test/pairwise_correlations_sex_specific_scores.txt")
 
-# Make pairwise scatterplots
-score_scatter <- function(score_comp) {
+# Make pairwise densities
+score_densities <- function(score_comp) {
   cor_anno <- score_comp[,.(label=sprintf("r=%.2f\np=%.2f",
     cor(x_value, y_value),
     cor(x_value, y_value, method="spearman")
@@ -44,8 +45,10 @@ score_scatter <- function(score_comp) {
 
   ggplot(score_comp) +
     aes(x=x_value, y=y_value) +
-    rasterise(geom_point(alpha=0.5, shape=19, size=0.1)) +
-    geom_smooth(method="lm", color="red", linetype=2) + 
+    geom_hex() +
+    geom_vline(xintercept=0, linetype=2) +
+    geom_hline(yintercept=0, linetype=2) +
+    scale_fill_gradient(name="Participants", low="#d9d9d9", high="#000000", trans="log10", limits=c(1, 10000), oob=squish) +
     geom_text_npc(data=cor_anno, npcx="left", npcy="top", aes(label=label), color="red", size=6*0.352777778) +
     facet_grid2(fct_rev(y_score) ~ x_score, scales="free", independent="all") +
     xlab("") + ylab("") +
@@ -53,15 +56,16 @@ score_scatter <- function(score_comp) {
     theme(
       axis.text=element_text(size=6), axis.title=element_text(size=8),
       strip.text=element_text(size=8, face="bold"), strip.background=element_blank(),
-      panel.grid=element_blank(), legend.text=element_text(size=6)
+      panel.grid=element_blank(), legend.text=element_text(size=6),
+      legend.title=element_text(size=7), aspect.ratio=1
     )
 }
 
-g1 <- score_scatter(score_comp[sex == "Male"])
-g2 <- score_scatter(score_comp[sex == "Female"])
+g1 <- score_densities(score_comp[sex == "Male"])
+g2 <- score_densities(score_comp[sex == "Female"])
 
-ggsave(g1, width=7, height=7, file="analyses/test/non_derived_score_compare_males.pdf")
-ggsave(g2, width=7, height=7, file="analyses/test/non_derived_score_compare_females.pdf")
+ggsave(g1, width=8, height=7, file="analyses/test/non_derived_score_compare_males.pdf")
+ggsave(g2, width=8, height=7, file="analyses/test/non_derived_score_compare_females.pdf")
 
 # Compare clinical NMR scores to each other
 dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
@@ -80,8 +84,8 @@ score_comp <- foreach(this_rn = unique(dat$score), .combine=rbind) %:%
 score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 
-g1 <- score_scatter(score_comp[sex == "Male"])
-g2 <- score_scatter(score_comp[sex == "Female"])
+g1 <- score_densities(score_comp[sex == "Male"])
+g2 <- score_densities(score_comp[sex == "Female"])
 
 ggsave(g1, width=7, height=7, file="analyses/test/clinical_score_compare_males.pdf")
 ggsave(g2, width=7, height=7, file="analyses/test/clinical_score_compare_females.pdf")
