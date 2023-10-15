@@ -18,7 +18,6 @@ train_scores <- rbind(idcol="type",
   "clinical"=fread("analyses/nmr_score_training/clinical_NMR_scores.txt")
 )
 
-
 # Estimate per-score weights to use when combining with SCORE2 using Cox proportional hazards models
 cvd_weights <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
   foreach(this_model = c("SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=rbind) %:%
@@ -155,6 +154,32 @@ g <- ggplot(pred_scores[score_type == "non-derived"]) +
   )
 ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/linear_predictor_densities_without_scaling.pdf")
 
+# Compare absolute risks
+pred_scores[, uncalibrated_risk := score2_absrisk(sex, linear_predictor)]
+pred_scores[, uk_calibrated_risk := score2_recalibration(sex, uncalibrated_risk, "low")]
+
+pred_score_means <- pred_scores[,.(mean=mean(uk_calibrated_risk), sd=sd(uk_calibrated_risk)), by=.(score_type, model, sex)]
+pred_score_means[, LSD := mean-sd]
+pred_score_means[, USD := mean+sd]
+
+g <- ggplot(pred_scores[score_type == "non-derived"]) +
+  aes(x=uk_calibrated_risk, color=model) +
+  facet_wrap(~ sex) +
+  geom_density(trim=TRUE) +
+  geom_vline(data=pred_score_means[score_type == "non-derived"], aes(xintercept=mean, color=model), linetype=2) +
+  geom_rect(data=pred_score_means[score_type == "non-derived"], inherit.aes=FALSE, aes(ymin=-Inf, ymax=Inf, xmin=LSD, xmax=USD, fill=model), alpha=0.2) +
+  scale_color_manual(values=c("SCORE2"="black", "SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRSs"="#377eb8", "SCORE2 + NMR scores + PRSs"="#4daf4a")) +
+  scale_fill_manual(values=c("SCORE2"="black", "SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRSs"="#377eb8", "SCORE2 + NMR scores + PRSs"="#4daf4a")) +
+  xlab("Calibrated 10-year CVD risk") +
+  ylab("Density") +
+  theme_bw() +
+  theme(
+    axis.title=element_text(size=8), axis.text=element_text(size=6), 
+    legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=7), 
+    strip.background=element_blank(), strip.text=element_text(size=7, face="bold")
+  )
+ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/uk_calibrated_risk_densities_without_scaling.pdf")
+
 # Next calculate scaling factors in 5-fold cross-validation. To do this, we need to calculate the combined linear
 # predictors in the training subsets:
 train_lps <- foreach(this_score_type = c("non-derived", "clinical"), .combine=rbind) %:%
@@ -199,7 +224,7 @@ scaling_factors <- foreach(this_score_type = c("non-derived", "clinical"), .comb
       foreach(this_test_fold = 1:5, .combine=rbind) %do% {
         this_lp <- train_lps[score_type == this_score_type & model == this_model & sex == this_sex & test_fold == this_test_fold]
         score2_lp <- train_lps[score_type == this_score_type & model == "SCORE2" & sex == this_sex & test_fold == this_test_fold]
-        
+
         # Calculate scaling factor to give the new linear predictor the same SD as SCORE2 in the given samples
         sd_score2 <- sd(score2_lp$linear_predictor)
         sd_new <- sd(this_lp$linear_predictor)
@@ -207,7 +232,7 @@ scaling_factors <- foreach(this_score_type = c("non-derived", "clinical"), .comb
 
         # Scale
         this_lp[, linear_predictor := linear_predictor * scaling_factor]
-
+ 
         # Calculate offset
         mean_score2 <- mean(score2_lp$linear_predictor)
         mean_new <- mean(this_lp$linear_predictor)
@@ -218,7 +243,7 @@ scaling_factors <- foreach(this_score_type = c("non-derived", "clinical"), .comb
 }
 
 # Apply scaling factors to predicted scores
-pred_scores[scaling_factors, on = .(score_type, model, sex, test_fold), linear_predictor := linear_predictor * scaling_factor + offset]
+pred_scores[scaling_factors, on = .(score_type, model, sex, test_fold), linear_predictor := linear_predictor * scale + offset]
 
 # Visualise distributions after transformation
 pred_score_means <- pred_scores[,.(mean=mean(linear_predictor), sd=sd(linear_predictor)), by=.(score_type, model, sex)]
@@ -258,6 +283,29 @@ pred_scores <- pred_scores[, .(eid, sex, age, age_group, incident_cvd, incident_
 
 # Write out
 fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+
+# Compare absolute risks
+pred_score_means <- pred_scores[,.(mean=mean(uk_calibrated_risk), sd=sd(uk_calibrated_risk)), by=.(score_type, model, sex)]
+pred_score_means[, LSD := mean-sd]
+pred_score_means[, USD := mean+sd]
+
+g <- ggplot(pred_scores[score_type == "non-derived"]) +
+  aes(x=uk_calibrated_risk, color=model) +
+  facet_wrap(~ sex) +
+  geom_density(trim=TRUE) +
+  geom_vline(data=pred_score_means[score_type == "non-derived"], aes(xintercept=mean, color=model), linetype=2) +
+  geom_rect(data=pred_score_means[score_type == "non-derived"], inherit.aes=FALSE, aes(ymin=-Inf, ymax=Inf, xmin=LSD, xmax=USD, fill=model), alpha=0.2) +
+  scale_color_manual(values=c("SCORE2"="black", "SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRSs"="#377eb8", "SCORE2 + NMR scores + PRSs"="#4daf4a")) +
+  scale_fill_manual(values=c("SCORE2"="black", "SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRSs"="#377eb8", "SCORE2 + NMR scores + PRSs"="#4daf4a")) +
+  xlab("Calibrated 10-year CVD risk") +
+  ylab("Density") +
+  theme_bw() +
+  theme(
+    axis.title=element_text(size=8), axis.text=element_text(size=6), 
+    legend.position="bottom", legend.title=element_blank(), legend.text=element_text(size=7), 
+    strip.background=element_blank(), strip.text=element_text(size=7, face="bold")
+  )
+ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/uk_calibrated_risk_densities_after_scaling.pdf")
 
 # Build supp table of avg weights and transformations
 dt <- cvd_weights[score_type == "non-derived", .(weight=mean(weight)), by=.(model, sex, score)]
