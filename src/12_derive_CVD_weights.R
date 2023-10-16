@@ -225,18 +225,15 @@ scaling_factors <- foreach(this_score_type = c("non-derived", "clinical"), .comb
         this_lp <- train_lps[score_type == this_score_type & model == this_model & sex == this_sex & test_fold == this_test_fold]
         score2_lp <- train_lps[score_type == this_score_type & model == "SCORE2" & sex == this_sex & test_fold == this_test_fold]
 
-        # Calculate scaling factor to give the new linear predictor the same SD as SCORE2 in the given samples
-        sd_score2 <- sd(score2_lp$linear_predictor)
-        sd_new <- sd(this_lp$linear_predictor)
-        scaling_factor <- sd_score2 / sd_new
-
-        # Scale
-        this_lp[, linear_predictor := linear_predictor * scaling_factor]
- 
-        # Calculate offset
-        mean_score2 <- mean(score2_lp$linear_predictor)
-        mean_new <- mean(this_lp$linear_predictor)
-        offset <- mean_score2 - mean_new
+        # Fit relationship between SCORE2-LP and new-LP in the same way as recalibration to make sure resulting absolute risks
+        # are calibrated to the SCORE2 low-risk population scaling factors
+        comb_lp <- this_lp[score2_lp, on = .(eid), .(eid, SCORE2_LP=i.linear_predictor, new_LP=linear_predictor)]
+        comb_lp[dat, on = .(eid), age := i.age]
+        comb_lp[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
+        comb_lp <- comb_lp[, .(SCORE2_LP=mean(SCORE2_LP), new_LP=mean(new_LP)), by=age_group]
+        l1 <- lm(comb_lp$SCORE2_LP ~ comb_lp$new_LP)
+        scaling_factor <- l1$coefficients[2]
+        offset <- l1$coefficients[1]
 
         # Return
         data.table(score_type=this_score_type, model=this_model, sex=this_sex, test_fold=this_test_fold, scale=scaling_factor, offset=offset)
