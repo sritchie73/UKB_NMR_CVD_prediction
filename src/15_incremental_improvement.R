@@ -43,7 +43,8 @@ g1 <- ggplot(cinds) +
   geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0) +
   geom_point(shape=23, size=2, fill="white") +
-  ylab("") + xlab("Change in C-index (95% CI)") +
+  scale_x_continuous("Change in C-index (95% CI)", limits=c(0, 0.03)) +
+  ylab("") + 
   theme_bw() +
   theme(
     axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
@@ -79,7 +80,7 @@ g3 <- ggplot(nri) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, fill="white", size=1.2, position=position_dodgev(height=0.3)) +
   scale_color_manual(values=c("Incident CVD cases"="#c51b7d", "Non-cases"="#4d9221")) +
-  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent) +
+  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.2)) +
   ylab("") +
   theme_bw() +
   theme(
@@ -137,7 +138,8 @@ g1 <- ggplot(cinds) +
   geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0) +
   geom_point(shape=23, size=2, fill="white") +
-  ylab("") + xlab("Change in C-index (95% CI)") +
+  scale_x_continuous("Change in C-index (95% CI)", limits=c(0, 0.03)) +
+  ylab("") + 
   theme_bw() +
   theme(
     axis.text.y=element_text(size=8, color="black"), axis.title.y=element_blank(),
@@ -176,7 +178,7 @@ g3 <- ggplot(nri) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, fill="white", size=1.2, position=position_dodgev(height=0.3)) +
   scale_color_manual(values=c("Incident CVD cases"="#c51b7d", "Non-cases"="#4d9221")) +
-  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent) +
+  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.2)) +
   ylab("") +
   theme_bw() +
   theme(
