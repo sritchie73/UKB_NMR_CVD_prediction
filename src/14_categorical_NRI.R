@@ -205,11 +205,19 @@ dt[reclassified_very_high_risk, on = .(sex, model_comparison), Cases_reclassifie
 # Add in control NRI
 dt[nri_estimates[metric == "NRI-"], on = .(sex, model_comparison), c("Control_NRI", "Control_NRI_L95", "Control_NRI_U95", "Control_NRI_Pval") := .(Estimate, L95, U95, Pval)]
 
-# How many controls are at very high risk?
-score2_v.high_risk <- reclassified[Old == ">= 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All)-sum(Cases)), by=.(sex)]
-new_v.high_risk <- reclassified[New == ">= 0.1", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
-dt[score2_v.high_risk, on = .(sex, model_comparison), Controls_v.high_risk := i.Controls]
-dt[new_v.high_risk, on = .(sex, model_comparison), Controls_v.high_risk := i.Controls]
+# How many controls are at low-to-moderate risk
+score2_low_risk <- reclassified[Old == "< 0.05" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All) - sum(Cases)), by=.(sex)]
+new_low_risk <- reclassified[New == "< 0.05", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
+dt[new_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
+
+# How many controls are reclassified as low-to-moderate risk from high risk?
+reclassified_low_risk <- reclassified[Old == "< 0.1" & New == "< 0.05", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_low_risk, on = .(sex, model_comparison), Controls_reclassified_high_to_low := i.Controls]
+
+# How many controls are reclassified as low-to-moderate risk from very high risk?
+reclassified_low_risk <- reclassified[Old == ">= 0.1" & New == "< 0.05", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
+dt[reclassified_low_risk, on = .(sex, model_comparison), Controls_reclassified_v.high_to_low := i.Controls]
 
 # How many controls are at high risk?
 score2_high_risk <- reclassified[Old == "< 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All) - sum(Cases)), by=.(sex)]
@@ -217,23 +225,15 @@ new_high_risk <- reclassified[New == "< 0.1", .(Controls=sum(All) - sum(Cases)),
 dt[score2_high_risk, on = .(sex, model_comparison), Controls_high_risk := i.Controls]
 dt[new_high_risk, on = .(sex, model_comparison), Controls_high_risk := i.Controls]
 
-# How many very high risk are reclassified as high risk?
+# How many high risk are reclassified from very high risk?
 reclassified_high_risk <- reclassified[Old == ">= 0.1" & New == "< 0.1", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
 dt[reclassified_high_risk, on = .(sex, model_comparison), Controls_reclassified_v.high_to_high := i.Controls]
 
-# How many controls are at low-to-moderate risk
-score2_low_risk <- reclassified[Old == "< 0.05" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All) - sum(Cases)), by=.(sex)]
-new_low_risk <- reclassified[New == "< 0.05", .(Controls=sum(All) - sum(Cases)), by=.(sex, model_comparison)]
-dt[score2_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
-dt[new_low_risk, on = .(sex, model_comparison), Controls_low_risk := i.Controls]
-
-# How many controls are reclassified as very high risk from low-to-moderate risk?
-reclassified_low_risk <- reclassified[Old == ">= 0.1" & New == "< 0.05", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
-dt[reclassified_low_risk, on = .(sex, model_comparison), Controls_reclassified_v.high_to_low := i.Controls]
-
-# How many controls are reclassified as very high risk from high risk?
-reclassified_low_risk <- reclassified[Old == "< 0.1" & New == "< 0.05", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
-dt[reclassified_low_risk, on = .(sex, model_comparison), Controls_reclassified_high_to_low := i.Controls]
+# How many controls are at very high risk?
+score2_v.high_risk <- reclassified[Old == ">= 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All)-sum(Cases)), by=.(sex)]
+new_v.high_risk <- reclassified[New == ">= 0.1", .(Controls=sum(All)-sum(Cases)), by=.(sex, model_comparison)]
+dt[score2_v.high_risk, on = .(sex, model_comparison), Controls_v.high_risk := i.Controls]
+dt[new_v.high_risk, on = .(sex, model_comparison), Controls_v.high_risk := i.Controls]
 
 # Write out
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/test/categorical_NRI_for_supp.txt")
