@@ -66,6 +66,20 @@ nri_estimates <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1
   }))
 }))
 
+# Compute bootstrap standard errors
+nri_bsse <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
+  rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
+    se_vec <- apply(l2$bootstrapsample, 2, sd)
+    data.table(metric=names(se_vec), SE=se_vec)
+  }))
+}))
+nri_estimates[nri_bsse, on = .(sex, model_comparison, metric), SE := i.SE]
+
+# Compute 95% CI and P-value from BSSE 
+# (Reassuringly, 95% CI are very very similar to percentile method)
+nri_estimates[, L95 := Estimate - qnorm(1-(0.05/2))*SE]
+nri_estimates[, U95 := Estimate + qnorm(1-(0.05/2))*SE]
+nri_estimates[, Pval := pmin(1, pnorm(abs(Estimate/SE), lower.tail=FALSE)*2)]
 
 # Extract tables of reclassifications for categorical nris
 reclassified_cases <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
@@ -100,7 +114,7 @@ ggdt[, sex := factor(sex, levels=c("Males", "Females", "Sex-stratified"))]
 ggdt[, model_comparison := factor(model_comparison, levels=c("SCORE2 vs. SCORE2 + NMR scores", "SCORE2 vs. SCORE2 + PRSs", "SCORE2 vs. SCORE2 + NMR scores + PRSs"))]
 
 g <- ggplot(ggdt) +
-  aes(x=Estimate, xmin=Lower, xmax=Upper, y=fct_rev(model_comparison), color=type) +
+  aes(x=Estimate, xmin=L95, xmax=U95, y=fct_rev(model_comparison), color=type) +
   facet_grid(~ sex) +
   geom_vline(xintercept=0, linetype=2) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
@@ -156,17 +170,7 @@ dt[, model := factor(model, levels=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + 
 dt <- dt[order(model)][order(sex)]
 
 # Add in case NRI
-dt[nri_estimates[metric == "NRI+"], on = .(sex, model_comparison), c("Case_NRI", "Case_NRI_L95", "Case_NRI_U95") := .(Estimate, Lower, Upper)]
-
-# Compute bootstrap P-value
-case_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
-  rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
-    nulls <- pmin(sum(l2$bootstrapsample[, "NRI+"] <= 0), sum(l2$bootstrapsample[, "NRI+"] >= 0))
-    n <- nrow(l2$bootstrapsample)
-    data.table("pval"=pmin(2*(nulls + 1)/(n + 1), 1))
-  }))
-}))
-dt[case_NRI_pval, on = .(sex, model_comparison), Case_NRI_pval := i.pval]
+dt[nri_estimates[metric == "NRI+"], on = .(sex, model_comparison), c("Case_NRI", "Case_NRI_L95", "Case_NRI_U95", "Case_NRI_Pval") := .(Estimate, L95, U95, Pval)]
 
 # How many cases are at low-to-moderate risk?
 score2_low_risk <- reclassified[Old == "< 0.05" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Cases=sum(Cases)), by=.(sex)]
@@ -199,17 +203,7 @@ reclassified_very_high_risk <- reclassified[Old == "< 0.1" & New == ">= 0.1", .(
 dt[reclassified_very_high_risk, on = .(sex, model_comparison), Cases_reclassified_high_to_v.high := i.Cases]
 
 # Add in control NRI
-dt[nri_estimates[metric == "NRI-"], on = .(sex, model_comparison), c("Control_NRI", "Control_NRI_L95", "Control_NRI_U95") := .(Estimate, Lower, Upper)]
-
-# Compute bootstrap P-value
-control_NRI_pval <- rbindlist(idcol="sex", fill=TRUE, lapply(nri_lists, function(l1) {
-  rbindlist(idcol="model_comparison", fill=TRUE, lapply(l1, function(l2) {
-    nulls <- pmin(sum(l2$bootstrapsample[, "NRI-"] <= 0), sum(l2$bootstrapsample[, "NRI-"] >= 0))
-    n <- nrow(l2$bootstrapsample)
-    data.table("pval"=pmin(2*(nulls + 1)/(n + 1), 1))
-  }))
-}))
-dt[control_NRI_pval, on = .(sex, model_comparison), Control_NRI_pval := i.pval]
+dt[nri_estimates[metric == "NRI-"], on = .(sex, model_comparison), c("Control_NRI", "Control_NRI_L95", "Control_NRI_U95", "Control_NRI_Pval") := .(Estimate, L95, U95, Pval)]
 
 # How many controls are at very high risk?
 score2_v.high_risk <- reclassified[Old == ">= 0.1" & model_comparison == "SCORE2 vs. SCORE2 + PRSs", .(model_comparison="SCORE2", Controls=sum(All)-sum(Cases)), by=.(sex)]
