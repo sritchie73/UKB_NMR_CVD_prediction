@@ -80,7 +80,7 @@ g3 <- ggplot(nri) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, fill="white", size=1.2, position=position_dodgev(height=0.3)) +
   scale_color_manual(values=c("Incident CVD cases"="#c51b7d", "Non-cases"="#4d9221")) +
-  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.2)) +
+  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.16)) +
   ylab("") +
   theme_bw() +
   theme(
@@ -178,7 +178,7 @@ g3 <- ggplot(nri) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, fill="white", size=1.2, position=position_dodgev(height=0.3)) +
   scale_color_manual(values=c("Incident CVD cases"="#c51b7d", "Non-cases"="#4d9221")) +
-  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.2)) +
+  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.16)) +
   ylab("") +
   theme_bw() +
   theme(
