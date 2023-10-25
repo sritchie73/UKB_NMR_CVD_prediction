@@ -106,7 +106,6 @@ boot_func <- function(dt) {
 surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(pred_risk))
 boot_res <- censboot(pred_risk, boot_func, 1000, index=surv_cols_idx) 
 saveRDS(boot_res, "analyses/public_health_modelling/bootstraps.rds")
-stop()
 
 # Extract bootstrap statistics
 boot_stats <- foreach(this_bootstrap = 0:1000, .combine=rbind) %do% {
@@ -135,16 +134,16 @@ pop_boot <- foreach(this_bootstrap = 0:1000, .combine=rbind) %:%
     this_boot_stats <- boot_stats[this_bootstrap == bootstrap & model == "SCORE2"] 
   }
 
-  this_boot[this_boot_stats[stats == "pct_v.high_risk" & incident_cvd], on = .(sex, age_group), v.high_risk_cases := floor(cases * i.value)]
-  this_boot[this_boot_stats[stats == "pct_high_risk" & incident_cvd], on = .(sex, age_group), high_risk_cases := floor(cases * i.value)]
+  this_boot[this_boot_stats[stats == "pct_v.high_risk" & incident_cvd], on = .(sex, age_group), v.high_risk_cases := cases * i.value]
+  this_boot[this_boot_stats[stats == "pct_high_risk" & incident_cvd], on = .(sex, age_group), high_risk_cases := cases * i.value]
 
-  this_boot[this_boot_stats[stats == "pct_v.high_risk" & !(incident_cvd)], on = .(sex, age_group), v.high_risk_controls := floor(controls * i.value)]
-  this_boot[this_boot_stats[stats == "pct_high_risk" & !(incident_cvd)], on = .(sex, age_group), high_risk_controls := floor(controls * i.value)]
+  this_boot[this_boot_stats[stats == "pct_v.high_risk" & !(incident_cvd)], on = .(sex, age_group), v.high_risk_controls := controls * i.value]
+  this_boot[this_boot_stats[stats == "pct_high_risk" & !(incident_cvd)], on = .(sex, age_group), high_risk_controls := controls * i.value]
 
   if (this_strategy == "targeted") {
     this_boot_stats <- boot_stats[this_bootstrap == bootstrap & model == this_model & stats == "pct_reclassified_to_v.high_risk"]
-    this_boot[this_boot_stats[(incident_cvd)], on = .(sex, age_group), reclassified_cases := floor(high_risk_cases * i.value)]
-    this_boot[this_boot_stats[!(incident_cvd)], on = .(sex, age_group), reclassified_controls := floor(high_risk_controls * i.value)]
+    this_boot[this_boot_stats[(incident_cvd)], on = .(sex, age_group), reclassified_cases := high_risk_cases * i.value]
+    this_boot[this_boot_stats[!(incident_cvd)], on = .(sex, age_group), reclassified_controls := high_risk_controls * i.value]
     this_boot[, reclassified := reclassified_cases + reclassified_controls]
   } else {
     this_boot[, reclassified_cases := 0]
@@ -160,77 +159,73 @@ pop_boot <- foreach(this_bootstrap = 0:1000, .combine=rbind) %:%
 
 # Compute additional statistics
 pop_boot[, cases_treated := v.high_risk_cases + reclassified_cases]
+pop_boot[, pct_cases_treated := cases_treated / cases]
 pop_boot[, N_treated := cases_treated + v.high_risk_controls + reclassified_controls]
-pop_boot[, events_prevented := floor(v.high_risk_cases * 0.2) + floor(reclassified_cases * 0.2)] # assuming 20% reduction due to statins
-pop_boot[, additional_prevented := floor(reclassified_cases * 0.2)] # Just set of additional events prevented by targeted screening
-pop_boot[, NNS := ceiling(N / events_prevented)] # Number needed to screen per event prevented
-pop_boot[, NNT := ceiling(N_treated / events_prevented)] # Number of statins prescribed per event prevented
+pop_boot[, events_prevented := (v.high_risk_cases + reclassified_cases) * 0.2] # assuming 20% reduction due to statins
+pop_boot[, additional_prevented := reclassified_cases * 0.2] # Just set of additional events prevented by targeted screening
+pop_boot[, NNS := N / events_prevented] # Number needed to screen per event prevented
+pop_boot[, NNT := N_treated / events_prevented] # Number of statins prescribed per event prevented
 
 # Write out
 fwrite(pop_boot, sep="\t", quote=FALSE, file="analyses/public_health_modelling/simulated_pop_stratified_with_bootstraps.txt")
 
-# Function for computing two-sided bootstrap p-value
-boot.p <- function(boots) {
-  nulls <- pmin(sum(boots >= 0, na.rm=TRUE), sum(boots <= 0, na.rm=TRUE))
-  pval <- 2*(nulls + 1)/(length(boots) + 1)
-  pmin(pval, 1)
-}
-
-# Get 95% CIs within each sex and age-group
-group_estimates <- melt(pop_boot, id.vars=c("bootstrap", "model", "strategy", "sex", "age_group", "N", "cases", "controls"), variable.name="metric")
-group_ref <- group_estimates[model == "SCORE2" & strategy == "population-wide"] # for computing deltas and P-values
-group_deltas <- copy(group_estimates) # for computing deltas and P-values
-
-group_estimates <- group_estimates[, .(estimate=value[1], L95=sort(value[-1])[25], U95=sort(value[-1])[975]), by=.(sex, age_group, model, strategy, metric)]
-group_deltas[group_ref, on = .(bootstrap, sex, age_group, metric), ref := i.value]
-group_deltas[, delta := value - ref]
-group_deltas <- group_deltas[, .(delta=delta[1], delta.L95=sort(delta[-1])[25], delta.U95=sort(delta[-1])[975], delta.pval=boot.p(delta[-1])), by=.(sex, age_group, model, strategy, metric)]
-group_estimates[group_deltas, on = .(sex, age_group, model, strategy, metric), c("delta", "delta.L95", "delta.U95", "delta.pval") := .(delta, delta.L95, delta.U95, delta.pval)]
-group_estimates[model == "SCORE2" & strategy == "population-wide", c("delta", "delta.L95", "delta.U95", "delta.pval") := NA]
-
-fwrite(group_estimates, sep="\t", quote=FALSE, file="analyses/public_health_modelling/simulated_pop_stratified_sex_and_age_specific.txt")
-
-# Now aggregate across all age-groups
-sex_estimates <- melt(pop_boot, id.vars=c("bootstrap", "model", "strategy", "sex", "age_group"), variable.name="metric")
-sex_estimates <- sex_estimates[!(metric %in% c("NNS", "NNT"))] # Need recomputing after summing
-sex_estimates <- sex_estimates[, .(value=sum(value)), by=.(bootstrap, model, strategy, sex, metric)]
-sex_estimates <- dcast(sex_estimates, bootstrap + model + strategy + sex ~ metric, value.var="value")
-sex_estimates[, NNS := ceiling(N / events_prevented)]
-sex_estimates[, NNT := ceiling(N_treated / events_prevented)]
-
-sex_estimates <- melt(sex_estimates, id.vars=c("bootstrap", "model", "strategy", "sex", "N", "cases", "controls"), variable.name="metric")
-sex_ref <- sex_estimates[model == "SCORE2" & strategy == "population-wide"]
-sex_deltas <- copy(sex_estimates)
-
-sex_estimates <- sex_estimates[, .(estimate=value[1], L95=sort(value[-1])[25], U95=sort(value[-1])[975]), by=.(sex, model, strategy, metric)]
-sex_deltas[sex_ref, on = .(bootstrap, sex, metric), ref := i.value]
-sex_deltas[, delta := value - ref]
-sex_deltas <- sex_deltas[, .(delta=delta[1], delta.L95=sort(delta[-1])[25], delta.U95=sort(delta[-1])[975], delta.pval=boot.p(delta[-1])), by=.(sex, model, strategy, metric)]
-sex_estimates[sex_deltas, on = .(sex, model, strategy, metric), c("delta", "delta.L95", "delta.U95", "delta.pval") := .(delta, delta.L95, delta.U95, delta.pval)]
-sex_estimates[model == "SCORE2" & strategy == "population-wide", c("delta", "delta.L95", "delta.U95", "delta.pval") := NA]
-
-fwrite(sex_estimates, sep="\t", quote=FALSE, file="analyses/public_health_modelling/simulated_pop_stratified_sex_specific.txt")
-
-# Now combine males and females as well
+# Compute aggregate statistics, bootstrap SE, 95% CI and P-values in the whole simulated population
 agg_estimates <- melt(pop_boot, id.vars=c("bootstrap", "model", "strategy", "sex", "age_group"), variable.name="metric")
-agg_estimates <- agg_estimates[!(metric %in% c("NNS", "NNT"))] # Need recomputing after summing
+agg_estimates <- agg_estimates[!(metric %in% c("NNS", "NNT", "pct_cases_treated"))] # Need recomputing after summing
 agg_estimates <- agg_estimates[, .(value=sum(value)), by=.(bootstrap, model, strategy, metric)]
 agg_estimates <- dcast(agg_estimates, bootstrap + model + strategy ~ metric, value.var="value")
-agg_estimates[, NNS := ceiling(N / events_prevented)]
-agg_estimates[, NNT := ceiling(N_treated / events_prevented)]
+agg_estimates[, pct_cases_treated := cases_treated / cases]
+agg_estimates[, NNS := N / events_prevented]
+agg_estimates[, NNT := N_treated / events_prevented]
 
 agg_estimates <- melt(agg_estimates, id.vars=c("bootstrap", "model", "strategy", "N", "cases", "controls"), variable.name="metric")
 agg_ref <- agg_estimates[model == "SCORE2" & strategy == "population-wide"]
 agg_deltas <- copy(agg_estimates)
 
-agg_estimates <- agg_estimates[, .(estimate=value[1], L95=sort(value[-1])[25], U95=sort(value[-1])[975]), by=.(model, strategy, metric)]
+agg_estimates <- agg_estimates[, .(estimate=value[1], SE=sd(value[-1])), by=.(model, strategy, metric)]
+agg_estimates[, L95 := estimate - qnorm(1-(0.05/2))*SE]
+agg_estimates[, U95 := estimate + qnorm(1-(0.05/2))*SE]
+
 agg_deltas[agg_ref, on = .(bootstrap, metric), ref := i.value]
 agg_deltas[, delta := value - ref]
-agg_deltas <- agg_deltas[, .(delta=delta[1], delta.L95=sort(delta[-1])[25], delta.U95=sort(delta[-1])[975], delta.pval=boot.p(delta[-1])), by=.(model, strategy, metric)]
-agg_estimates[agg_deltas, on = .(model, strategy, metric), c("delta", "delta.L95", "delta.U95", "delta.pval") := .(delta, delta.L95, delta.U95, delta.pval)]
-agg_estimates[model == "SCORE2" & strategy == "population-wide", c("delta", "delta.L95", "delta.U95", "delta.pval") := NA]
+agg_deltas <- agg_deltas[, .(delta=delta[1], delta.SE=sd(delta[-1])), by=.(model, strategy, metric)]
+agg_deltas[, delta.L95 := delta - qnorm(1-(0.05/2))*delta.SE]
+agg_deltas[, delta.U95 := delta + qnorm(1-(0.05/2))*delta.SE]
+agg_deltas[, delta.pval := pmin(1, pnorm(abs(delta/delta.SE), lower.tail=FALSE)*2)]
+
+agg_estimates[agg_deltas, on = .(model, strategy, metric), c("delta", "delta.SE", "delta.L95", "delta.U95", "delta.pval") := .(delta, delta.SE, delta.L95, delta.U95, delta.pval)]
+agg_estimates[model == "SCORE2" & strategy == "population-wide", c("delta", "delta.SE", "delta.L95", "delta.U95", "delta.pval") := NA]
 
 fwrite(agg_estimates, sep="\t", quote=FALSE, file="analyses/public_health_modelling/simulated_pop_stratified.txt")
+
+# Compute sex-specific aggregate statistics, bootstrap SE, 95% CI and P-values
+sex_estimates <- melt(pop_boot, id.vars=c("bootstrap", "model", "strategy", "sex", "age_group"), variable.name="metric")
+sex_estimates <- sex_estimates[!(metric %in% c("NNS", "NNT", "pct_cases_treated"))] # Need recomputing after summing
+sex_estimates <- sex_estimates[, .(value=sum(value)), by=.(bootstrap, model, strategy, sex, metric)]
+sex_estimates <- dcast(sex_estimates, bootstrap + model + strategy + sex ~ metric, value.var="value")
+sex_estimates[, pct_cases_treated := cases_treated / cases]
+sex_estimates[, NNS := N / events_prevented]
+sex_estimates[, NNT := N_treated / events_prevented]
+
+sex_estimates <- melt(sex_estimates, id.vars=c("bootstrap", "model", "strategy", "sex", "N", "cases", "controls"), variable.name="metric")
+sex_ref <- sex_estimates[model == "SCORE2" & strategy == "population-wide"]
+sex_deltas <- copy(sex_estimates)
+
+sex_estimates <- sex_estimates[, .(estimate=value[1], SE=sd(value[-1])), by=.(model, strategy, sex, metric)]
+sex_estimates[, L95 := estimate - qnorm(1-(0.05/2))*SE]
+sex_estimates[, U95 := estimate + qnorm(1-(0.05/2))*SE]
+
+sex_deltas[sex_ref, on = .(bootstrap, sex, metric), ref := i.value]
+sex_deltas[, delta := value - ref]
+sex_deltas <- sex_deltas[, .(delta=delta[1], delta.SE=sd(delta[-1])), by=.(model, strategy, sex, metric)]
+sex_deltas[, delta.L95 := delta - qnorm(1-(0.05/2))*delta.SE]
+sex_deltas[, delta.U95 := delta + qnorm(1-(0.05/2))*delta.SE]
+sex_deltas[, delta.pval := pmin(1, pnorm(abs(delta/delta.SE), lower.tail=FALSE)*2)]
+
+sex_estimates[sex_deltas, on = .(model, strategy, sex, metric), c("delta", "delta.SE", "delta.L95", "delta.U95", "delta.pval") := .(delta, delta.SE, delta.L95, delta.U95, delta.pval)]
+sex_estimates[model == "SCORE2" & strategy == "population-wide", c("delta", "delta.SE", "delta.L95", "delta.U95", "delta.pval") := NA]
+
+fwrite(sex_estimates, sep="\t", quote=FALSE, file="analyses/public_health_modelling/simulated_pop_stratified_sex_specific.txt")
 
 # Build supp tables
 long <- rbind(agg_estimates, sex_estimates, fill=TRUE)
@@ -243,28 +238,28 @@ dt <- foreach(this_strategy = c("population-wide", "targeted"), .combine=rbind) 
 }
 
 dt[long[metric == "N_treated"], on = .(strategy, sex, model),
-  c("N_treated", "N_treated.L95", "N_treated.U95", "delta.N_treated", "delta.N_treated.L95", "delta.N_treated.U95", "delta.N_treated.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
+  c("N_treated", "N_treated.SE", "N_treated.L95", "N_treated.U95", "delta.N_treated", "delta.N_treated.SE", "delta.N_treated.L95", "delta.N_treated.U95", "delta.N_treated.pval") :=
+  .(i.estimate, i.SE, i.L95, i.U95, i.delta, i.delta.SE, i.delta.L95, i.delta.U95, i.delta.pval)
 ]
 
 dt[long[metric == "cases_treated"], on = .(strategy, sex, model),
-  c("cases_treated", "cases_treated.L95", "cases_treated.U95", "delta.cases_treated", "delta.cases_treated.L95", "delta.cases_treated.U95", "delta.cases_treated.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
+  c("cases_treated", "cases_treated.SE", "cases_treated.L95", "cases_treated.U95", "delta.cases_treated", "delta.cases_treated.SE", "delta.cases_treated.L95", "delta.cases_treated.U95", "delta.cases_treated.pval") :=
+  .(i.estimate, i.SE, i.L95, i.U95, i.delta, i.delta.SE, i.delta.L95, i.delta.U95, i.delta.pval)
 ]
 
 dt[long[metric == "events_prevented"], on = .(strategy, sex, model),
-  c("events_prevented", "events_prevented.L95", "events_prevented.U95", "delta.events_prevented", "delta.events_prevented.L95", "delta.events_prevented.U95", "delta.events_prevented.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
+  c("events_prevented", "events_prevented.SE", "events_prevented.L95", "events_prevented.U95", "delta.events_prevented", "delta.events_prevented.SE", "delta.events_prevented.L95", "delta.events_prevented.U95", "delta.events_prevented.pval") :=
+  .(i.estimate, i.SE, i.L95, i.U95, i.delta, i.delta.SE, i.delta.L95, i.delta.U95, i.delta.pval)
 ]
 
 dt[long[metric == "NNS"], on = .(strategy, sex, model),
-  c("NNS", "NNS.L95", "NNS.U95", "delta.NNS", "delta.NNS.L95", "delta.NNS.U95", "delta.NNS.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
+  c("NNS", "NNS.SE", "NNS.L95", "NNS.U95", "delta.NNS", "delta.NNS.SE", "delta.NNS.L95", "delta.NNS.U95", "delta.NNS.pval") :=
+  .(i.estimate, i.SE, i.L95, i.U95, i.delta, i.delta.SE, i.delta.L95, i.delta.U95, i.delta.pval)
 ]
 
 dt[long[metric == "NNT"], on = .(strategy, sex, model),
-  c("NNT", "NNT.L95", "NNT.U95", "delta.NNT", "delta.NNT.L95", "delta.NNT.U95", "delta.NNT.pval") :=
-  .(i.estimate, i.L95, i.U95, i.delta, i.delta.L95, i.delta.U95, i.delta.pval)
+  c("NNT", "NNT.SE", "NNT.L95", "NNT.U95", "delta.NNT", "delta.NNT.SE", "delta.NNT.L95", "delta.NNT.U95", "delta.NNT.pval") :=
+  .(i.estimate, i.SE, i.L95, i.U95, i.delta, i.delta.SE, i.delta.L95, i.delta.U95, i.delta.pval)
 ]
 
 fwrite(dt, sep="\t", quote=FALSE, file="analyses/public_health_modelling/screening_table_for_supp.txt")
@@ -333,5 +328,5 @@ g2 <- ggplot(ggdt[model != "SCORE2" & sex == "Female"]) +
   )
 
 g <- plot_grid(g1, g2, nrow=2, align="hv") 
-ggsave(g, width=7.2, height=2, file="analyses/public_health_modelling/screening_comparison_sex_specific.pdf")
+ggsave(g, width=7.2, height=4, file="analyses/public_health_modelling/screening_comparison_sex_specific.pdf")
 
