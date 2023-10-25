@@ -24,9 +24,8 @@ ons_pop[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
 ons_pop <- ons_pop[, .(N=sum(N)), by=.(sex, age_group)]
 
 # Standardise population to 100,000 individuals
-# Note number will be slightly less to avoid fractional people
 total <- ons_pop[,sum(N)]
-ons_pop[, N := floor(N/total * 100000)]
+ons_pop[, N := N/total * 100000]
 
 # Age- and sex-specific incidence rates (per 1000 person-years) of CVD 
 # among CPRD participants (n=3,117,544) from the Appendix table of 
@@ -61,7 +60,7 @@ CPRD[, annual_incidence := rate_per_1000py / 1000]
 CPRD[, expected_risk := 1 -exp(-annual_incidence * 10)]
 
 # Estimate number of cases in ONS population
-ons_pop[CPRD, on = .(sex, age_group), cases := floor(N * expected_risk)]
+ons_pop[CPRD, on = .(sex, age_group), cases := N * expected_risk]
 ons_pop[, controls := N - cases]
 
 # Summarise all to population totals

@@ -5,6 +5,8 @@ library(boot)
 library(ggplot2)
 library(forcats)
 library(cowplot)
+library(doMC)
+registerDoMC(6)
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
@@ -61,7 +63,7 @@ boot_func <- function(dt) {
     foreach(this_model=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=c) %:% 
       foreach(this_cvd=c(TRUE, FALSE), .combine=c) %:% 
         foreach(this_age_group=c("40-44", "45-49", "50-54", "55-59", "60-64", "65-69"), .combine=c) %:%
-          foreach(this_sex=c("Male", "Female"), .combine=c) %do% {
+          foreach(this_sex=c("Male", "Female"), .combine=c) %dopar% {
 
     # Filter input dataset:
     this_dt <- dt[sex == this_sex & age_group == this_age_group & !xor(incident_cvd, this_cvd)]
@@ -102,8 +104,9 @@ boot_func <- function(dt) {
 
 # Run bootstrap analysis
 surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(pred_risk))
-boot_res <- censboot(pred_risk, boot_func, 1000, index=surv_cols_idx) # Takes about 1 hour without parallelisation
+boot_res <- censboot(pred_risk, boot_func, 1000, index=surv_cols_idx) 
 saveRDS(boot_res, "analyses/public_health_modelling/bootstraps.rds")
+stop()
 
 # Extract bootstrap statistics
 boot_stats <- foreach(this_bootstrap = 0:1000, .combine=rbind) %do% {
@@ -168,7 +171,7 @@ fwrite(pop_boot, sep="\t", quote=FALSE, file="analyses/public_health_modelling/s
 
 # Function for computing two-sided bootstrap p-value
 boot.p <- function(boots) {
-  nulls <- pmin(sum(boots >= 0), sum(boots <= 0))
+  nulls <- pmin(sum(boots >= 0, na.rm=TRUE), sum(boots <= 0, na.rm=TRUE))
   pval <- 2*(nulls + 1)/(length(boots) + 1)
   pmin(pval, 1)
 }
