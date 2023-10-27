@@ -37,11 +37,16 @@ Folders tracked here:
    and verbal interview questions.
 
  - NMR_metabolomics/: scripts and information used to extract the NMR metabolomics biomarkers and adjust them for 
-   technical variation using the ukbnmr package.
+   technical variation. Please note these scripts are specifically designed to work on the pre-release data provided
+   to us directly by Nightingale Health as part of project 30418, which include additional technical replicates 
+   and technical covariates not made publicly available by UK Biobank. The ukbnmr R package is designed to be used
+   on the NMR data obtained directly from UK Biobank, see https://github.com/sritchie73/ukbnmr/.
 
  - PGS_resources/: tool for downloading PGS from the PGS catalog and general purpose pipeline I've developed for 
    computing polygenic score levels from genotype data and one or more files of varaint weights. The scripts have 
-   several hard coded aspects (to make them runnable by others in the location on the cluster they live in).
+   several hard coded aspects (to make them runnable by others in the location on the cluster they live in). Please 
+   note we have developed a general purpose PGS calculator pipeline for use by the community which should be used 
+   instead of these scripts: https://pgsc-calc.readthedocs.io/en/latest/
 
  - smoking/: scripts and information used to extract and curate smoking status and related variables from UK Biobank
    touchscreen survey data.
