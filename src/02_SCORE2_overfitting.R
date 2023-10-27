@@ -1,6 +1,7 @@
 library(data.table)
 library(foreach)
 library(doMC)
+library(survival)
 library(boot)
 library(ggplot2)
 registerDoMC(6) # bootstraps take ~ 30 mins
