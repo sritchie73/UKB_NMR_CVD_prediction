@@ -2,9 +2,7 @@ library(data.table)
 library(foreach)
 library(doMC)
 library(survival)
-library(boot)
 library(ggplot2)
-registerDoMC(6) # bootstraps take ~ 30 mins
 
 system("mkdir -p analyses/test/")
 
@@ -21,56 +19,38 @@ model_info <- foreach(this_sex=c("Males", "Females", "Sex-stratified"), .combine
 strata_num <- dat[,.GRP, by=sex]
 dat[strata_num, on = .(sex), sex_int := i.GRP]
 
-# Filter to relevant columns for bootstrap tests
+# Filter to relevant columns for testing
 dat <- dat[,.(eid, sex, sex_int, incident_cvd, incident_cvd_followup, SCORE2, SCORE2_excl_UKB)]
 
-# Create bootstrap function that: 
-# (1) calculates the absolute C-index for each model
-# (2) calculates the C-index standard error for each model
-boot.fun <- function(dt) {
-  model_cinds <- foreach(midx = model_info[,.I], .combine=rbind) %dopar% {
-    this_minfo <- model_info[midx]
-    if (this_minfo$sex == "Sex-stratified") {
-      this_y <- Surv(dt[["incident_cvd_followup"]], dt[["incident_cvd"]])
-      this_x <- dt[[this_minfo$model]]
-      cf <- survival::concordancefit(y = this_y, x = this_x, strata = dt[["sex_int"]], reverse = TRUE, timefix = TRUE)
-    } else {
-      this_dt <- dt[sex == gsub("s$", "", this_minfo$sex)]
-      this_y <- Surv(this_dt[["incident_cvd_followup"]], this_dt[["incident_cvd"]])
-      this_x <- this_dt[[this_minfo$model]]
-      cf <- survival::concordancefit(y = this_y, x = this_x, reverse = TRUE, timefix = TRUE)
-    }
-    cbind(this_minfo, C.index=cf$concordance, SE=sqrt(cf$var)) # jackknife SE computed same way as in coxph()
+# Comput C-index and jacknife SE for each model
+cinds <- foreach(midx = model_info[,.I], .combine=rbind) %do% {
+  this_minfo <- model_info[midx]
+  if (this_minfo$sex == "Sex-stratified") {
+    this_y <- Surv(dat[["incident_cvd_followup"]], dat[["incident_cvd"]])
+    this_x <- dat[[this_minfo$model]]
+    cf <- survival::concordancefit(y = this_y, x = this_x, strata = dat[["sex_int"]], reverse = TRUE, timefix = TRUE)
+  } else {
+    this_dt <- dat[sex == gsub("s$", "", this_minfo$sex)]
+    this_y <- Surv(this_dt[["incident_cvd_followup"]], this_dt[["incident_cvd"]])
+    this_x <- this_dt[[this_minfo$model]]
+    cf <- survival::concordancefit(y = this_y, x = this_x, reverse = TRUE, timefix = TRUE)
   }
-  # Need to return as flat vector
-  res <- melt(model_cinds, measure.vars=c("C.index", "SE"))
-  res$value
+  cbind(this_minfo, C.index=cf$concordance, SE=sqrt(cf$var)) # jackknife SE computed same way as in coxph()
 }
 
-surv_cols_idx <- match(c("incident_cvd_followup", "incident_cvd"), names(dat))
-boot_res <- censboot(dat, boot.fun, 1000, index=surv_cols_idx)
-saveRDS(boot_res, fil="analyses/test/SCORE2_overfitting_bootstraps.rds")
+# Compute 95% CI
+cinds[, L95 := C.index - qnorm(1-(0.05/2))*SE]
+cinds[, U95 := C.index + qnorm(1-(0.05/2))*SE]
 
-# Now we need to extract and collate the results
-cinds <- foreach(this_metric = c("C.index", "SE"), .combine=rbind) %do% {
-  cbind(model_info, metric = this_metric)
-}
-cinds[, estimate := boot_res$t0]
-cinds[, L95 := apply(boot_res$t, 2, function(v) {  sort(v)[25] })]
-cinds[, U95 := apply(boot_res$t, 2, function(v) {  sort(v)[975] })]
-
-# Cast to wide
-cinds <- dcast(cinds, sex + model ~ metric, value.var=c("estimate", "L95", "U95"))
-cinds <- cinds[,.(sex, SCORE2_method = ifelse(model == "SCORE2", "Weights derived from all datasets", "Weights derived excluding UK Biobank"),
-  C.index = estimate_C.index, C.L95 = L95_C.index, C.U95 = U95_C.index,
-  SE = estimate_SE, SE.L95 = L95_SE, SE.U95 = U95_SE
-)]
+# organise columns and write out
+cinds <- cinds[, .(sex, SCORE2_method = ifelse(model == "SCORE2", "Weights derived from all datasets", "Weights derived excluding UK Biobank"), C.index, SE, L95, U95)]
 fwrite(cinds, sep="\t", quote=FALSE, file="analyses/test/cindex_by_SCORE2_method.txt")
 
+# Plot
 cinds[, sex := factor(sex, levels=c("Sex-stratified", "Males", "Females"))]
 cinds[, SCORE2_method := factor(SCORE2_method, levels=c("Weights derived excluding UK Biobank", "Weights derived from all datasets"))]
 g <- ggplot(cinds) + 
-  aes(x=C.index, xmin=C.L95, xmax=C.U95, y=SCORE2_method, color=SCORE2_method) +
+  aes(x=C.index, xmin=L95, xmax=U95, y=SCORE2_method, color=SCORE2_method) +
   facet_wrap(~ sex, scales="free_x") +
   geom_errorbarh(height=0) +
   geom_point(shape=18) +
