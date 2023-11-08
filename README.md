@@ -1,6 +1,6 @@
 # Cardiovascular risk prediction using metabolomic biomarkers and polygenic risk scores: A cohort study and modelling analyses
 
-This repository houses and documents the code used to generate the results in the study Ritchie SC et al. Cardiovascular risk prediction using metabolomic biomarkers and polygenic risk scores: A cohort study and modelling analyses. medRxiv, doi: XXXXXX.
+This repository houses and documents the code used to generate the results in the study Ritchie SC et al. Cardiovascular risk prediction using metabolomic biomarkers and polygenic risk scores: A cohort study and modelling analyses. medRxiv, doi: 10.1101/2023.10.31.23297859.
 
 ## Repository information
 
