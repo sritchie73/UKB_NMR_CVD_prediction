@@ -27,7 +27,7 @@ nmr_coef <- fread("analyses/nmr_score_training/best_fits_coef.txt")
 nmr_long <- melt(dat, 
   id.vars=c("eid", "sex", "age", "cvd_prediction_foldid"),
   measure.vars=nmr_coef[!(coef %like% "^age"), unique(coef)])
-nmr_long[nmr_scaling, on = .(variable=biomarker), value := (value - i.mean)/i.sd]
+nmr_long[nmr_scaling, on = .(sex, variable=biomarker), value := (value - i.mean)/i.sd]
 nmr_long[, age := (age - 60)/5]
 nmr_age_interactions <- copy(nmr_long)
 nmr_age_interactions[, value := value * age]
