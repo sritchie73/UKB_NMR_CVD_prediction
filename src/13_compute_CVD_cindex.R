@@ -2,9 +2,10 @@ library(data.table)
 library(foreach)
 library(survival)
 library(boot)
+options(boot.parallel="multicore")
+options(boot.ncpus=10)
 library(ggplot2)
 library(ggstance)
-registerDoMC(7) # needs to run on compute node, taking ~40 minutes
 
 # Make output directory
 system("mkdir -p analyses/test")
