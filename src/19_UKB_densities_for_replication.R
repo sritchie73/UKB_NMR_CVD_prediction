@@ -76,7 +76,7 @@ names(densities[[2]]) <- covars
 saveRDS(densities, file="analyses/replication/UKB_covariate_densities.rds")
 
 # Also compute densities for SCORE2, NMR scores and PRSs for checking
-nmr_scores <- fread("analyses/replication/aggregate_test_non_derived_NMR_scores.txt")
+nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
 pheno <- pheno[nmr_scores, on = .(eid)]
 
 densities <- list(

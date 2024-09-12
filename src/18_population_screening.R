@@ -2,11 +2,12 @@ library(data.table)
 library(foreach)
 library(survival)
 library(boot)
+options(boot.parallel="multicore")
+options(boot.ncpus=10)
 library(ggplot2)
 library(forcats)
 library(cowplot)
 library(doMC)
-registerDoMC(6)
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
@@ -63,7 +64,7 @@ boot_func <- function(dt) {
     foreach(this_model=c("SCORE2", "SCORE2 + NMR scores", "SCORE2 + PRSs", "SCORE2 + NMR scores + PRSs"), .combine=c) %:% 
       foreach(this_cvd=c(TRUE, FALSE), .combine=c) %:% 
         foreach(this_age_group=c("40-44", "45-49", "50-54", "55-59", "60-64", "65-69"), .combine=c) %:%
-          foreach(this_sex=c("Male", "Female"), .combine=c) %dopar% {
+          foreach(this_sex=c("Male", "Female"), .combine=c) %do% {
 
     # Filter input dataset:
     this_dt <- dt[sex == this_sex & age_group == this_age_group & !xor(incident_cvd, this_cvd)]

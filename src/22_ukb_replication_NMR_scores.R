@@ -11,7 +11,7 @@ nmr_weights <- rbind(idcol="sex",
 )
 
 # Extract nmr data in long format
-nmr <- melt(pheno, id.vars=c("eid", "sex"), measure.vars=nmr_weights$coef, variable.name="biomarker", value.name="concentration")
+nmr <- melt(pheno, id.vars=c("eid", "sex"), measure.vars=unique(nmr_weights$coef), variable.name="biomarker", value.name="concentration")
 
 # Standardise concentrations using means and SDs from phase 1+2 UKB
 nmr[nmr_weights, on = .(sex, biomarker=coef), scaled := (concentration - i.scaling_mean)/i.scaling_sd]
