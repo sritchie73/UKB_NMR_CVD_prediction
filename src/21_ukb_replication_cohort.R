@@ -450,13 +450,6 @@ fwrite(sample_info, sep="\t", quote=FALSE, file="analyses/phase3_sample_flowchar
 dat[, SCORE2 := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor")]
 dat[, SCORE2_excl_UKB := score2(sex, age, smoking, sbp, tchol, hdl, type="linear predictor", weights="excluding UK Biobank")]
 
-# We will perform nested cross-validation to train NMR scores for CAD and stroke. Here, we split the data into
-# 5-folds, balancing case status and sex, then later we will split each 4/5ths of the data into 10-folds for
-# elasticnet cross-validation. We want to define the top level in advance as we'll distribute each of the 
-# elasticnet jobs as an array job, so we need to be able to look up the top level split so that we have non
-# overlapping 4/5ths of the data
-dat[, cvd_prediction_foldid := createFolds(paste(incident_cvd, sex), k=5, list=FALSE)]
-
 # Write out analysis cohort
 fwrite(dat, sep="\t", quote=FALSE, file="data/cleaned/phase3_analysis_cohort.txt")
 
