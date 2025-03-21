@@ -33,7 +33,7 @@ model_info[score == "SCORE2_excl_UKB" & model != "SCORE2_excl_UKB", biomarker :=
 model_info[score == "QRISK3" & model != "QRISK3", biomarker := gsub("QRISK3 \\+ ", "", model)]
 model_info[score == "SCORE2_excl_UKB", model := gsub("SCORE2_excl_UKB", "SCORE2", model)]
 model_info[, model_type := fcase(
-  model %in% c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), "risk score",
+  model %in% c("SCORE2", "QRISK3"), "risk score",
   biomarker %in% test_assay, "assays",
   biomarker %in% test_nmr, "NMR"
 )]
@@ -179,6 +179,7 @@ fits[model_type == "assays", model := paste(score, "+", fcase(
   biomarker == "urea", "Urea",
   biomarker == "vitd25", "Vitamin D"
 ))]
+fits[score == "SCORE2_excl_UKB", model := gsub("SCORE2_excl_UKB", "SCORE2", model)]
 
 # Write out
 fwrite(fits, sep="\t", quote=FALSE, file="analyses/univariate/discovery_analysis.txt")
