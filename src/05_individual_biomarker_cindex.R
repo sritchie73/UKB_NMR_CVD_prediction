@@ -4,7 +4,7 @@ library(doMC)
 library(survival)
 source("src/utils/Cindex.R")
 
-registerDoMC(10)
+registerDoMC(10) # request > 10 cores when running, otherwise not enough memory per core
 setDTthreads(10)
 
 # Create output directory
@@ -37,10 +37,6 @@ model_info[, model_type := fcase(
   biomarker %in% test_assay, "assays",
   biomarker %in% test_nmr, "NMR"
 )]
-
-# Convert sex to integer for strata
-strata_num <- dat[,.GRP, by=sex]
-dat[strata_num, on = .(sex), sex_int := i.GRP]
 
 # Fit models, extract C-indices, and compute delta C-indices
 fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
@@ -82,7 +78,7 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
       old.samples=rs_res$n, old.cases=rs_res$nevent, old.C.index=rs_res$C.index, old.C.SE=rs_res$SE, old.C.L95=rs_res$L95, old.C.U95=rs_res$U95,
       new.samples=NA_real_, new.cases=NA_real_, new.C.index=NA_real_, new.C.SE=NA_real_, new.C.L95=NA_real_, new.C.U95=NA_real_,
       shared.samples=NA_real_, shared.cases=NA_real_, deltaC=NA_real_, deltaC.SE=NA_real_, deltaC.L95=NA_real_, deltaC.U95=NA_real_, deltaC.pval=NA_real_, deltaC.fdr=NA_real_,
-      biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_
+      biomarker.mean=NA_real_, biomarker.sd=NA_real_, biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_
     )
     res <- cbind(this_model, res)
     return(res)
@@ -114,6 +110,11 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
     HR.U95 <- exp(ci[,2])
     HR.pval <- cf[,5]
 
+    # Get mean and sd information on biomarker so we can apply HR in replication cohort
+    bio_vec <- this_dat[as.integer(rownames(cx$y))][[this_model$biomarker]]
+    bio_mean <- mean(bio_vec)
+    bio_sd <- sd(bio_vec)
+
     # Extract C-index information
     cind <- cindex(cx)
   
@@ -129,7 +130,7 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
       old.samples=rs_res$n, old.cases=rs_res$nevent, old.C.index=rs_res$C.index, old.C.SE=rs_res$SE, old.C.L95=rs_res$L95, old.C.U95=rs_res$U95,
       new.samples=cind$n, new.cases=cind$nevent, new.C.index=cind$C.index, new.C.SE=cind$SE, new.C.L95=cind$L95, new.C.U95=cind$U95,
       shared.samples=dc_res$shared.n, shared.cases=dc_res$shared.nevent, deltaC=dc_res$deltaC, deltaC.SE=dc_res$deltaC.SE, deltaC.L95=dc_res$deltaC.L95, deltaC.U95=dc_res$deltaC.U95, deltaC.pval=dc_res$deltaC.pval, deltaC.fdr=NA_real_,
-      biomarker.HR=HR, biomarker.HR.SE=HR.SE, biomarker.HR.L95=HR.L95, biomarker.HR.U95=HR.U95, biomarker.HR.pval=HR.pval, biomarker.HR.fdr=NA_real_
+      biomarker.mean=bio_mean, biomarker.sd=bio_sd, biomarker.HR=HR, biomarker.HR.SE=HR.SE, biomarker.HR.L95=HR.L95, biomarker.HR.U95=HR.U95, biomarker.HR.pval=HR.pval, biomarker.HR.fdr=NA_real_
     )
     res <- cbind(this_model, res)
     return(res)
