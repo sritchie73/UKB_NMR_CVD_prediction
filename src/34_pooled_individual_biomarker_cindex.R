@@ -18,7 +18,6 @@ dat <- rbind(fill=TRUE,
 
 # Load in results from discovery cohort
 disc <- fread("analyses/univariate/discovery_analysis.txt")
-disc <- disc[,.SD[1], by=.(endpoint, sex, score, model_type)]
 
 # extract unique model information
 model_info <- disc[,.(endpoint, sex, score, model, biomarker, model_type)]
@@ -49,21 +48,23 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
   # Extract strata grouping
   this_strata <- this_dat[["sex"]]
 
-  # Compute C-index for the risk score on its own
-	if (this_model$sex == "Sex-stratified") {
-		rs_res <- cindex(this_score, this_y, this_strata)
-	} else {
-		rs_res <- cindex(this_score, this_y)
-	}
 
-  # If the models are only the risk scores, we can just return the relevant info now
+  # If the models are only the risk scores, we can just compute the C-index directly
   if (is.na(this_model$biomarker) || this_model$biomarker == "") {
+		# Compute C-index for the risk score on its own
+		if (this_model$sex == "Sex-stratified") {
+			rs_res <- cindex(this_score, this_y, this_strata)
+		} else {
+			rs_res <- cindex(this_score, this_y)
+		}
+
     # Extract results
     res <- data.table(
-      old.samples=rs_res$n, old.cases=rs_res$nevent, old.C.index=rs_res$C.index, old.C.SE=rs_res$SE, old.C.L95=rs_res$L95, old.C.U95=rs_res$U95,
-      new.samples=NA_real_, new.cases=NA_real_, new.C.index=NA_real_, new.C.SE=NA_real_, new.C.L95=NA_real_, new.C.U95=NA_real_,
-      shared.samples=NA_real_, shared.cases=NA_real_, deltaC=NA_real_, deltaC.SE=NA_real_, deltaC.L95=NA_real_, deltaC.U95=NA_real_, deltaC.pval=NA_real_, deltaC.fdr=NA_real_,
-      biomarker.mean=NA_real_, biomarker.sd=NA_real_, biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_
+      shared.samples=rs_res$n, shared.cases=rs_res$nevent, biomarker.mean=NA_real_, biomarker.sd=NA_real_,
+      biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_,
+      old.C.index=rs_res$C.index, old.C.SE=rs_res$SE, old.C.L95=rs_res$L95, old.C.U95=rs_res$U95,
+      new.C.index=NA_real_, new.C.SE=NA_real_, new.C.L95=NA_real_, new.C.U95=NA_real_,
+      deltaC=NA_real_, deltaC.SE=NA_real_, deltaC.L95=NA_real_, deltaC.U95=NA_real_, deltaC.pval=NA_real_, deltaC.fdr=NA_real_
     )
     res <- cbind(this_model, res)
     return(res)
@@ -78,14 +79,7 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
     bio_mean <- mean(bio_vec, na.rm=TRUE)
     bio_sd <- sd(bio_vec, na.rm=TRUE)
 
-    # Compute C-index directly from new risk score
-    if (this_model$sex == "Sex-stratified") {
-      cind <- cindex(bio_score, this_y, this_strata)
-    } else {
-      cind <- cindex(bio_score, this_y)
-    }
-  
-    # Compute delta-C index from target score
+    # Compute C-index from new score and delta-C index from target score
     if (this_model$sex == "Sex-stratified") {
       dc_res <- delta_cindex(this_score, bio_score, this_y, this_strata)
     } else {
@@ -94,10 +88,11 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
 
     # Extract results
     res <- data.table(
-      old.samples=rs_res$n, old.cases=rs_res$nevent, old.C.index=rs_res$C.index, old.C.SE=rs_res$SE, old.C.L95=rs_res$L95, old.C.U95=rs_res$U95,
-      new.samples=cind$n, new.cases=cind$nevent, new.C.index=cind$C.index, new.C.SE=cind$SE, new.C.L95=cind$L95, new.C.U95=cind$U95,
-      shared.samples=dc_res$shared.n, shared.cases=dc_res$shared.nevent, deltaC=dc_res$deltaC, deltaC.SE=dc_res$deltaC.SE, deltaC.L95=dc_res$deltaC.L95, deltaC.U95=dc_res$deltaC.U95, deltaC.pval=dc_res$deltaC.pval, deltaC.fdr=NA_real_,
-      biomarker.mean=bio_mean, biomarker.sd=bio_sd, biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_
+      shared.samples=dc_res$shared.n, shared.cases=dc_res$shared.nevent, biomarker.mean=bio_mean, biomarker.sd=bio_sd,
+      biomarker.HR=NA_real_, biomarker.HR.SE=NA_real_, biomarker.HR.L95=NA_real_, biomarker.HR.U95=NA_real_, biomarker.HR.pval=NA_real_, biomarker.HR.fdr=NA_real_,
+      old.C.index=dc_res$m1.C.index, old.C.SE=dc_res$m1.SE, old.C.L95=dc_res$m1.L95, old.C.U95=dc_res$m1.U95,
+      new.C.index=dc_res$m2.C.index, new.C.SE=dc_res$m2.SE, new.C.L95=dc_res$m2.L95, new.C.U95=dc_res$m2.U95,
+      deltaC=dc_res$deltaC, deltaC.SE=dc_res$deltaC.SE, deltaC.L95=dc_res$deltaC.L95, deltaC.U95=dc_res$deltaC.U95, deltaC.pval=dc_res$deltaC.pval, deltaC.fdr=NA_real_
     )
     res <- cbind(this_model, res)
     return(res)
