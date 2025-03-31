@@ -96,7 +96,7 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
 }
 
 # add FDR correction
-fits[model_type != "risk score", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(endpoint, sex, score, model_type)]
+fits[model_type != "risk score", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(endpoint, sex, score)]
 
 # Write out
 fwrite(fits, sep="\t", quote=FALSE, file="analyses/univariate/replication_analysis.txt")
