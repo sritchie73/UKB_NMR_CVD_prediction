@@ -138,8 +138,8 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %dopar% {
 }
 
 # add FDR correction
-fits[model_type != "risk score", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(endpoint, sex, score, model_type)]
-fits[model_type != "risk score", biomarker.HR.fdr := p.adjust(biomarker.HR.pval, method="fdr"), by=.(endpoint, sex, score, model_type)]
+fits[model_type != "risk score", deltaC.fdr := p.adjust(deltaC.pval, method="fdr"), by=.(endpoint, sex, score)]
+fits[model_type != "risk score", biomarker.HR.fdr := p.adjust(biomarker.HR.pval, method="fdr"), by=.(endpoint, sex, score)]
 
 # Add human friendly display name
 fits[model_type == "NMR", model := gsub("_pct", " %", model)]
