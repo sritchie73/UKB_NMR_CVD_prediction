@@ -1,4 +1,5 @@
 library(data.table)
+library(foreach)
 source('src/utils/SCORE2.R')
 
 # Read in analysis cohort
@@ -69,6 +70,24 @@ cvd_cohort_info <- dat[order(sex),.(
 
 cvd_cohort_info <- as.data.table(t(cvd_cohort_info), keep.rownames=TRUE)
 fwrite(cvd_cohort_info, col.names=FALSE, sep="\t", quote=FALSE, file="analyses/pooled_cohort_characteristics.txt")
+
+# Tabulate missing biomarker data
+bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
+bio_info <- bio_info[sample_type != "Urine" & !is.na(UKB.Field.ID)]
+nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
+nmr_info <- nmr_info[!is.na(UKB.Field.ID)]
+biomarkers <- rbind(idcol="type", "assays"=bio_info[,.(biomarker=var)], "NMR"=nmr_info[,.(biomarker=Biomarker)])
+
+dat <- rbind(idcol="cohort", "discovery"=p12, "replication"=p3, fill=TRUE)
+stop()
+
+miss <- foreach(this_cohort = c("discovery", "replication", "pooled"), .combine=rbind) %:% 
+  foreach(bioIdx = biomarkers[,.I], .combine=rbind) %do% {
+   
+}
+
+
+
 
 
 
