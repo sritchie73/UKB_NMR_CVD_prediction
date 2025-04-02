@@ -252,8 +252,8 @@ delta_cindex <- function(model1, model2, y, strata.term, data) {
   }
 
   # Compute change in C-index and its standard error accounting for positive correlation between the two models
-  deltaC <- as.vector(c(-1, 1) %*% coef(c_compare))                   # Courtesy of Joel T. Gibson
-  SE <- as.vector(sqrt(c(-1, 1) %*% vcov(c_compare) %*% c(-1, 1)))    # Courtest of Joel T. Gibson
+  deltaC <- as.vector(c(-1, 1) %*% coef(c_compare))                   # Courtesy of Joel T. Gibson. Equivalent to C-index 2 - C-index 1
+  SE <- as.vector(sqrt(c(-1, 1) %*% vcov(c_compare) %*% c(-1, 1)))    # Courtest of Joel T. Gibson. Equivalent to sqrt(Var(C-index 1) + Var(C-index 2) - 2Cov(C-index 1, C-index 2))
   L95 <- deltaC - qnorm(0.975) * SE
   U95 <- deltaC + qnorm(0.975) * SE
   pval <- pmin(1, pnorm(abs(deltaC / SE), lower.tail = FALSE) * 2)
