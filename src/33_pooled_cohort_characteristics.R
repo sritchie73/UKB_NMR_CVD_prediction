@@ -76,15 +76,28 @@ bio_info <- fread("data/ukb/biomarkers/output/biomarker_info.txt")
 bio_info <- bio_info[sample_type != "Urine" & !is.na(UKB.Field.ID)]
 nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
 nmr_info <- nmr_info[!is.na(UKB.Field.ID)]
-biomarkers <- rbind(idcol="type", "assays"=bio_info[,.(biomarker=var)], "NMR"=nmr_info[,.(biomarker=Biomarker)])
+biomarkers <- rbind(idcol="type", "assays"=bio_info[,.(biomarker=var, UKB.Field.ID)], "NMR"=nmr_info[,.(biomarker=Biomarker, UKB.Field.ID)])
 
 dat <- rbind(idcol="cohort", "discovery"=p12, "replication"=p3, fill=TRUE)
-stop()
 
 miss <- foreach(this_cohort = c("discovery", "replication", "pooled"), .combine=rbind) %:% 
   foreach(bioIdx = biomarkers[,.I], .combine=rbind) %do% {
-   
+    if (this_cohort == "discovery") {
+      bio_vec <- dat[cohort == "discovery", .SD, .SDcols=biomarkers[bioIdx, biomarker]][[1]]
+    } else if (this_cohort == "replication") {
+      bio_vec <- dat[cohort == "replication", .SD, .SDcols=biomarkers[bioIdx, biomarker]][[1]]
+    } else {
+      bio_vec <- dat[, .SD, .SDcols=biomarkers[bioIdx, biomarker]][[1]]
+    }   
+    data.table(biomarker=biomarkers[bioIdx, biomarker], type=biomarkers[bioIdx, type], UKB.Field.ID=biomarkers[bioIdx, UKB.Field.ID], 
+      cohort=this_cohort, missingness=sum(is.na(bio_vec))/length(bio_vec))
 }
+miss <- dcast(miss, biomarker + type + UKB.Field.ID ~ cohort, value.var="missingness")
+miss <- miss[,.(biomarker, type, UKB.Field.ID, discovery, replication, pooled)]
+
+fwrite(miss, sep="\t", quote=FALSE, file="analyses/biomarker_missingness.txt")
+
+
 
 
 
