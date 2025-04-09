@@ -11,8 +11,8 @@ library(survival)
 
 options("ggrastr.default.dpi" = 300) 
 
-# Load dataset with NMR biomarkers imputed
-dat <- fread("data/imputed/analysis_cohort.txt")
+# Load dataset
+dat <- fread("data/cleaned/analysis_cohort.txt")
 
 # Load biomarker information sheet
 nmr_info <- fread("data/ukb/NMR_metabolomics/biomarker_information.txt")
