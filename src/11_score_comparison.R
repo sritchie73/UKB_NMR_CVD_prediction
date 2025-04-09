@@ -30,7 +30,7 @@ score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Str
 score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 
 # Get pairwise correlation coefficient statistics:
-cor_stats <- score_comp[x_score != y_score, {
+cor_stats <- score_comp[x_score != y_score & !is.na(x_value) & !is.na(y_value), {
   cc <- cor.test(x_value, y_value)
   list(estimate=cc$estimate, L95=cc$conf.int[1], U95=cc$conf.int[2], pval=cc$p.value)
 }, by=.(sex, x_score, y_score)]
@@ -39,8 +39,8 @@ fwrite(cor_stats, sep="\t", quote=FALSE, file="analyses/test/pairwise_correlatio
 # Make pairwise densities
 score_densities <- function(score_comp) {
   cor_anno <- score_comp[,.(label=sprintf("r=%.2f\np=%.2f",
-    cor(x_value, y_value),
-    cor(x_value, y_value, method="spearman")
+    cor(x_value, y_value, use="pairwise.complete.obs"),
+    cor(x_value, y_value, method="spearman", use="pairwise.complete.obs")
   )), by=.(x_score, y_score)]
 
   ggplot(score_comp) +
