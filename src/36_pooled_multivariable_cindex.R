@@ -6,7 +6,10 @@ source("src/utils/Cindex.R")
 system("mkdir -p analyses/rest")
 
 # Load in pre-computed linear predictors
-pred_scores <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+pred_scores <- rbind(
+  fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt"),
+  fread("analyses/CVD_weight_training/phase3_CVD_linear_predictors_and_risk.txt")
+)
 
 # Extract set of models to test
 model_info <- unique(pred_scores[, .(endpoint, score, model_type, model)])
@@ -53,5 +56,5 @@ fits <- foreach(modelIdx = model_info[,.I], .combine=rbind) %do% {
 }
 
 # Write out
-fwrite(fits, sep="\t", quote=FALSE, file="analyses/test/discovery_cindices.txt")
+fwrite(fits, sep="\t", quote=FALSE, file="analyses/test/pooled_cindices.txt")
 
