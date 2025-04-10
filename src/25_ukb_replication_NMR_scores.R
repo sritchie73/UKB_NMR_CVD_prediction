@@ -10,13 +10,15 @@ nmr_weights <- rbind(idcol="sex",
   "Female"=nmr_weights[,.(coef, scaling_mean=scaling_mean_Female, scaling_sd=scaling_sd_Female, coef_CAD=CAD_Female, coef_Stroke=Stroke_Female)]
 )
 
-# Extract nmr data in long format
-nmr <- melt(pheno, id.vars=c("eid", "sex"), measure.vars=unique(nmr_weights$coef), variable.name="biomarker", value.name="concentration")
+# Extract nmr data, filter to people with complete data, and transform to long format
+nmr <- pheno[,.SD,.SDcols=c("eid", "sex", unique(nmr_weights$coef))]
+nmr <- nmr[complete.cases(nmr)]
+nmr <- melt(nmr, id.vars=c("eid", "sex"), variable.name="biomarker", value.name="concentration")
 
-# Standardise concentrations using means and SDs from phase 1+2 UKB
-nmr[nmr_weights, on = .(sex, biomarker=coef), scaled := (concentration - i.scaling_mean)/i.scaling_sd]
+# Standardise concentrations in males and females separately
+nmr[, scaled := scale(concentration), by=.(biomarker, sex)]
 
-# Calculate NMR biomarker scores using both sets of scalings
+# Calculate NMR biomarker scores 
 nmr[nmr_weights, on = .(biomarker=coef, sex), CAD_weighted_scaled := scaled * i.coef_CAD]
 nmr[nmr_weights, on = .(biomarker=coef, sex), Stroke_weighted_scaled := scaled * i.coef_Stroke]
 
