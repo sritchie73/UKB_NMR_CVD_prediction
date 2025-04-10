@@ -218,6 +218,6 @@ qrisk3 <- function(
 }
 
 QRISK3_absrisk <- function(sex, linear_predictor) {
-  100 * 1 - ifelse(sex == "Female", 0.988876402378082, 0.977268040180206)^exp(linear_predictor)
+  1 - ifelse(sex == "Female", 0.988876402378082, 0.977268040180206)^exp(linear_predictor)
 }
 
