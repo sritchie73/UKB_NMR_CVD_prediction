@@ -12,7 +12,6 @@ nmr_weights <- rbind(idcol="sex",
 
 # Extract nmr data, filter to people with complete data, and transform to long format
 nmr <- pheno[,.SD,.SDcols=c("eid", "sex", unique(nmr_weights$coef))]
-nmr <- nmr[complete.cases(nmr)]
 nmr <- melt(nmr, id.vars=c("eid", "sex"), variable.name="biomarker", value.name="concentration")
 
 # Standardise concentrations in males and females separately
