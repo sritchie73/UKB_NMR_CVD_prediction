@@ -6,26 +6,22 @@ library(foreach)
 out_dir <- "analyses/public_health_modelling"
 system(sprintf("mkdir -p %s", out_dir))
 
-# Load mid-2020 population estimates for the UK downloaded from ONS:
-# https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/bulletins/annualmidyearpopulationestimates/mid2020
-ons_pop <- read.xlsx("data/ONS/datadownload.xlsx", sheet="2020")
-setDT(ons_pop)
-ons_pop <- ons_pop[geogname == "UNITED KINGDOM"] # filter to UK level summary
-ons_pop[, c("variable", "geogcode") := NULL]
-ons_pop <- melt(ons_pop, id.vars="geogname", value.name="N")
-ons_pop[, geogname := NULL]
-ons_pop <- ons_pop[!(variable %like% "_al$")] # Drop total counts (across all ages) for each sex
-ons_pop[, age := as.integer(gsub(".*_", "", variable))]
-ons_pop[, sex := ifelse(variable %like% "^m_", "Male", "Female")]
-
+# Load mid-2023 population estimates for the UK downloaded from ONS:
+# https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland/mid2023/mye23tablesuk.xlsx
+ons_pop <- rbind(idcol="sex",
+  "Male"=as.data.table(read.xlsx("data/ONS/mye23tablesuk.xlsx", sheet="MYE2 - Males", startRow=8)),
+  "Female"=as.data.table(read.xlsx("data/ONS/mye23tablesuk.xlsx", sheet="MYE2 - Females", startRow=8))
+)
+ons_pop <- ons_pop[Name == "UNITED KINGDOM"] # filter to UK level summary
+ 
 # Get total numbers in each five year age group by sex for age groups 40-70
-ons_pop <- ons_pop[age >= 40 & age < 70]
+ons_pop <- melt(ons_pop, id.vars="sex", measure.vars=as.character(40:69), variable.name="age", value.name="N")
+ons_pop[, age := as.integer(as.character(age))] # convert to character first so we dont get integer representation of factor levels
 ons_pop[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
 ons_pop <- ons_pop[, .(N=sum(N)), by=.(sex, age_group)]
 
 # Standardise population to 100,000 individuals
-total <- ons_pop[,sum(N)]
-ons_pop[, N := N/total * 100000]
+ons_pop[, N := N/sum(N) * 100000]
 
 # Age- and sex-specific incidence rates (per 1000 person-years) of CVD 
 # among CPRD participants (n=3,117,544) from the Appendix table of 
