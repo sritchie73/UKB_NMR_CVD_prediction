@@ -111,6 +111,21 @@ g <- ggplot(eCDFs) +
   )
 ggsave(g, width=6.8, height=4.44, file="analyses/test/QRISK3_risk_distribution_comparison.pdf")
 
+# What % of people were classified as high risk in each age group by SCORE2 vs. QRISK3?
+risk_strata <- pred_scores[model_type == ""]
+risk_strata[, high_risk := fcase(
+  score == "QRISK3" & uk_calibrated_risk >= 0.1, TRUE,
+  score != "QRISK3" & age >= 50 & uk_calibrated_risk >= 0.1, TRUE,
+  score != "QRISK3" & age < 50 & uk_calibrated_risk >= 0.075, TRUE,
+  default=FALSE)]
+prop_high_risk <- risk_strata[,.(pct_high_risk=sum(high_risk)/.N),by=.(score, sex, age_group)]
+prop_high_risk <- dcast(prop_high_risk, age_group ~ score + sex, value.var="pct_high_risk")
+prop_high_risk <- prop_high_risk[order(age_group)]
+fwrite(prop_high_risk, sep="\t", quote=FALSE, file="analyses/test/prop_high_risk_by_age_sex_score.txt")
+
+
+
+
 
 
 
