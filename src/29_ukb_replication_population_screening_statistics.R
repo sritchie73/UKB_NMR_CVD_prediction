@@ -96,7 +96,7 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					this_stats[metric %like% "delta", pval := pmin(1, pnorm(abs(estimate/se), lower.tail=FALSE)*2)]
 				 
 					# Add model information and return
-					cbind(strategy=this_strategy, endpoint=this_endpoint, model_sex=this_model_sex, model=this_model, this_stats)
+					cbind(strategy=this_strategy, endpoint=this_endpoint, score=this_score, model_sex=this_model_sex, model=this_model, this_stats)
 }
 fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/replication_screening.txt")
 
