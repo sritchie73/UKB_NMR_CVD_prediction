@@ -35,8 +35,8 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					ref_cvd_prevented_boot <- ref_cvd_high_risk_boot * statin_modifier
 					ref_NNS <- total_n / ref_cvd_prevented
 					ref_NNS_boot <- total_n_boot / ref_cvd_prevented_boot
-					ref_NNT <- total_cases / ref_cvd_prevented
-					ref_NNT_boot <- total_cases_boot / ref_cvd_prevented_boot
+					ref_NNT <- ref_high_risk / ref_cvd_prevented
+					ref_NNT_boot <- ref_high_risk_boot / ref_cvd_prevented_boot
 
 					if (this_model != "Risk score") {
 						alt_high_risk <- this_res[bootstrap == 0 & comparitor == "alt" & risk_group == "high", sum(N)]
@@ -47,8 +47,8 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 						alt_cvd_prevented_boot <- alt_cvd_high_risk_boot * statin_modifier
 						alt_NNS <- total_n / alt_cvd_prevented
 						alt_NNS_boot <- total_n_boot / alt_cvd_prevented_boot
-						alt_NNT <- total_cases / alt_cvd_prevented
-						alt_NNT_boot <- total_cases_boot / alt_cvd_prevented_boot
+						alt_NNT <- alt_high_risk / alt_cvd_prevented
+						alt_NNT_boot <- alt_high_risk_boot / alt_cvd_prevented_boot
 
 						delta_high_risk <- alt_high_risk - ref_high_risk
 						delta_high_risk_boot <- alt_high_risk_boot - ref_high_risk_boot
