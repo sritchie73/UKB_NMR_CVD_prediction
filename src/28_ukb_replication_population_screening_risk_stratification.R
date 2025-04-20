@@ -2,7 +2,7 @@ library(data.table)
 library(foreach)
 library(boot)
 options(boot.parallel="multicore")
-options(boot.ncpus=20)
+options(boot.ncpus=20) # runs in <5 hours with 20 cores on icelake
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
