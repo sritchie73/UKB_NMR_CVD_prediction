@@ -66,7 +66,7 @@ g9 <- screening_plot(ggdt[metric == "delta_NNS" & strategy == "targeted"]) + sca
 g10 <- screening_plot(ggdt[metric == "delta_NNT" & strategy == "targeted"]) + scale_x_continuous(limits=c(-3, 3), breaks=c(-2, 0, 2))
 g <- g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + plot_layout(axes="collect", nrow=2, byrow=TRUE)
 
-ggsave(g, width=7.2, height=3.5, file="analyses/public_health_modelling/screening_comparison.pdf")
+ggsave(g, width=7.2, height=2.5, file="analyses/public_health_modelling/screening_comparison.pdf")
 
 # Build supp table for the main results
 supp1 <- res[endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_sex == "Sex-stratified" & model != "Risk score"]
@@ -216,100 +216,211 @@ common_gg_parts <- function(g, limits, breaks) {
 
 g1 <- ggplot(cohort_comp[metric == "delta_high_risk"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Discovery cohort") + ylab("Pooled cohort") + ggtitle("High Risk")
 g1 <- common_gg_parts(g1, c(0, 4500), c(0, 2000, 4000))
 
 g2 <- ggplot(cohort_comp[metric == "delta_high_risk"]) + aes(
     x=estimate_replication, xmin=L95_replication, xmax=U95_replication,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Replication cohort") + ylab("Pooled cohort")
 g2 <- common_gg_parts(g2, c(0, 4500), c(0, 2000, 4000))
 
 g3 <- ggplot(cohort_comp[metric == "delta_high_risk"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_replication, ymin=L95_replication, ymax=U95_replication, color=model
+    y=estimate_replication, ymin=L95_replication, ymax=U95_replication
   ) + xlab("Discovery cohort") + ylab("Replication cohort") 
 g3 <- common_gg_parts(g3, c(0, 4500), c(0, 2000, 4000))
 
 
 g4 <- ggplot(cohort_comp[metric == "delta_cvd_high_risk"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Discovery cohort") + ylab("Pooled cohort") + ggtitle("CVD high")
 g4 <- common_gg_parts(g4, c(0, 1100), c(0, 500, 1000))
 
 g5 <- ggplot(cohort_comp[metric == "delta_cvd_high_risk"]) + aes(
     x=estimate_replication, xmin=L95_replication, xmax=U95_replication,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Replication cohort") + ylab("Pooled cohort")
 g5 <- common_gg_parts(g5, c(0, 1100), c(0, 500, 1000))
 
 g6 <- ggplot(cohort_comp[metric == "delta_cvd_high_risk"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_replication, ymin=L95_replication, ymax=U95_replication, color=model
+    y=estimate_replication, ymin=L95_replication, ymax=U95_replication
   ) + xlab("Discovery cohort") + ylab("Replication cohort") 
 g6 <- common_gg_parts(g6, c(0, 1100), c(0, 500, 1000))
 
 
 g7 <- ggplot(cohort_comp[metric == "delta_cvd_prevented"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Discovery cohort") + ylab("Pooled cohort") + ggtitle("Prevented")
 g7 <- common_gg_parts(g7, c(0, 110), c(0, 50, 100))
 
 g8 <- ggplot(cohort_comp[metric == "delta_cvd_prevented"]) + aes(
     x=estimate_replication, xmin=L95_replication, xmax=U95_replication,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Replication cohort") + ylab("Pooled cohort")
 g8 <- common_gg_parts(g8, c(0, 110), c(0, 50, 100))
 
 g9 <- ggplot(cohort_comp[metric == "delta_cvd_prevented"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_replication, ymin=L95_replication, ymax=U95_replication, color=model
+    y=estimate_replication, ymin=L95_replication, ymax=U95_replication
   ) + xlab("Discovery cohort") + ylab("Replication cohort") 
 g9 <- common_gg_parts(g9, c(0, 110), c(0, 50, 100))
 
 
 g10 <- ggplot(cohort_comp[metric == "delta_NNS"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Discovery cohort") + ylab("Pooled cohort") + ggtitle("NNS")
 g10 <- common_gg_parts(g10, c(-550, 0), c(-400, -200, 0))
 
 g11 <- ggplot(cohort_comp[metric == "delta_NNS"]) + aes(
     x=estimate_replication, xmin=L95_replication, xmax=U95_replication,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Replication cohort") + ylab("Pooled cohort")
 g11 <- common_gg_parts(g11, c(-550, 0), c(-400, -200, 0))
 
 g12 <- ggplot(cohort_comp[metric == "delta_NNS"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_replication, ymin=L95_replication, ymax=U95_replication, color=model
+    y=estimate_replication, ymin=L95_replication, ymax=U95_replication
   ) + xlab("Discovery cohort") + ylab("Replication cohort") 
 g12 <- common_gg_parts(g12, c(-550, 0), c(-400, -200, 0))
 
 
 g13 <- ggplot(cohort_comp[metric == "delta_NNT"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Discovery cohort") + ylab("Pooled cohort") + ggtitle("NNT")
-g13 <- common_gg_parts(g13, c(-4, 4), c(-2, 0, 2))
+g13 <- common_gg_parts(g13, c(-4, 4), c(-4, -2, 0, 2, 4))
 
 g14 <- ggplot(cohort_comp[metric == "delta_NNT"]) + aes(
     x=estimate_replication, xmin=L95_replication, xmax=U95_replication,
-    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled, color=model
+    y=estimate_pooled, ymin=L95_pooled, ymax=U95_pooled
   ) + xlab("Replication cohort") + ylab("Pooled cohort")
-g14 <- common_gg_parts(g14, c(-4, 4), c(-2, 0, 2))
+g14 <- common_gg_parts(g14, c(-4, 4), c(-4, -2, 0, 2, 4))
 
 g15 <- ggplot(cohort_comp[metric == "delta_NNT"]) + aes(
     x=estimate_discovery, xmin=L95_discovery, xmax=U95_discovery,
-    y=estimate_replication, ymin=L95_replication, ymax=U95_replication, color=model
+    y=estimate_replication, ymin=L95_replication, ymax=U95_replication
   ) + xlab("Discovery cohort") + ylab("Replication cohort") 
-g15 <- common_gg_parts(g15, c(-4, 4), c(-2, 0, 2))
+g15 <- common_gg_parts(g15, c(-4, 4), c(-4, -2, 0, 2, 4))
 
 
 g <- g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + g11 + g12 + g13 + g14 + g15 + plot_layout(nrow=3, byrow=FALSE)
 ggsave(g, width=7.2, height=4.2, file="analyses/public_health_modelling/cohort_sensitivity.pdf")
 
+# Compare broad CVD to narrow CVD
+cvd_comp <- res[cohort == "pooled" & score == "SCORE2_excl_UKB" & model_sex == "Sex-stratified" & model != "Risk score"]
+cvd_comp <- dcast(cvd_comp, strategy + model + metric ~ endpoint, value.var=c("estimate", "L95", "U95"))
+
+g1 <- ggplot(cvd_comp[metric == "delta_high_risk"]) + aes(
+    x=estimate_cvd_narrow, xmin=L95_cvd_narrow, xmax=U95_cvd_narrow,
+    y=estimate_cvd, ymin=L95_cvd, ymax=U95_cvd
+  ) + xlab("Narrow CVD") + ylab("Broad CVD") + ggtitle("High Risk")
+g1 <- common_gg_parts(g1, c(0, 4500), c(0, 2000, 4000))
+
+g4 <- ggplot(cvd_comp[metric == "delta_cvd_high_risk"]) + aes(
+    x=estimate_cvd_narrow, xmin=L95_cvd_narrow, xmax=U95_cvd_narrow,
+    y=estimate_cvd, ymin=L95_cvd, ymax=U95_cvd
+  ) + xlab("Narrow CVD") + ylab("Broad CVD") + ggtitle("CVD high")
+g4 <- common_gg_parts(g4, c(0, 1100), c(0, 500, 1000))
+
+g7 <- ggplot(cvd_comp[metric == "delta_cvd_prevented"]) + aes(
+    x=estimate_cvd_narrow, xmin=L95_cvd_narrow, xmax=U95_cvd_narrow,
+    y=estimate_cvd, ymin=L95_cvd, ymax=U95_cvd
+  ) + xlab("Narrow CVD") + ylab("Broad CVD") + ggtitle("Prevented")
+g7 <- common_gg_parts(g7, c(0, 110), c(0, 50, 100))
+
+g10 <- ggplot(cvd_comp[metric == "delta_NNS"]) + aes(
+    x=estimate_cvd_narrow, xmin=L95_cvd_narrow, xmax=U95_cvd_narrow,
+    y=estimate_cvd, ymin=L95_cvd, ymax=U95_cvd
+  ) + xlab("Narrow CVD") + ylab("Broad CVD") + ggtitle("NNS")
+g10 <- common_gg_parts(g10, c(-550, 0), c(-400, -200, 0))
+
+g13 <- ggplot(cvd_comp[metric == "delta_NNT"]) + aes(
+    x=estimate_cvd_narrow, xmin=L95_cvd_narrow, xmax=U95_cvd_narrow,
+    y=estimate_cvd, ymin=L95_cvd, ymax=U95_cvd
+  ) + xlab("Narrow CVD") + ylab("Broad CVD") + ggtitle("NNT")
+g13 <- common_gg_parts(g13, c(-4, 4), c(-4, -2, 0, 2, 4))
+
+g <- g1 + g4 + g7 + g10 + g13 + plot_layout(nrow=1)
+ggsave(g, width=7.2, height=1.62181102, file="analyses/public_health_modelling/endpoint_sensitivity.pdf")
+
+
+# For sex-specific analyses it doesnt make sense to compare due to differences in CVD rates, so we will
+# make a figure similar to the main one
+ggdt <- res[cohort == "pooled" & endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_sex != "Sex-stratified" & model != "Risk score"]
+ggdt <- ggdt[metric %in% c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT")]
+ggdt[, metric := factor(metric, levels=c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT"))]
+
+ggdt[, model_name := fcase(
+  model == "Risk score + NMR scores", "SCORE2 + NMR scores for CHD and IS",
+  model == "Risk score + clinical biomarkers", "SCORE2 + 11 clinical chemistry biomarkers",
+  model == "Risk score + PRSs", "SCORE2 + PRSs for CHD and IS",
+  model == "Risk score + NMR scores + PRSs", "SCORE2 + NMR scores for CHD and IS + PRSs for CHD and IS",
+  model == "Risk score + clinical biomarkers + PRSs", "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
+)]
+ggdt[,model_name := factor(model_name, levels=c("SCORE2 + NMR scores for CHD and IS", "SCORE2 + 11 clinical chemistry biomarkers",
+  "SCORE2 + PRSs for CHD and IS", "SCORE2 + NMR scores for CHD and IS + PRSs for CHD and IS",
+  "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"))]
+
+g1 <- screening_plot(ggdt[metric == "delta_high_risk" & model_sex == "Males" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 7000), breaks=c(0, 3000, 6000))
+g2 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & model_sex == "Males" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 1600), breaks=c(0, 1000))
+g3 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & model_sex == "Males" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 160), breaks=c(0, 100))
+g4 <- screening_plot(ggdt[metric == "delta_NNS" & model_sex == "Males" & strategy == "blanket"]) + scale_x_continuous(limits=c(-280, 0), breaks=c(-200, -100, 0))
+g5 <- screening_plot(ggdt[metric == "delta_NNT" & model_sex == "Males" & strategy == "blanket"]) + scale_x_continuous(limits=c(-3.5, 3.5), breaks=c(-2, 0, 2))
+g6 <- screening_plot(ggdt[metric == "delta_high_risk" & model_sex == "Males" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 7000), breaks=c(0, 3000, 6000))
+g7 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & model_sex == "Males" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 1600), breaks=c(0, 1000))
+g8 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & model_sex == "Males" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 160), breaks=c(0, 100))
+g9 <- screening_plot(ggdt[metric == "delta_NNS" & model_sex == "Males" & strategy == "targeted"]) + scale_x_continuous(limits=c(-280, 0), breaks=c(-200, -100, 0))
+g10 <- screening_plot(ggdt[metric == "delta_NNT" & model_sex == "Males" & strategy == "targeted"]) + scale_x_continuous(limits=c(-3.5, 3.5), breaks=c(-2, 0, 2))
+g_males <- g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + plot_layout(axes="collect", nrow=2, byrow=TRUE)
+
+g1 <- screening_plot(ggdt[metric == "delta_high_risk" & model_sex == "Females" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 2200), breaks=c(0, 1000, 2000))
+g2 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & model_sex == "Females" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 500), breaks=c(0, 200, 400))
+g3 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & model_sex == "Females" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 50), breaks=c(0, 20, 40))
+g4 <- screening_plot(ggdt[metric == "delta_NNS" & model_sex == "Females" & strategy == "blanket"]) + scale_x_continuous(limits=c(-6500, 0), breaks=c(-5000, -2500, 0))
+g5 <- screening_plot(ggdt[metric == "delta_NNT" & model_sex == "Females" & strategy == "blanket"]) + scale_x_continuous(limits=c(-9, 9), breaks=c(-5, 0, 5))
+g6 <- screening_plot(ggdt[metric == "delta_high_risk" & model_sex == "Females" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 2200), breaks=c(0, 1000, 2000))
+g7 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & model_sex == "Females" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 500), breaks=c(0, 200, 400))
+g8 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & model_sex == "Females" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 50), breaks=c(0, 20, 40))
+g9 <- screening_plot(ggdt[metric == "delta_NNS" & model_sex == "Females" & strategy == "targeted"]) + scale_x_continuous(limits=c(-6500, 0), breaks=c(-5000, -2500, 0))
+g10 <- screening_plot(ggdt[metric == "delta_NNT" & model_sex == "Females" & strategy == "targeted"]) + scale_x_continuous(limits=c(-9, 9), breaks=c(-5, 0, 5))
+g_females <- g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + plot_layout(axes="collect", nrow=2, byrow=TRUE)
+
+g <- g_males / g_females
+ggsave(g, width=7.15, height=5, file="analyses/public_health_modelling/sex_specific_screening_comparison.pdf")
+
+# Same for comparing SCORE2 to QRISK3
+ggdt <- res[cohort == "pooled" & endpoint == "cvd" & score == "QRISK3" & model_sex == "Sex-stratified" & model != "Risk score"]
+ggdt <- ggdt[metric %in% c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT")]
+ggdt[, metric := factor(metric, levels=c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT"))]
+
+ggdt[, model_name := fcase(
+  model == "Risk score + NMR scores", "QRISK3 + NMR scores for CHD and IS",
+  model == "Risk score + clinical biomarkers", "QRISK3 + 11 clinical chemistry biomarkers",
+  model == "Risk score + PRSs", "QRISK3 + PRSs for CHD and IS",
+  model == "Risk score + NMR scores + PRSs", "QRISK3 + NMR scores for CHD and IS + PRSs for CHD and IS",
+  model == "Risk score + clinical biomarkers + PRSs", "QRISK3 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
+)]
+ggdt[,model_name := factor(model_name, levels=c("QRISK3 + NMR scores for CHD and IS", "QRISK3 + 11 clinical chemistry biomarkers",
+  "QRISK3 + PRSs for CHD and IS", "QRISK3 + NMR scores for CHD and IS + PRSs for CHD and IS",
+  "QRISK3 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"))]
+
+g1 <- screening_plot(ggdt[metric == "delta_high_risk" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 6000), breaks=c(0, 2500, 5000))
+g2 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 600), breaks=c(0, 250, 500))
+g3 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & strategy == "blanket"]) + scale_x_continuous(limits=c(0, 60), breaks=c(0, 25, 50))
+g4 <- screening_plot(ggdt[metric == "delta_NNS" & strategy == "blanket"]) + scale_x_continuous(limits=c(-65, 0), breaks=c(-50, -25, 0))
+g5 <- screening_plot(ggdt[metric == "delta_NNT" & strategy == "blanket"]) + scale_x_continuous(limits=c(-5, 5), breaks=c(-4, 0, 4))
+g6 <- screening_plot(ggdt[metric == "delta_high_risk" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 6000), breaks=c(0, 2500, 5000))
+g7 <- screening_plot(ggdt[metric == "delta_cvd_high_risk" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 600), breaks=c(0, 250, 500))
+g8 <- screening_plot(ggdt[metric == "delta_cvd_prevented" & strategy == "targeted"]) + scale_x_continuous(limits=c(0, 60), breaks=c(0, 25, 50))
+g9 <- screening_plot(ggdt[metric == "delta_NNS" & strategy == "targeted"]) + scale_x_continuous(limits=c(-65, 0), breaks=c(-50, -25, 0))
+g10 <- screening_plot(ggdt[metric == "delta_NNT" & strategy == "targeted"]) + scale_x_continuous(limits=c(-5, 5), breaks=c(-4, 0, 4))
+g <- g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + plot_layout(axes="collect", nrow=2, byrow=TRUE)
+
+ggsave(g, width=7.2, height=2.5, file="analyses/public_health_modelling/QRISK3_screening_comparison.pdf")
 
