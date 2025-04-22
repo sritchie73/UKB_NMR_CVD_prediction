@@ -22,15 +22,22 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 						this_res <- this_res[sex == "Female"]
 					}
 
+          # Compute sex-specific scaling factors, so that estimates are per 100,000 males and per 100,000 females respectively,
+          # Instead of per 100,000 of the male+female population
+          total_n <- this_res[bootstrap == 0 & comparitor == "ref", sum(N)]
+          scaling_factor <- 1e5/total_n  # will be 1 by definition for Sex-stratified analyses
+
+          # Compute totals for sanity checking
+          total_n <- total_n * scaling_factor
+					total_n_boot <- this_res[bootstrap != 0 & comparitor == "ref", .(N=sum(N)), by=bootstrap][,N*scaling_factor] # by definition, all should be identical to total_n (i.e 1e5)
+					total_cases <- this_res[bootstrap == 0 & comparitor == "ref" & status == "case", sum(N)*scaling_factor]
+					total_cases_boot <- this_res[bootstrap != 0 & comparitor == "ref" & status == "case", .(N=sum(N)), by=bootstrap][,N*scaling_factor] # by definition, all should be identical to total_cases
+
 					# Compute relevant statistics
-					total_n <- this_res[bootstrap == 0 & comparitor == "ref", sum(N)]
-					total_n_boot <- this_res[bootstrap != 0 & comparitor == "ref", .(N=sum(N)), by=bootstrap][,N] # by definition, all should be identical to total_n
-					total_cases <- this_res[bootstrap == 0 & comparitor == "ref" & status == "case", sum(N)]
-					total_cases_boot <- this_res[bootstrap != 0 & comparitor == "ref" & status == "case", .(N=sum(N)), by=bootstrap][,N] # by definition, all should be identical to total_cases
-					ref_high_risk <- this_res[bootstrap == 0 & comparitor == "ref" & risk_group == "high", sum(N)]
-					ref_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "ref" & risk_group == "high", .(N=sum(N)), by=bootstrap][,N]
-					ref_cvd_high_risk <- this_res[bootstrap == 0 & comparitor == "ref" & risk_group == "high" & status == "case", sum(N)]
-					ref_cvd_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "ref" & risk_group == "high" & status == "case", .(N=sum(N)), by=bootstrap][,N]
+					ref_high_risk <- this_res[bootstrap == 0 & comparitor == "ref" & risk_group == "high", sum(N)*scaling_factor]
+					ref_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "ref" & risk_group == "high", .(N=sum(N)), by=bootstrap][,N*scaling_factor]
+					ref_cvd_high_risk <- this_res[bootstrap == 0 & comparitor == "ref" & risk_group == "high" & status == "case", sum(N)*scaling_factor]
+					ref_cvd_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "ref" & risk_group == "high" & status == "case", .(N=sum(N)), by=bootstrap][,N*scaling_factor]
 					ref_cvd_prevented <- ref_cvd_high_risk * statin_modifier
 					ref_cvd_prevented_boot <- ref_cvd_high_risk_boot * statin_modifier
 					ref_NNS <- total_n / ref_cvd_prevented
@@ -39,10 +46,10 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					ref_NNT_boot <- ref_high_risk_boot / ref_cvd_prevented_boot
 
 					if (this_model != "Risk score") {
-						alt_high_risk <- this_res[bootstrap == 0 & comparitor == "alt" & risk_group == "high", sum(N)]
-						alt_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "alt" & risk_group == "high", .(N=sum(N)), by=bootstrap][,N]
-						alt_cvd_high_risk <- this_res[bootstrap == 0 & comparitor == "alt" & risk_group == "high" & status == "case", sum(N)]
-						alt_cvd_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "alt" & risk_group == "high" & status == "case", .(N=sum(N)), by=bootstrap][,N]
+						alt_high_risk <- this_res[bootstrap == 0 & comparitor == "alt" & risk_group == "high", sum(N)*scaling_factor]
+						alt_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "alt" & risk_group == "high", .(N=sum(N)), by=bootstrap][,N*scaling_factor]
+						alt_cvd_high_risk <- this_res[bootstrap == 0 & comparitor == "alt" & risk_group == "high" & status == "case", sum(N)*scaling_factor]
+						alt_cvd_high_risk_boot <- this_res[bootstrap != 0 & comparitor == "alt" & risk_group == "high" & status == "case", .(N=sum(N)), by=bootstrap][,N*scaling_factor]
 						alt_cvd_prevented <- alt_cvd_high_risk * statin_modifier
 						alt_cvd_prevented_boot <- alt_cvd_high_risk_boot * statin_modifier
 						alt_NNS <- total_n / alt_cvd_prevented
