@@ -1,0 +1,6 @@
+# For use with QRISK3
+
+Self-report field 20002: 1381 # systemic lupus erythematosis/sle
+Prevalent ICD-10: M32
+Prevalent ICD-9: 710.0
+

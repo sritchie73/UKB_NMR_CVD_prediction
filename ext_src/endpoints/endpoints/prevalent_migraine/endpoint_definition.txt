@@ -1,0 +1,6 @@
+# For use with QRISK3
+
+Self-report field 20002: 1265 # migraine
+Prevalent ICD-10: G43, G44.0
+Prevalent ICD-9: 346, 339.0
+

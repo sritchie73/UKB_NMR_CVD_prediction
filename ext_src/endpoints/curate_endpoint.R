@@ -1,4 +1,4 @@
-#!/usr/local/Cluster-Apps/R/R.4.0.3/bin/Rscript --vanilla
+#!/usr/local/Cluster-Apps/R/4.3.1-icelake/bin/Rscript --vanilla
 ########################################################################################
 # Load R package dependencies
 ########################################################################################

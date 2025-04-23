@@ -47,29 +47,38 @@ avg <- function(xx) {
   }
 }
 
+# SD of two repeated measures (used by QRISK3)
+bpsd <- function(xx) {
+  if (all(is.na(xx))) {
+    return(NA_real_)
+  } else {
+    return(sd(na.omit(xx)))
+  }
+}
+
 raw <- raw[, .(
   sbp_manual = avg(sbp_manual),
   dbp_manual = avg(dbp_manual),
   pulse_rate_manual = avg(pulse_rate_manual),
   sbp_automatic = avg(sbp_automatic),
   dbp_automatic = avg(dbp_automatic),
-  pulse_rate_auto = avg(pulse_rate_auto)
+  pulse_rate_auto = avg(pulse_rate_auto),
+  sd_sbp_manual = bpsd(sbp_manual),
+  sd_sbp_automatic = bpsd(sbp_automatic)
 ), by=.(eid, visit_index)]
+
+raw[, row := .I]
+raw[is.na(sd_sbp_manual) & is.na(sd_sbp_automatic) & !is.na(sbp_manual) & !is.na(sbp_automatic), sd_sbp_manual := sd(c(sbp_manual, sbp_automatic)), by=row]
+raw[is.na(sd_sbp_manual) & is.na(sd_sbp_automatic) & !is.na(sbp_manual) & !is.na(sbp_automatic), sd_sbp_automatic := sd_sbp_manual]
 
 # Average automatic and manual measurements where both are present
 raw <- raw[, .(
   sbp = avg(c(sbp_manual, sbp_automatic)),
   dbp = avg(c(dbp_manual, dbp_automatic)),
-  pulse_rate = avg(c(pulse_rate_manual, pulse_rate_auto))
+  pulse_rate = avg(c(pulse_rate_manual, pulse_rate_auto)),
+  sd_sbp = avg(c(sd_sbp_manual, sd_sbp_automatic))
 ), by=.(eid, visit_index)]
 
 # Write out
 fwrite(raw, sep="\t", quote=FALSE, file="output/blood_pressure.txt")
-
-
-
-
-
-
-
 

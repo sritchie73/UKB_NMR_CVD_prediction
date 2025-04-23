@@ -109,7 +109,42 @@ med_classes <- meds[, by=.(eid, visit_index), .(
   # https://openprescribing.net/bnf/060101/
 	insulin_medication = ifelse(
 		any(medication_code == 1140883066),   # insulin product
-		TRUE, FALSE)
+		TRUE, FALSE),
+
+  # Second generation atypical antipsychotics (used by QDiabetes and QRISK algorithms)
+  atypical_antipsychotics = ifelse(
+		any(medication_code == 1141153490) |  # amisulpride
+		any(medication_code == 1141195974) |  # aripiprazole
+		any(medication_code == 1140867420) |  # clozapine
+		any(medication_code == 1140928916) |  # olanzapine
+		any(medication_code == 1141152848) |  # quetiapine
+		any(medication_code == 1140867444) |  # risperidone
+		any(medication_code == 1140927956) |  # sertindole
+		any(medication_code == 1141169714),   # zotepine
+		TRUE, FALSE),
+
+  # Routine use of corticosteroids (used by QDiabetes and QRISK algorithms)
+	systematic_corticosteroids = ifelse(
+		any(medication_code == 1140874790) |  # betamethasone
+		any(medication_code == 1141145782) |  # deflazacort
+		any(medication_code == 1140874816) |  # dexamethasone
+		any(medication_code == 1140874896) |  # hydrocortisone
+		any(medication_code == 1140874976) |  # methylprednisolone
+		any(medication_code == 1140874930) |  # prednisolone
+		any(medication_code == 1141157402) |  # prednisolone product
+		any(medication_code == 1140868364) |  # prednisone
+		any(medication_code == 1140868426),   # triamcinolone
+		TRUE, FALSE),
+
+  # Erectile dysfunction treatments, used by QRISK
+  erectile_dysfunction = ifelse(
+    any(medication_code == 1140869100) | # alprostadil
+    any(medication_code == 1140883010) | # papaverine
+    any(medication_code == 1141168936) | # sildenafil
+    any(medication_code == 1141187810) | # tadalafil
+    any(medication_code == 1141192248) | # vardenafil 
+    any(medication_code == 1140865136),  # yohimbine/pemoline/methyltestosterone
+    TRUE, FALSE)
 )]
 
 fwrite(med_classes, sep="\t", quote=FALSE, file="output/detailed_medications_summarised.txt")

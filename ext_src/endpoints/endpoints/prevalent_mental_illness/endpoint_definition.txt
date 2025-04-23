@@ -1,0 +1,21 @@
+# For use with QRISK3
+
+# Bipolar
+Prevalent ICD-10: F31  # Bipolar affective disorder
+Prevalent ICD-9: 296.80, 296.89 # Bipolar
+Prevalent ICD-9: 296.0, 296.4-296.7 # Manic-depressive psychosis
+Self-report field 20002: 1291 # mania/bipolar disorder/manic depression
+Self-report field 20126: 1, 2 # Bipolar I/II
+Self-report field 20122: 1, 2 # Bipolar
+
+# Schizophrenia
+Prevalent ICD-10: F20  # Schizophrenia
+Prevalent ICD-9: 295 # Schizophrenic psychoses
+Self-report field 20002: 1289 # schizophrenia
+
+# Moderate-severe depression
+Prevalent ICD-10: F32.1, F32.2, F32.3
+Prevalent ICD-9: 296.22, 296.23, 296.24, 298.0
+Self-report field 20124: 1 # Probable recurrent major depression (moderate)
+Self-report field 20125: 1 # Probable recurrent major depression (severe)
+

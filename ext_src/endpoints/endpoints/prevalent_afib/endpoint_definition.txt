@@ -1,0 +1,7 @@
+# For use with QRISK3
+
+Self-report field 20002: 1471 # Atrial Fibrillation
+Self-report field 20002: 1483 # Atrial flutter
+Prevalent ICD-10: I48  # Atrial fibrillation and flutter, includes paroxysmal
+Prevalent ICD-9: 427.31, 427.32 # Atrial fibrillation and flutter
+
