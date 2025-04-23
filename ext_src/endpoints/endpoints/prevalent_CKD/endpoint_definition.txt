@@ -1,0 +1,16 @@
+# For use with QRISK3
+
+Algorithmically defined outcome: esrd  # End stage renal disease (CKD stage 5)
+Prevalent ICD-10: N18.3, N18.4 # CKD stage 3 and 4
+Prevalent ICD-10: N04 # Nephrotic syndrome
+Prevalent ICD-10: N03 # chronic glomerulonephritis
+Prevalent ICD-10: N11 # chronic pyelonephritis
+Prevalent ICD-10: Z99.2 # Renal dialysis
+Prevalent ICD-10: Z94.0 # Kidney transplant
+Prevalent ICD-9: 585.3-585.6 # CKD stage >= 3
+Prevalent ICD-9: 581 # Nephrotic syndrome
+Prevalent ICD-9: 582 # chronic glomerulonephritis
+Prevalent ICD-9: 590.0 # chronic pyelonephritis
+Prevalent ICD-9: V45.11 # Renal dialysis
+Prevalent ICD-9: V42.0 # Kidney transplant
+

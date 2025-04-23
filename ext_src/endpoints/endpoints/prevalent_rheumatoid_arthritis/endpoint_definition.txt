@@ -1,0 +1,6 @@
+# For use with QRISK3
+
+Self-report field 20002: 1464 # Rheumatoid Arthritis
+Prevalent ICD-10: M05, M06
+Prevalent ICD-9: 714
+
