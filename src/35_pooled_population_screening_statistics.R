@@ -1,7 +1,7 @@
 library(data.table)
 library(foreach)
 
-statin_modifier <- 1/10  # Assume statins prevent 1 in 10 cases, i.e. a 10% risk reduction over 10 years
+statin_modifier <- 1/5  # Assume statins prevent 1 in 5 cases, i.e. a 20% risk reduction over 10 years
 
 # Load bootstrapped demographic standardised risk stratification
 boot_res <- fread("analyses/public_health_modelling/pooled_standardised_risk_stratification_bootstraps.txt")
