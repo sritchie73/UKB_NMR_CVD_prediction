@@ -12,12 +12,16 @@ options("ggrastr.default.dpi" = 300)
 # Make output directoru
 system("mkdir -p analyses/test", wait=TRUE)
 
-# Compare non-derived NMR scores to each other
+# Compare non-derived NMR scores to each other, assay scores, and PRSs
 dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
 setnames(dat, "SCORE2_excl_UKB", "SCORE2")
 
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
+
+assay_scores <- fread("analyses/assay_score_training/aggregate_test_assay_scores.txt")
+dat <- dat[assay_scores, on = .(eid)]
+
 dat <- melt(dat, id.vars=c("eid", "sex"), variable.name="score")
 
 score_comp <- foreach(this_rn = unique(dat$score), .combine=rbind) %:%
@@ -26,8 +30,8 @@ score_comp <- foreach(this_rn = unique(dat$score), .combine=rbind) %:%
     this_y <- dat[score == this_cn, .(eid, sex, y_score=score, y_value=value)]
     merge(this_x, this_y, by=c("eid", "sex"))
 }
-score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
-score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
+score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_assay_score", "Stroke_assay_score", "CAD_metaGRS", "Stroke_metaGRS"))]
+score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_assay_score", "Stroke_assay_score", "CAD_metaGRS", "Stroke_metaGRS"))]
 
 # Get pairwise correlation coefficient statistics:
 cor_stats <- score_comp[x_score != y_score & !is.na(x_value) & !is.na(y_value), {
@@ -64,29 +68,6 @@ score_densities <- function(score_comp) {
 g1 <- score_densities(score_comp[sex == "Male"])
 g2 <- score_densities(score_comp[sex == "Female"])
 
-ggsave(g1, width=8, height=7, file="analyses/test/non_derived_score_compare_males.pdf")
-ggsave(g2, width=8, height=7, file="analyses/test/non_derived_score_compare_females.pdf")
-
-# Compare clinical NMR scores to each other
-dat <- fread("data/cleaned/analysis_cohort.txt", select=c("eid", "sex", "CAD_metaGRS", "Stroke_metaGRS", "SCORE2_excl_UKB"))
-setnames(dat, "SCORE2_excl_UKB", "SCORE2")
-
-nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_clinical_NMR_scores.txt")
-dat <- dat[nmr_scores, on = .(eid)]
-dat <- melt(dat, id.vars=c("eid", "sex"), variable.name="score")
-
-score_comp <- foreach(this_rn = unique(dat$score), .combine=rbind) %:%
-  foreach(this_cn = unique(dat$score), .combine=rbind) %do% {
-    this_x <- dat[score == this_rn, .(eid, sex, x_score=score, x_value=value)]
-    this_y <- dat[score == this_cn, .(eid, sex, y_score=score, y_value=value)]
-    merge(this_x, this_y, by=c("eid", "sex"))
-}
-score_comp[, x_score := factor(x_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
-score_comp[, y_score := factor(y_score, levels=c("SCORE2", "CAD_NMR_score", "Stroke_NMR_score", "CAD_metaGRS", "Stroke_metaGRS"))]
-
-g1 <- score_densities(score_comp[sex == "Male"])
-g2 <- score_densities(score_comp[sex == "Female"])
-
-ggsave(g1, width=7, height=7, file="analyses/test/clinical_score_compare_males.pdf")
-ggsave(g2, width=7, height=7, file="analyses/test/clinical_score_compare_females.pdf")
+ggsave(g1, width=8, height=7, file="analyses/test/NMR_assay_score_compare_males.pdf")
+ggsave(g2, width=8, height=7, file="analyses/test/NMR_assay_score_compare_females.pdf")
 

@@ -12,11 +12,15 @@ coef <- fread("analyses/CVD_weight_training/multivariable_model_weights.txt")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
+# Load and add predicted assay scores in the discovery data
+assay_scores <- fread("analyses/assay_score_training/aggregate_test_assay_scores.txt")
+dat <- dat[assay_scores, on = .(eid)]
+
 # Add five year age group (downstream analyses uses these)
 dat[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
 
 # Compute linear predictors for main and sensitivity analyses
-models <- c("", "NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS")
+models <- c("", "NMR scores", "Assay scores", "PRS", "NMR scores + PRS", "Assay scores + PRS", "NMR scores + Assay scores", "NMR scores + Assay scores + PRS")
 pred_scores <- foreach(this_model=models, .combine=rbind) %:% 
   foreach(this_endpoint=c("cvd", "cvd_narrow"), .combine=rbind) %:%
 		foreach(this_score=c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %:%
@@ -99,8 +103,9 @@ g <- ggplot(avg_lp) +
   scale_x_continuous("Age group", breaks=seq(40, 65, by=5), labels=c("40-44", "45-49", "50-54", "55-59", "60-64", "65-69")) +
   scale_y_continuous("Average linear predictor") +
   scale_color_manual(values=c(
-    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Assay scores"="#ff7f00",
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Assay scores + PRS"="#984ea3", "Risk score + NMR scores + Assay scores"="#f781bf",
+    "Risk score + NMR scores + Assay scores + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
@@ -123,8 +128,9 @@ g <- ggplot(avg_lp2) +
   scale_y_continuous("Risk score LP (average per 5-year age-group)") +
   scale_x_continuous("New LP (average per 5-year age-group)") +
   scale_color_manual(values=c(
-    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Assay scores"="#ff7f00",
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Assay scores + PRS"="#984ea3", "Risk score + NMR scores + Assay scores"="#f781bf",
+    "Risk score + NMR scores + Assay scores + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
