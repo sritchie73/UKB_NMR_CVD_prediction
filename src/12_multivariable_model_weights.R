@@ -12,21 +12,21 @@ dat <- fread("data/cleaned/analysis_cohort.txt")
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
 
-# Load and add predicted assay scores in the discovery data
-assay_scores <- fread("analyses/assay_score_training/aggregate_test_assay_scores.txt")
-dat <- dat[assay_scores, on = .(eid)]
+# Load FDR-significant clinical chemistry biomarkers
+bio_res <- fread("analyses/univariate/cindices_sensitivity_analysis.txt")
+bio_res <- bio_res[cohort == "pooled" & sex == "Sex-stratified" & endpoint == "ASCVD" & score == "SCORE2" & model_type == "Clinical biochemistry assay" & deltaC.fdr < 0.05]
 
 # Fit multivariable models
-models <- c("NMR scores", "Assay scores", "PRS", "NMR scores + PRS", "Assay scores + PRS", "NMR scores + Assay scores", "NMR scores + Assay scores + PRS")
+models <- c("NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS")
 cvd_weights <- foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
   foreach(this_model = models, .combine=rbind) %do% {
     # Build model formula
     mf <- "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB)"
-    if (this_model %like% "NMR scores")
+    if (this_model %in% c("NMR scores", "NMR scores + PRS"))
       mf <- paste(mf, "+ scale(CAD_NMR_score) + scale(Stroke_NMR_score)")
-    if (this_model %like% "Assay scores") 
-      mf <- paste(mf, "+ scale(CAD_assay_score) + scale(Stroke_assay_score)")
-    if (this_model %like% "PRS")
+    if (this_model %in% c("Biochemistry", "Biochemistry + PRS")) 
+      mf <- paste(mf, "+", bio_res[, paste(sprintf("scale(%s)", biomarker), collapse=" + ")])
+    if (this_model %in% c("PRS", "NMR scores + PRS", "Biochemistry + PRS"))
       mf <- paste(mf, "+ scale(CAD_metaGRS) + scale(Stroke_metaGRS)")
 
     # Fit survival model
@@ -60,10 +60,36 @@ cvd_weights <- foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
 cvd_weights[, variable_name := fcase(
   variable_col == "CAD_NMR_score", "CHD NMR score", 
   variable_col == "Stroke_NMR_score", "Stroke NMR score", 
-  variable_col == "CAD_assay_score", "CHD assay score", 
-  variable_col == "Stroke_assay_score", "Stroke assay score", 
   variable_col == "CAD_metaGRS", "CHD PRS (PGS000018)", 
-  variable_col == "Stroke_metaGRS", "Stroke PRS (PGS000039)"
+  variable_col == "Stroke_metaGRS", "Stroke PRS (PGS000039)",
+  variable_col == "alb", "Albumin",
+  variable_col == "alt", "ALT",
+  variable_col == "alp", "ALP",
+  variable_col == "apoa1", "ApoA1",
+  variable_col == "apob", "ApoB",
+  variable_col == "asp", "AST",
+  variable_col == "dbili", "Bilirubin (direct)",
+  variable_col == "tbili", "Bilirubin (total)",
+  variable_col == "calcium", "Calcium",
+  variable_col == "creat", "Creatinine",
+  variable_col == "crp", "CRP",
+  variable_col == "cyst", "Cystatin-C",
+  variable_col == "ggt", "GGT",
+  variable_col == "glucose", "Glucose",
+  variable_col == "hba1c", "HbA1c",
+  variable_col == "igf1", "IGF-1",
+  variable_col == "lpa", "Lp(a)",
+  variable_col == "ldl", "LDL cholesterol",
+  variable_col == "oest", "Oestradiol",
+  variable_col == "phos", "Phosphate",
+  variable_col == "rheuf", "RF",
+  variable_col == "shbg", "SHBG",
+  variable_col == "testos", "Testosterone",
+  variable_col == "protein", "Total protein",
+  variable_col == "trig", "Triglycerides",
+  variable_col == "uric", "Urate",
+  variable_col == "urea", "Urea",
+  variable_col == "vitd25", "Vitamin D"
 )]
 
 # Write out
