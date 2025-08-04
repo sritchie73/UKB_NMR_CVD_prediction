@@ -8,8 +8,8 @@ library(patchwork)
 system("mkdir -p analyses/test", wait=TRUE)
 
 # Load discovery data
-dat <- fread("data/cleaned/analysis_cohort.txt")
-dat2 <- fread("data/cleaned/sensitivity_analysis_extended_data.txt")
+dat <- fread("data/cleaned/analysis_cohort.txt", colClasses=c("age"="numeric"))
+dat2 <- fread("data/cleaned/sensitivity_analysis_extended_data.txt", colClasses=c("age"="numeric"))
 
 # Load and add predicted NMR scores in the discovery data
 nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
@@ -22,12 +22,14 @@ bio_res <- bio_res[cohort == "pooled" & sex == "Sex-stratified" & endpoint == "A
 # Fit joint models with risk factors
 rf_hrs <- foreach(this_sex = c("Males", "Females", "Sex-stratified"), .combine=rbind) %:% 
   foreach(this_score = c("SCORE2", "QRISK3"), .combine=rbind) %:% 
-    foreach(this_model = c("biochemistry", "NMR"), .combine=rbind) %do% {
+    foreach(this_model = c("biochemistry", "NMR", "joint"), .combine=rbind) %do% {
       # Extract relevant model data
       if (this_model == "NMR") {
          this_dat <- dat[,.(eid, CAD_metaGRS, Stroke_metaGRS, CAD_NMR_score, Stroke_NMR_score)]
-      } else {
+      } else if (this_model == "biochemistry") {
          this_dat <- dat[,.SD,.SDcols=c("eid", "CAD_metaGRS", "Stroke_metaGRS", bio_res$biomarker)]
+      } else {
+         this_dat <- dat[,.SD,.SDcols=c("eid", "CAD_metaGRS", "Stroke_metaGRS", "CAD_NMR_score", "Stroke_NMR_score", bio_res$biomarker)]
       }
 
       # Add common model data
@@ -55,10 +57,11 @@ rf_hrs <- foreach(this_sex = c("Males", "Females", "Sex-stratified"), .combine=r
       this_dat[, Stroke_metaGRS := scale(Stroke_metaGRS)]
       this_dat[, sbp := scale(sbp)]
      
-      if (this_model == "NMR") {
+      if (this_model != "biochemistry") {
         this_dat[, CAD_NMR_score := scale(CAD_NMR_score)]
         this_dat[, Stroke_NMR_score := scale(Stroke_NMR_score)]
-      } else {
+      } 
+      if (this_model != "NMR") {
         for (bio_var in bio_res$biomarker) {
           this_dat[, c(bio_var) := as.vector(scale(this_dat[[bio_var]]))]
         }
@@ -102,9 +105,10 @@ rf_hrs <- foreach(this_sex = c("Males", "Females", "Sex-stratified"), .combine=r
     
       mf <- paste(mf, "CAD_metaGRS + Stroke_metaGRS +")
 
-      if (this_model == "NMR") {
+      if (this_model != "biochemistry") {
         mf <- paste(mf, "CAD_NMR_score + Stroke_NMR_score +")
-      } else {
+      } 
+      if (this_model != "NMR") {
         mf <- paste(mf, paste(bio_res$biomarker, collapse=" + "), "+")
       }
 
@@ -250,9 +254,10 @@ rf_hrs[, model_sex := factor(model_sex, levels=c("Sex-stratified", "Males", "Fem
 rf_hrs[, score := factor(score, levels=c("SCORE2", "QRISK3"))]
 rf_hrs[, model_type := fcase(
   model_type == "NMR", "Risk score + NMR scores + PRSs",
-  model_type == "biochemistry", "Risk score + clinical biomarkers + PRSs"
+  model_type == "biochemistry", "Risk score + clinical biomarkers + PRSs",
+  model_type == "joint", "Risk score + NMR scores + clinical biomarkers + PRSs"
 )]
-rf_hrs[, model_type := factor(model_type, levels=c("Risk score + NMR scores + PRSs", "Risk score + clinical biomarkers + PRSs"))]
+rf_hrs[, model_type := factor(model_type, levels=c("Risk score + NMR scores + PRSs", "Risk score + clinical biomarkers + PRSs", "Risk score + NMR scores + clinical biomarkers + PRSs"))]
 rf_hrs <- rf_hrs[order(model_sex)]
 rfo <- rf_hrs[model_sex == "Sex-stratified"][order(HR.pval)][order(model_type)][order(score)][,.(score, model_type, coefficient)]
 rf_hrs <- rf_hrs[rfo, on = .(score, model_type, coefficient)]
@@ -279,8 +284,6 @@ hr_plot <- function(ggdt) {
 		)
 }
 
-g1 <- hr_plot(rf_hrs[score == "SCORE2" & model_type == "Risk score + NMR scores + PRSs"])
-g2 <- hr_plot(rf_hrs[score == "SCORE2" & model_type == "Risk score + clinical biomarkers + PRSs"])
-g <- g1 / g2
-ggsave(g, width=7.2, height=8, file="analyses/test/multivariable_risk_factor_associations.pdf")
+g <- hr_plot(rf_hrs[score == "SCORE2" & model_type == "Risk score + NMR scores + clinical biomarkers + PRSs"])
+ggsave(g, width=7.2, height=4, file="analyses/test/multivariable_risk_factor_associations.pdf")
 
