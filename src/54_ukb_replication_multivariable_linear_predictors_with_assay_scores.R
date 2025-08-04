@@ -5,18 +5,22 @@ source('src/utils/SCORE2.R')
 source('src/utils/QRISK3.R')
 
 # Load data
-dat <- fread("data/cleaned/analysis_cohort.txt")
-coef <- fread("analyses/CVD_weight_training/multivariable_model_weights.txt")
+dat <- fread("data/cleaned/phase3_analysis_cohort.txt")
+coef <- fread("analyses/CVD_weight_training/multivariable_model_weights_with_assay_scores.txt")
 
 # Load and add predicted NMR scores in the discovery data
-nmr_scores <- fread("analyses/nmr_score_training/aggregate_test_non_derived_NMR_scores.txt")
+nmr_scores <- fread("analyses/nmr_score_training/phase3_nmr_scores.txt")
 dat <- dat[nmr_scores, on = .(eid)]
+
+# Load and add predicted assay scores in the discovery data
+assay_scores <- fread("analyses/assay_score_training/phase3_assay_scores.txt")
+dat <- dat[assay_scores, on = .(eid)]
 
 # Add five year age group (downstream analyses uses these)
 dat[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
 
 # Compute linear predictors for main and sensitivity analyses
-models <- c("", "NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS")
+models <- c("", "NMR scores", "Assay scores", "PRS", "NMR scores + PRS", "Assay scores + PRS", "NMR scores + Assay scores", "NMR scores + Assay scores + PRS")
 pred_scores <- foreach(this_model=models, .combine=rbind) %:% 
   foreach(this_endpoint=c("cvd", "cvd_narrow"), .combine=rbind) %:%
 		foreach(this_score=c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %:%
@@ -82,7 +86,7 @@ pred_scores[score != "QRISK3", uk_calibrated_risk := score2_recalibration(sex, u
 pred_scores[score == "QRISK3", uk_calibrated_risk := QRISK3_absrisk(sex, linear_predictor)]
 
 # Write out
-fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")
+fwrite(pred_scores, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/phase3_CVD_linear_predictors_and_risk_with_assay_scores.txt")
 
 # Check calibration of predicted risks in each five-year age-group, i.e. to see whether calibration scaling
 # factors used by SCORE2 (i.e. to the low-risk european region) are still applicable
@@ -99,8 +103,9 @@ g <- ggplot(avg_lp) +
   scale_x_continuous("Age group", breaks=seq(40, 65, by=5), labels=c("40-44", "45-49", "50-54", "55-59", "60-64", "65-69")) +
   scale_y_continuous("Average linear predictor") +
   scale_color_manual(values=c(
-    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Assay scores"="#ff7f00",
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Assay scores + PRS"="#984ea3", "Risk score + NMR scores + Assay scores"="#f781bf",
+    "Risk score + NMR scores + Assay scores + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
@@ -109,7 +114,7 @@ g <- ggplot(avg_lp) +
     legend.text=element_text(size=7), legend.title=element_blank()
   )
 
-ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/average_predicted_LP_by_age_group.pdf")
+ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/phase3_average_predicted_LP_by_age_group_with_assay_scores.pdf")
 
 avg_lp2 <- avg_lp[model_type != "Risk score"]
 avg_lp2[avg_lp[model_type == "Risk score"], on = .(score, sex, age_group), Risk_score := i.mean]
@@ -123,8 +128,9 @@ g <- ggplot(avg_lp2) +
   scale_y_continuous("Risk score LP (average per 5-year age-group)") +
   scale_x_continuous("New LP (average per 5-year age-group)") +
   scale_color_manual(values=c(
-    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Assay scores"="#ff7f00",
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Assay scores + PRS"="#984ea3", "Risk score + NMR scores + Assay scores"="#f781bf",
+    "Risk score + NMR scores + Assay scores + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
@@ -133,5 +139,6 @@ g <- ggplot(avg_lp2) +
     legend.text=element_text(size=7), legend.title=element_blank()
   )
 
-ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/new_LP_vs_SCORE2_LP_average_per_age_group.pdf")
+ggsave(g, width=7.2, height=5, file="analyses/CVD_weight_training/phase3_new_LP_vs_SCORE2_LP_average_per_age_group_with_assay_scores.pdf")
+
 

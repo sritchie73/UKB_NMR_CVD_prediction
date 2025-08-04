@@ -67,5 +67,5 @@ cvd_weights[, variable_name := fcase(
 )]
 
 # Write out
-fwrite(cvd_weights, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/multivariable_model_weights.txt")
+fwrite(cvd_weights, sep="\t", quote=FALSE, file="analyses/CVD_weight_training/multivariable_model_weights_with_assay_scores.txt")
 

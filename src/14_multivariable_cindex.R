@@ -3,7 +3,7 @@ library(foreach)
 source("src/utils/Cindex.R")
 
 # Create output directory
-system("mkdir -p analyses/rest")
+system("mkdir -p analyses/test")
 
 # Load in pre-computed linear predictors
 pred_scores <- fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt")

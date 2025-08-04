@@ -38,7 +38,7 @@ cor_stats <- score_comp[x_score != y_score & !is.na(x_value) & !is.na(y_value), 
   cc <- cor.test(x_value, y_value)
   list(estimate=cc$estimate, L95=cc$conf.int[1], U95=cc$conf.int[2], pval=cc$p.value)
 }, by=.(sex, x_score, y_score)]
-fwrite(cor_stats, sep="\t", quote=FALSE, file="analyses/test/pairwise_correlations_sex_specific_scores.txt")
+fwrite(cor_stats, sep="\t", quote=FALSE, file="analyses/test/pairwise_correlations_sex_specific_scores_with_assay_scores.txt")
 
 # Make pairwise densities
 score_densities <- function(score_comp) {
@@ -68,6 +68,6 @@ score_densities <- function(score_comp) {
 g1 <- score_densities(score_comp[sex == "Male"])
 g2 <- score_densities(score_comp[sex == "Female"])
 
-ggsave(g1, width=8, height=7, file="analyses/test/NMR_assay_score_compare_males.pdf")
-ggsave(g2, width=8, height=7, file="analyses/test/NMR_assay_score_compare_females.pdf")
+ggsave(g1, width=8, height=7, file="analyses/test/NMR_assay_score_compare_males_with_assay_scores.pdf")
+ggsave(g2, width=8, height=7, file="analyses/test/NMR_assay_score_compare_females_with_assay_scores.pdf")
 
