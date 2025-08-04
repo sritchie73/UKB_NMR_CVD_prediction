@@ -17,16 +17,16 @@ bio_res <- fread("analyses/univariate/cindices_sensitivity_analysis.txt")
 bio_res <- bio_res[cohort == "pooled" & sex == "Sex-stratified" & endpoint == "ASCVD" & score == "SCORE2" & model_type == "Clinical biochemistry assay" & deltaC.fdr < 0.05]
 
 # Fit multivariable models
-models <- c("NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS")
+models <- c("NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS", "NMR scores + Biochemistry", "NMR scores + Biochemistry + PRS")
 cvd_weights <- foreach(this_sex = c("Male", "Female"), .combine=rbind) %:%
   foreach(this_model = models, .combine=rbind) %do% {
     # Build model formula
     mf <- "Surv(incident_cvd_followup, incident_cvd) ~ offset(SCORE2_excl_UKB)"
-    if (this_model %in% c("NMR scores", "NMR scores + PRS"))
+    if (this_model %like% "NMR scores")
       mf <- paste(mf, "+ scale(CAD_NMR_score) + scale(Stroke_NMR_score)")
-    if (this_model %in% c("Biochemistry", "Biochemistry + PRS")) 
+    if (this_model %like% "Biochemistry")
       mf <- paste(mf, "+", bio_res[, paste(sprintf("scale(%s)", biomarker), collapse=" + ")])
-    if (this_model %in% c("PRS", "NMR scores + PRS", "Biochemistry + PRS"))
+    if (this_model %like% "PRS")
       mf <- paste(mf, "+ scale(CAD_metaGRS) + scale(Stroke_metaGRS)")
 
     # Fit survival model

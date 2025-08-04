@@ -19,8 +19,11 @@ ggdt[, model_name := fcase(
   model == "SCORE2 + Biochemistry", "SCORE2 + 11 clinical chemistry biomarkers",
   model == "SCORE2 + PRS", "SCORE2 + PRSs for CHD and IS",
   model == "SCORE2 + NMR scores + PRS", "SCORE2 + NMR scores for CHD and IS + PRSs for CHD and IS",
-  model == "SCORE2 + Biochemistry + PRS", "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
+  model == "SCORE2 + Biochemistry + PRS", "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS",
+  model == "SCORE2 + NMR scores + Biochemistry", "SCORE2 + NMR scores for CHD and IS + 11 clinical chemistry biomarkers",
+  model == "SCORE2 + NMR scores + Biochemistry + PRS", "SCORE2 + NMR scores for CHD and IS + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
 )]
+ggdt <- ggdt[order(deltaC)]
 ggdt[,model_name := factor(model_name, levels=model_name)]
 
 g <- ggplot(ggdt) +
@@ -30,8 +33,9 @@ g <- ggplot(ggdt) +
   geom_point(shape=23, size=2, fill="white") +
   scale_x_continuous("Change in C-index (95% CI)", limits=c(0, 0.03), breaks=c(0, 0.01, 0.02, 0.03)) +
 	scale_color_manual(values=c(
-		"SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRS"="#377eb8", "SCORE2 + Biochemistry"="#ff7f00",
-		"SCORE2 + NMR scores + PRS"="#4daf4a", "SCORE2 + Biochemistry + PRS"="#984ea3"
+    "SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRS"="#377eb8", "SCORE2 + Biochemistry"="#ff7f00",
+    "SCORE2 + NMR scores + PRS"="#4daf4a", "SCORE2 + Biochemistry + PRS"="#984ea3", "SCORE2 + NMR scores + Biochemistry"="#f781bf",
+    "SCORE2 + NMR scores + Biochemistry + PRS"="#a65628"
 	)) +
   ylab("") +
   theme_bw() +
@@ -41,7 +45,7 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=5.3, height=2, file="analyses/test/main_delta_cindices.pdf")
+ggsave(g, width=7.2, height=2, file="analyses/test/main_delta_cindices.pdf")
 
 # Build supp table of main results
 supp1 <- res[endpoint == "cvd" & model_sex == "Sex-stratified" & score == "SCORE2_excl_UKB"]

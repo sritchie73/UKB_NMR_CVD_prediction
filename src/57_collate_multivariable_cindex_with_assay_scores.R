@@ -23,6 +23,7 @@ ggdt[, model_name := fcase(
   model == "SCORE2 + Assay scores + PRS", "SCORE2 + Clinical assay scores for CHD and IS + PRSs for CHD and IS",
   model == "SCORE2 + NMR scores + Assay scores + PRS", "SCORE2 + NMR scores for CHD and IS + Clinical assay scores for CHD and IS + PRSs for CHD and IS"
 )]
+ggdt <- ggdt[order(deltaC)]
 ggdt[,model_name := factor(model_name, levels=model_name)]
 
 g <- ggplot(ggdt) +
@@ -44,5 +45,5 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=7.2, height=2.2, file="analyses/test/main_delta_cindices_with_assay_scores.pdf")
+ggsave(g, width=7.2, height=2, file="analyses/test/main_delta_cindices_with_assay_scores.pdf")
 

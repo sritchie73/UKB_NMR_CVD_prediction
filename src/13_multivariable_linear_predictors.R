@@ -16,7 +16,7 @@ dat <- dat[nmr_scores, on = .(eid)]
 dat[, age_group := sprintf("%s-%s", age %/% 5 * 5, age %/% 5 * 5 + 4)]
 
 # Compute linear predictors for main and sensitivity analyses
-models <- c("", "NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS")
+models <- c("", "NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS", "NMR scores + Biochemistry", "NMR scores + Biochemistry + PRS")
 pred_scores <- foreach(this_model=models, .combine=rbind) %:% 
   foreach(this_endpoint=c("cvd", "cvd_narrow"), .combine=rbind) %:%
 		foreach(this_score=c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %:%
@@ -100,7 +100,8 @@ g <- ggplot(avg_lp) +
   scale_y_continuous("Average linear predictor") +
   scale_color_manual(values=c(
     "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3", "Risk score + NMR scores + Biochemistry"="#f781bf",
+    "Risk score + NMR scores + Biochemistry + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
@@ -124,7 +125,8 @@ g <- ggplot(avg_lp2) +
   scale_x_continuous("New LP (average per 5-year age-group)") +
   scale_color_manual(values=c(
     "Risk score"="black", "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+    "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3", "Risk score + NMR scores + Biochemistry"="#f781bf",
+    "Risk score + NMR scores + Biochemistry + PRS"="#a65628"
   )) +
   theme_bw() +
   theme(
