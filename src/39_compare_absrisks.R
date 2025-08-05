@@ -35,7 +35,8 @@ eCDFs[, sex := factor(sex, levels=c("Male", "Female"))]
 eCDFs[, age_group := factor(age_group, levels=c("40-49 years", "50-59 years", "60-69 years"))]
 eCDFs[, incident_cvd := factor(incident_cvd)]
 eCDFs[, model := factor(model, levels=c("SCORE2 + NMR scores", "SCORE2 + Biochemistry", "SCORE2 + PRS",
-  "SCORE2 + NMR scores + PRS", "SCORE2 + Biochemistry + PRS", "SCORE2"))]
+  "SCORE2 + NMR scores + Biochemistry", "SCORE2 + NMR scores + PRS", "SCORE2 + Biochemistry + PRS", 
+  "SCORE2 + NMR scores + Biochemistry + PRS", "SCORE2"))]
 
 # Plot probability of exceeding X% risk
 risk_thresholds <- rbind(
@@ -58,7 +59,8 @@ g <- ggplot(eCDFs) +
   scale_linetype_manual(values=c("discovery"="solid", "replication"="dashed")) +
 	scale_color_manual(values=c(
 		"SCORE2 + NMR scores"="#e41a1c", "SCORE2 + PRS"="#377eb8", "SCORE2 + Biochemistry"="#ff7f00",
-		"SCORE2 + NMR scores + PRS"="#4daf4a", "SCORE2 + Biochemistry + PRS"="#984ea3", "SCORE2"="#000000"
+		"SCORE2 + NMR scores + PRS"="#4daf4a", "SCORE2 + Biochemistry + PRS"="#984ea3", "SCORE2 + NMR scores + Biochemistry"="#f781bf",
+		"SCORE2 + NMR scores + Biochemistry + PRS"="#a65628", "SCORE2"="#000000"
 	)) +
   theme_bw() +
   theme(
@@ -89,7 +91,8 @@ eCDFs[, sex := factor(sex, levels=c("Male", "Female"))]
 eCDFs[, age_group := factor(age_group, levels=c("40-49 years", "50-59 years", "60-69 years"))]
 eCDFs[, incident_cvd := factor(incident_cvd)]
 eCDFs[, model := factor(model, levels=c("QRISK3 + NMR scores", "QRISK3 + Biochemistry", "QRISK3 + PRS",
-  "QRISK3 + NMR scores + PRS", "QRISK3 + Biochemistry + PRS", "QRISK3"))]
+  "QRISK3 + NMR scores + Biochemistry", "QRISK3 + NMR scores + PRS", "QRISK3 + Biochemistry + PRS", 
+  "QRISK3 + NMR scores + Biochemistry + PRS", "QRISK3"))]
 
 g <- ggplot(eCDFs) +
   aes(x=absrisk, y=1-eCDF, color=model, linetype=cohort) +
@@ -100,8 +103,9 @@ g <- ggplot(eCDFs) +
   scale_y_continuous("Probability of 10-year CVD risk exceeding X%") +
   scale_linetype_manual(values=c("discovery"="solid", "replication"="dashed")) +
   scale_color_manual(values=c(
-    "QRISK3 + NMR scores"="#e41a1c", "QRISK3 + PRS"="#377eb8", "QRISK3 + Biochemistry"="#ff7f00",
-    "QRISK3 + NMR scores + PRS"="#4daf4a", "QRISK3 + Biochemistry + PRS"="#984ea3", "QRISK3"="#000000"
+		"QRISK3 + NMR scores"="#e41a1c", "QRISK3 + PRS"="#377eb8", "QRISK3 + Biochemistry"="#ff7f00",
+		"QRISK3 + NMR scores + PRS"="#4daf4a", "QRISK3 + Biochemistry + PRS"="#984ea3", "QRISK3 + NMR scores + Biochemistry"="#f781bf",
+		"QRISK3 + NMR scores + Biochemistry + PRS"="#a65628", "QRISK3"="#000000"
   )) +
   theme_bw() +
   theme(
@@ -122,14 +126,4 @@ prop_high_risk <- risk_strata[,.(pct_high_risk=sum(high_risk)/.N),by=.(score, se
 prop_high_risk <- dcast(prop_high_risk, age_group ~ score + sex, value.var="pct_high_risk")
 prop_high_risk <- prop_high_risk[order(age_group)]
 fwrite(prop_high_risk, sep="\t", quote=FALSE, file="analyses/test/prop_high_risk_by_age_sex_score.txt")
-
-
-
-
-
-
-
-
-
-
 
