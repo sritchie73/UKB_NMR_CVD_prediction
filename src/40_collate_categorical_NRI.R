@@ -22,11 +22,13 @@ res2 <- rbind(idcol="cohort",
 ggdt <- res[cohort == "pooled" & model_sex == "Sex-stratified" & endpoint == "cvd" & score == "SCORE2_excl_UKB"]
 ggdt <- ggdt[metric %in% c("NRI+", "NRI-")]
 ggdt[, model_name := fcase(
+  model == "SCORE2 + PRS", "SCORE2 + PRSs for CHD and IS",
   model == "SCORE2 + NMR scores", "SCORE2 + NMR scores for CHD and IS",
   model == "SCORE2 + Biochemistry", "SCORE2 + 11 clinical chemistry biomarkers",
-  model == "SCORE2 + PRS", "SCORE2 + PRSs for CHD and IS",
+  model == "SCORE2 + NMR scores + Biochemistry", "SCORE2 + NMR scores for CHD and IS + 11 clinical chemistry biomarkers",
   model == "SCORE2 + NMR scores + PRS", "SCORE2 + NMR scores for CHD and IS + PRSs for CHD and IS",
-  model == "SCORE2 + Biochemistry + PRS", "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
+  model == "SCORE2 + Biochemistry + PRS", "SCORE2 + 11 clinical chemistry biomarkers + PRSs for CHD and IS",
+  model == "SCORE2 + NMR scores + Biochemistry + PRS", "SCORE2 + NMR scores for CHD and IS + 11 clinical chemistry biomarkers + PRSs for CHD and IS"
 )]
 ggdt[,model_name := factor(model_name, levels=unique(model_name))]
 
@@ -36,7 +38,7 @@ g <- ggplot(ggdt) +
   geom_errorbarh(height=0, position=position_dodgev(height=0.3)) +
   geom_point(shape=23, size=2, fill="white", position=position_dodgev(height=0.3)) +
   scale_color_manual(values=c("NRI+"="#c51b7d", "NRI-"="#4d9221")) +
-  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.17)) +
+  scale_x_continuous("Categorical NRI, % reclassified (95% CI)", labels=percent, limits=c(-0.05, 0.20)) +
   ylab("") +
   theme_bw() +
   theme(
@@ -45,7 +47,7 @@ g <- ggplot(ggdt) +
     panel.grid.major.y=element_blank(), panel.grid.minor.y=element_blank(),
     legend.position="none"
   )
-ggsave(g, width=5.3, height=2, file="analyses/test/main_categorical_nri.pdf")
+ggsave(g, width=7.2, height=2, file="analyses/test/main_categorical_nri.pdf")
 
 # Build supp tables for main results
 supp1 <- res[endpoint == "cvd" & model_sex == "Sex-stratified" & score == "SCORE2_excl_UKB"]
@@ -154,15 +156,17 @@ common_gg_parts <- function(g) {
     geom_vline(xintercept=0, linetype=2) +
     geom_errorbarh(height=0, alpha=0.7) + geom_errorbar(width=0, alpha=0.7) +
     geom_point(shape=23) +
-    scale_x_continuous(limits=c(-0.05, 0.25), oob=scales::squish, breaks=c(0, 0.1, 0.2), labels=percent) +
-    scale_y_continuous(limits=c(-0.05, 0.25), oob=scales::squish, breaks=c(0, 0.1, 0.2), labels=percent) +
+    scale_x_continuous(limits=c(-0.05, 0.20), oob=scales::squish, breaks=c(0, 0.1, 0.2), labels=percent) +
+    scale_y_continuous(limits=c(-0.05, 0.20), oob=scales::squish, breaks=c(0, 0.1, 0.2), labels=percent) +
     scale_color_manual(values=c(
       "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-      "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+      "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3", "Risk score + NMR scores + Biochemistry"="#f781bf",
+      "Risk score + NMR scores + Biochemistry + PRS"="#a65628"
     )) +
     scale_fill_manual(values=c(
       "Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-      "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+      "Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3", "Risk score + NMR scores + Biochemistry"="#f781bf",
+      "Risk score + NMR scores + Biochemistry + PRS"="#a65628"
     )) +
     theme_bw() +
     theme(
@@ -241,5 +245,5 @@ g8 <- common_gg_parts(g8)
 
 # Add all the parts together into a single plot
 g <- (g1 | g2 | g3) / (g4 | g5 | g6) / (g7 | g8 | g8)
-ggsave(g, width=7.2, height=8.1, file="analyses/test/categorical_nri_comparison_sensitivity.pdf")
+ggsave(g, width=7.2, height=8.82, file="analyses/test/categorical_nri_comparison_sensitivity.pdf")
 
