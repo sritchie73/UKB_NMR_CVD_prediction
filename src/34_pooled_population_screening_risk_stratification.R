@@ -21,7 +21,9 @@ model_map <- rbind(use.names=FALSE,
   data.table("Biochemistry", "Risk score + clinical biomarkers", "model3"),
   data.table("PRS", "Risk score + PRSs", "model4"),
   data.table("NMR scores + PRS", "Risk score + NMR scores + PRSs", "model5"),
-  data.table("Biochemistry + PRS", "Risk score + clinical biomarkers + PRSs", "model6")
+  data.table("Biochemistry + PRS", "Risk score + clinical biomarkers + PRSs", "model6"),
+  data.table("NMR scores + Biochemistry", "Risk score + NMR scores + clinical biomarkers", "model7"),
+  data.table("NMR scores + Biochemistry + PRS", "Risk score + NMR scores + clinical biomarkers + PRSs", "model8")
 )
 pred_risk[model_map, on = .(model_type), model_colname := model_colname]
 
