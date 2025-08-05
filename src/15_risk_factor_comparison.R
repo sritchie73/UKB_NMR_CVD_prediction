@@ -20,132 +20,147 @@ bio_res <- fread("analyses/univariate/cindices_sensitivity_analysis.txt")
 bio_res <- bio_res[cohort == "pooled" & sex == "Sex-stratified" & endpoint == "ASCVD" & score == "SCORE2" & model_type == "Clinical biochemistry assay" & deltaC.fdr < 0.05]
 
 # Fit joint models with risk factors
+models <- c("NMR scores", "Biochemistry", "PRS", "NMR scores + PRS", "Biochemistry + PRS", "NMR scores + Biochemistry", "NMR scores + Biochemistry + PRS")
 rf_hrs <- foreach(this_sex = c("Males", "Females", "Sex-stratified"), .combine=rbind) %:% 
-  foreach(this_score = c("SCORE2", "QRISK3"), .combine=rbind) %:% 
-    foreach(this_model = c("biochemistry", "NMR", "joint"), .combine=rbind) %do% {
-      # Extract relevant model data
-      if (this_model == "NMR") {
-         this_dat <- dat[,.(eid, CAD_metaGRS, Stroke_metaGRS, CAD_NMR_score, Stroke_NMR_score)]
-      } else if (this_model == "biochemistry") {
-         this_dat <- dat[,.SD,.SDcols=c("eid", "CAD_metaGRS", "Stroke_metaGRS", bio_res$biomarker)]
-      } else {
-         this_dat <- dat[,.SD,.SDcols=c("eid", "CAD_metaGRS", "Stroke_metaGRS", "CAD_NMR_score", "Stroke_NMR_score", bio_res$biomarker)]
-      }
-
-      # Add common model data
-      this_dat <- this_dat[dat[,.(eid, sex, incident_cvd, incident_cvd_followup)], on = .(eid)]
-
-      # Add in score-specific risk factors
-      if (this_score == "SCORE2") {
-         this_dat <- this_dat[dat[,.(eid, age, sbp, tchol, hdl, smoking)], on = .(eid)]
-      } else {
-         this_dat <- this_dat[dat2[,.(eid, age, sbp, sd_sbp, tchol_hdl_ratio, smoke, townsend, QRisk_ethnicity,
-           weight, height, atrial_fibrillation, chronic_kidney_disease, severe_mental_illness, migraine,
-           systemic_lupus_erythematosis, erectile_dysfunction, rheumatoid_arthritis, prevalent_t1d, prevalent_t2d,
-           atypical_antipsychotics, systematic_corticosteroids, blood_pressure_treatment)], on = .(eid)]
-      }
-
-      # Filter to relevant sex
-      if (this_sex == "Males") {
-        this_dat <- this_dat[sex == "Male"]
-      } else if (this_sex == "Females") {
-        this_dat <- this_dat[sex == "Female"]
-      }
-
-      # Apply standardisations etc
-      this_dat[, CAD_metaGRS := scale(CAD_metaGRS)]
-      this_dat[, Stroke_metaGRS := scale(Stroke_metaGRS)]
-      this_dat[, sbp := scale(sbp)]
-     
-      if (this_model != "biochemistry") {
-        this_dat[, CAD_NMR_score := scale(CAD_NMR_score)]
-        this_dat[, Stroke_NMR_score := scale(Stroke_NMR_score)]
-      } 
-      if (this_model != "NMR") {
-        for (bio_var in bio_res$biomarker) {
-          this_dat[, c(bio_var) := as.vector(scale(this_dat[[bio_var]]))]
+	foreach(this_endpoint=c("cvd", "cvd_narrow"), .combine=rbind) %:%
+		foreach(this_score = c("SCORE2", "QRISK3"), .combine=rbind) %:% 
+			foreach(this_model = models, .combine=rbind) %do% {
+				# Extract relevant model data
+        this_dat <- dat[,.(eid, sex)]
+        if (this_model %like% "NMR") {
+					 this_dat <- this_dat[dat, on = .(eid), CAD_NMR_score := i.CAD_NMR_score] 
+					 this_dat <- this_dat[dat, on = .(eid), Stroke_NMR_score := i.Stroke_NMR_score] 
         }
-      }
-
-      if (this_score == "SCORE2") {
-        this_dat[is.na(smoking), smoking := FALSE]
-        this_dat[, age := scale(age), by=sex]
-        this_dat[, hdl := scale(hdl), by=sex]
-        this_dat[, tchol := scale(tchol), by=sex]
-      } else {
-        this_dat[, sd_sbp := scale(sd_sbp), by=sex]
-        this_dat[, tchol_hdl_ratio := scale(tchol_hdl_ratio), by=sex]
-        this_dat[, townsend := scale(townsend), by=sex]
-
-        this_dat[, smoke := factor(smoke, levels=c("non-smoker", "ex-smoker", "light smoker", "moderate smoker", "heavy smoker"))]
-        this_dat[, QRisk_ethnicity := factor(QRisk_ethnicity, levels=c(
-          "White or not stated", "Indian", "Pakistani", "Bangladeshi", "Other Asian",
-          "Black Caribbean", "Black African", "Chinese", "Other ethnic group"
-        ))]
-
-        this_dat[, age_1 := ifelse(sex == "Female", age^-2, age^-1)]
-        this_dat[, age_2 := ifelse(sex == "Female", age, age^3)]
-        this_dat[, age_1 := scale(age_1), by=sex]
-        this_dat[, age_2 := scale(age_2), by=sex]
-
-        this_dat[, height := height/100]
-        this_dat[, bmi := weight / height^2]
-			  this_dat[, bmi_1 := bmi^-2]
-			  this_dat[, bmi_2 := bmi^-2 * log(bmi)]
-        this_dat[, bmi_1 := scale(bmi_1), by=sex]
-        this_dat[, bmi_2 := scale(bmi_2), by=sex]
-      }
-
-      # Build model formula
-      mf <- "Surv(incident_cvd_followup, incident_cvd) ~"
- 
-      if (this_sex == "Sex-stratified") { 
-        mf <- paste(mf, "strata(sex) +")
-      }
-    
-      mf <- paste(mf, "CAD_metaGRS + Stroke_metaGRS +")
-
-      if (this_model != "biochemistry") {
-        mf <- paste(mf, "CAD_NMR_score + Stroke_NMR_score +")
-      } 
-      if (this_model != "NMR") {
-        mf <- paste(mf, paste(bio_res$biomarker, collapse=" + "), "+")
-      }
-
-      if (this_score == "SCORE2") {
-        mf <- paste(mf, "age*smoking + age*sbp + age*tchol + age*hdl")
-      } else {
-        if (this_sex != "Females") {
-          mf <- paste(mf, "age_1*erectile_dysfunction + age_2*erectile_dysfunction +")
+        if (this_model %like% "PRS") {
+					 this_dat <- this_dat[dat, on = .(eid), CAD_metaGRS := i.CAD_metaGRS] 
+					 this_dat <- this_dat[dat, on = .(eid), Stroke_metaGRS := i.Stroke_metaGRS] 
         }
-        mf <- paste(mf, 
-          "age_1*smoke + age_1*atrial_fibrillation + age_1*systematic_corticosteroids + age_1*migraine +",
-          "age_1*chronic_kidney_disease + age_1*systemic_lupus_erythematosis + age_1*blood_pressure_treatment +",
-          "age_1*bmi_1 + age_1*bmi_2 + age_1*sbp + age_1*townsend +",
-          "age_2*smoke + age_2*atrial_fibrillation + age_2*systematic_corticosteroids + age_2*migraine +",
-          "age_2*chronic_kidney_disease + age_2*systemic_lupus_erythematosis + age_2*blood_pressure_treatment +",
-          "age_2*bmi_1 + age_2*bmi_2 + age_2*sbp + age_2*townsend + QRisk_ethnicity +",
-          "tchol_hdl_ratio + sd_sbp + atypical_antipsychotics + rheumatoid_arthritis + severe_mental_illness")
-      }
+        if (this_model %like% "Biochemistry") {
+           bio_dat <- dat[,.SD,.SDcols=c("eid", bio_res$biomarker)]
+           this_dat <- this_dat[bio_dat, on = .(eid)]
+        }
 
-      # Fit cox proportional hazards model
-      cx <- coxph(as.formula(mf), data=this_dat)
+				# Add in relevant endpoint data
+        if (this_endpoint == "cvd") {
+          this_dat[dat, on = .(eid), c("incident_cvd", "incident_cvd_followup") := .(i.incident_cvd, i.incident_cvd_followup)]
+        } else {
+          this_dat[dat, on = .(eid), c("incident_cvd", "incident_cvd_followup") := .(i.incident_cvd2, i.incident_cvd2_followup)]
+        }
 
-		  # Extra hazard ratios
-	    cf <- coef(summary(cx))
-		  ci <- confint(cx)
+				# Add in score-specific risk factors
+				if (this_score == "SCORE2") {
+					 this_dat <- this_dat[dat[,.(eid, age, sbp, tchol, hdl, smoking)], on = .(eid)]
+				} else {
+					 this_dat <- this_dat[dat2[,.(eid, age, sbp, sd_sbp, tchol_hdl_ratio, smoke, townsend, QRisk_ethnicity,
+						 weight, height, atrial_fibrillation, chronic_kidney_disease, severe_mental_illness, migraine,
+						 systemic_lupus_erythematosis, erectile_dysfunction, rheumatoid_arthritis, prevalent_t1d, prevalent_t2d,
+						 atypical_antipsychotics, systematic_corticosteroids, blood_pressure_treatment)], on = .(eid)]
+				}
 
-		  HR <- cf[,2]
-		  HR.SE <- cf[,3]
-		  HR.L95 <- exp(ci[,1])
-		  HR.U95 <- exp(ci[,2])
-		  HR.pval <- cf[,5]
+				# Filter to relevant sex
+				if (this_sex == "Males") {
+					this_dat <- this_dat[sex == "Male"]
+				} else if (this_sex == "Females") {
+					this_dat <- this_dat[sex == "Female"]
+				}
 
-			# Extract relevant info and return
-			data.table(
-        score = this_score, model_sex = this_sex, model_type = this_model,
-				samples=cx$n, events=cx$nevent, coefficient = names(HR), HR, HR.SE, HR.L95, HR.U95, HR.pval
-			)
+				# Apply standardisations etc
+				this_dat[, sbp := scale(sbp)] # in all models
+
+        if (this_model %like% "PRS") {
+					this_dat[, CAD_metaGRS := scale(CAD_metaGRS)]
+					this_dat[, Stroke_metaGRS := scale(Stroke_metaGRS)]
+        }
+				if (this_model %like% "NMR") {
+					this_dat[, CAD_NMR_score := scale(CAD_NMR_score)]
+					this_dat[, Stroke_NMR_score := scale(Stroke_NMR_score)]
+				} 
+				if (this_model %like% "Biochemistry") {
+					for (bio_var in bio_res$biomarker) {
+						this_dat[, c(bio_var) := as.vector(scale(this_dat[[bio_var]]))]
+					}
+				}
+
+				if (this_score == "SCORE2") {
+					this_dat[is.na(smoking), smoking := FALSE]
+					this_dat[, age := scale(age), by=sex]
+					this_dat[, hdl := scale(hdl), by=sex]
+					this_dat[, tchol := scale(tchol), by=sex]
+				} else {
+					this_dat[, sd_sbp := scale(sd_sbp), by=sex]
+					this_dat[, tchol_hdl_ratio := scale(tchol_hdl_ratio), by=sex]
+					this_dat[, townsend := scale(townsend), by=sex]
+
+					this_dat[, smoke := factor(smoke, levels=c("non-smoker", "ex-smoker", "light smoker", "moderate smoker", "heavy smoker"))]
+					this_dat[, QRisk_ethnicity := factor(QRisk_ethnicity, levels=c(
+						"White or not stated", "Indian", "Pakistani", "Bangladeshi", "Other Asian",
+						"Black Caribbean", "Black African", "Chinese", "Other ethnic group"
+					))]
+
+					this_dat[, age_1 := ifelse(sex == "Female", age^-2, age^-1)]
+					this_dat[, age_2 := ifelse(sex == "Female", age, age^3)]
+					this_dat[, age_1 := scale(age_1), by=sex]
+					this_dat[, age_2 := scale(age_2), by=sex]
+
+					this_dat[, height := height/100]
+					this_dat[, bmi := weight / height^2]
+					this_dat[, bmi_1 := bmi^-2]
+					this_dat[, bmi_2 := bmi^-2 * log(bmi)]
+					this_dat[, bmi_1 := scale(bmi_1), by=sex]
+					this_dat[, bmi_2 := scale(bmi_2), by=sex]
+				}
+
+				# Build model formula
+				mf <- "Surv(incident_cvd_followup, incident_cvd) ~"
+	 
+				if (this_sex == "Sex-stratified") { 
+					mf <- paste(mf, "strata(sex) +")
+				}
+
+        if (this_model %like% "PRS") {
+					mf <- paste(mf, "CAD_metaGRS + Stroke_metaGRS +")
+        }
+				if (this_model %like% "NMR") {
+					mf <- paste(mf, "CAD_NMR_score + Stroke_NMR_score +")
+				} 
+				if (this_model %like% "Biochemistry") {
+					mf <- paste(mf, paste(bio_res$biomarker, collapse=" + "), "+")
+				}
+
+				if (this_score == "SCORE2") {
+					mf <- paste(mf, "age*smoking + age*sbp + age*tchol + age*hdl")
+				} else {
+					if (this_sex != "Females") {
+						mf <- paste(mf, "age_1*erectile_dysfunction + age_2*erectile_dysfunction +")
+					}
+					mf <- paste(mf, 
+						"age_1*smoke + age_1*atrial_fibrillation + age_1*systematic_corticosteroids + age_1*migraine +",
+						"age_1*chronic_kidney_disease + age_1*systemic_lupus_erythematosis + age_1*blood_pressure_treatment +",
+						"age_1*bmi_1 + age_1*bmi_2 + age_1*sbp + age_1*townsend +",
+						"age_2*smoke + age_2*atrial_fibrillation + age_2*systematic_corticosteroids + age_2*migraine +",
+						"age_2*chronic_kidney_disease + age_2*systemic_lupus_erythematosis + age_2*blood_pressure_treatment +",
+						"age_2*bmi_1 + age_2*bmi_2 + age_2*sbp + age_2*townsend + QRisk_ethnicity +",
+						"tchol_hdl_ratio + sd_sbp + atypical_antipsychotics + rheumatoid_arthritis + severe_mental_illness")
+				}
+
+				# Fit cox proportional hazards model
+				cx <- coxph(as.formula(mf), data=this_dat)
+
+				# Extra hazard ratios
+				cf <- coef(summary(cx))
+				ci <- confint(cx)
+
+				HR <- cf[,2]
+				HR.SE <- cf[,3]
+				HR.L95 <- exp(ci[,1])
+				HR.U95 <- exp(ci[,2])
+				HR.pval <- cf[,5]
+
+				# Extract relevant info and return
+				data.table(
+					score = this_score, endpoint = this_endpoint, model_sex = this_sex, model_type = this_model,
+					samples=cx$n, events=cx$nevent, coefficient = names(HR), HR, HR.SE, HR.L95, HR.U95, HR.pval
+				)
 }
 
 # Give readable names to coefficients
@@ -251,16 +266,22 @@ rf_hrs[, coefficient := fcase(
 
 # write out supp table
 rf_hrs[, model_sex := factor(model_sex, levels=c("Sex-stratified", "Males", "Females"))]
+rf_hrs[, endpoint := ifelse(endpoint == "cvd_narrow", "Narrow", "Broad")]
+rf_hrs[, endpoint := factor(endpoint, levels=c("Broad", "Narrow"))]
 rf_hrs[, score := factor(score, levels=c("SCORE2", "QRISK3"))]
-rf_hrs[, model_type := fcase(
-  model_type == "NMR", "Risk score + NMR scores + PRSs",
-  model_type == "biochemistry", "Risk score + clinical biomarkers + PRSs",
-  model_type == "joint", "Risk score + NMR scores + clinical biomarkers + PRSs"
+rf_hrs[, model_type := sprintf("Risk score + %s", model_type)]
+rf_hrs[, model_type := factor(model_type, levels=unique(model_type))]
+rf_hrs <- rf_hrs[order(model_sex)][order(endpoint)]
+rfo <- rf_hrs[model_sex == "Sex-stratified"][order(HR.pval)][order(model_type)][order(score)][,.(score, endpoint, model_type, coefficient)]
+rf_hrs <- rf_hrs[rfo, on = .(score, endpoint, model_type, coefficient)]
+rf_hrs[, coefficient_type := fcase(
+  coefficient %like% " PRS ", "PRS",
+  coefficient %like% " NMR ", "NMR score",
+  coefficient %in% c("Cystatin-C", "C-reactive protein", "Alkaline phosphatase", "Albumin", "Gamma glutamyltransferase",
+    "Lipoprotein(a)", "Aspartate aminotransferase", "Glycated haemoglobin (HbA1c)", "Urate", "Vitamin D", "Apolipoprotein A1"), "Added clinical biomarker",
+  default = "risk factor"
 )]
-rf_hrs[, model_type := factor(model_type, levels=c("Risk score + NMR scores + PRSs", "Risk score + clinical biomarkers + PRSs", "Risk score + NMR scores + clinical biomarkers + PRSs"))]
-rf_hrs <- rf_hrs[order(model_sex)]
-rfo <- rf_hrs[model_sex == "Sex-stratified"][order(HR.pval)][order(model_type)][order(score)][,.(score, model_type, coefficient)]
-rf_hrs <- rf_hrs[rfo, on = .(score, model_type, coefficient)]
+rf_hrs[coefficient_type == "risk factor", coefficient_type := paste(score, coefficient_type)]
 fwrite(rf_hrs, sep="\t", quote=FALSE, file="analyses/test/multivariable_risk_factor_associations.txt")
 
 # Create sex-stratified plot
@@ -284,6 +305,6 @@ hr_plot <- function(ggdt) {
 		)
 }
 
-g <- hr_plot(rf_hrs[score == "SCORE2" & model_type == "Risk score + NMR scores + clinical biomarkers + PRSs"])
+g <- hr_plot(rf_hrs[score == "SCORE2" & endpoint == "Broad" & model_type == "Risk score + NMR scores + Biochemistry + PRS"])
 ggsave(g, width=7.2, height=4, file="analyses/test/multivariable_risk_factor_associations.pdf")
 
