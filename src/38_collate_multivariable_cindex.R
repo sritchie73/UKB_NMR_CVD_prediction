@@ -104,11 +104,12 @@ common_gg_parts <- function(g) {
     geom_abline(intercept=0, slope=1, linetype=2) +
     geom_errorbarh(height=0, alpha=0.7) + geom_errorbar(width=0, alpha=0.7) +
     geom_point(shape=23, fill="white") +
-    scale_x_continuous(limits=c(0, 0.03), oob=scales::squish, breaks=c(0, 0.01, 0.02, 0.03)) +
-    scale_y_continuous(limits=c(0, 0.03), oob=scales::squish, breaks=c(0, 0.01, 0.02, 0.03)) +
+    scale_x_continuous(limits=c(0, 0.033), oob=scales::oob_keep, breaks=c(0, 0.01, 0.02, 0.03)) +
+    scale_y_continuous(limits=c(0, 0.033), oob=scales::oob_keep, breaks=c(0, 0.01, 0.02, 0.03)) +
 		scale_color_manual(values=c(
 			"Risk score + NMR scores"="#e41a1c", "Risk score + PRS"="#377eb8", "Risk score + Biochemistry"="#ff7f00",
-			"Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3"
+			"Risk score + NMR scores + PRS"="#4daf4a", "Risk score + Biochemistry + PRS"="#984ea3", "Risk score + NMR scores + Biochemistry"="#f781bf",
+			"Risk score + NMR scores + Biochemistry + PRS"="#a65628"
 		)) +
     theme_bw() +
     theme(
@@ -186,6 +187,6 @@ g8 <- common_gg_parts(g8)
 
 # Add all the parts together into a single plot
 g <- (g1 | g2 | g3) / (g4 | g5 | g6) / (g7 | g8 | g8)
-ggsave(g, width=7.2, height=8.1, file="analyses/test/deltaC_comparison_sensitivity.pdf")
+ggsave(g, width=7.2, height=8.82, file="analyses/test/deltaC_comparison_sensitivity.pdf")
 
 
