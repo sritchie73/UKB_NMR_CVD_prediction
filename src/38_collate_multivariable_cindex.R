@@ -12,7 +12,7 @@ res <- rbind(idcol="cohort",
   "pooled"=fread("analyses/test/pooled_cindices.txt")
 )
 
-# Build main figure 3A
+# Build main figure 4A
 ggdt <- res[cohort == "pooled" & model_sex == "Sex-stratified" & endpoint == "cvd" & score == "SCORE2_excl_UKB"]
 ggdt[, model_name := fcase(
   model == "SCORE2 + NMR scores", "SCORE2 + NMR scores for CHD and IS",

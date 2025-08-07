@@ -18,7 +18,7 @@ res2 <- rbind(idcol="cohort",
   "pooled"=fread("analyses/test/pooled_categorical_nri_reclassified.txt")
 )
 
-# Build main figure 3B
+# Build main figure 4B
 ggdt <- res[cohort == "pooled" & model_sex == "Sex-stratified" & endpoint == "cvd" & score == "SCORE2_excl_UKB"]
 ggdt <- ggdt[metric %in% c("NRI+", "NRI-")]
 ggdt[, model_name := fcase(

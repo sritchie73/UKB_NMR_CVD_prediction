@@ -13,7 +13,7 @@ res <- rbind(idcol="cohort",
   "pooled"=fread("analyses/public_health_modelling/pooled_screening.txt")
 )
 
-# Build Figure 4
+# Build Figure 5
 ggdt <- res[cohort == "pooled" & endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_sex == "Sex-stratified" & model != "Risk score"]
 ggdt <- ggdt[metric %in% c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT")]
 ggdt[, metric := factor(metric, levels=c("delta_high_risk", "delta_cvd_high_risk", "delta_cvd_prevented", "delta_NNS", "delta_NNT"))]
