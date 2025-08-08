@@ -63,7 +63,7 @@ g2 <- ggplot(res) +
 
 # Combine plots
 g <- g1 / g2
-ggsave(g, width=7.2, height=8, file="analyses/CVD_weight_training/multivariable_model_weights.pdf")
+ggsave(g, width=7.2, height=7, file="analyses/CVD_weight_training/multivariable_model_weights.pdf")
 
 
 
