@@ -4,7 +4,7 @@ library(data.table)
 boot_res <- fread("analyses/public_health_modelling/pooled_standardised_risk_stratification_bootstraps.txt")
 
 # Filter to representative example for stratifying population by SCORE2
-boot_res <- boot_res[strategy == "blanket" & endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_name == "Risk score + NMR scores" & comparitor == "ref"]
+boot_res <- boot_res[strategy == "blanket" & endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_name == "Risk score" & comparitor == "ref"]
 
 # Compute relevant statistics
 ref_high_risk <- boot_res[bootstrap == 0 & risk_group == "high", sum(N)]
@@ -13,8 +13,8 @@ ref_cvd_high_risk <- boot_res[bootstrap == 0 & risk_group == "high" & status == 
 ref_cvd_high_risk_boot <- boot_res[bootstrap != 0 & risk_group == "high" & status == "case", .(N=sum(N)), by=bootstrap][,N]
 ref_cvd_prevented <- ref_cvd_high_risk/5
 ref_cvd_prevented_boot <- ref_cvd_high_risk_boot/5
-ref_NNS <- total_n / ref_cvd_prevented
-ref_NNS_boot <- total_n_boot / ref_cvd_prevented_boot
+ref_NNS <- 100000 / ref_cvd_prevented
+ref_NNS_boot <- 100000 / ref_cvd_prevented_boot
 ref_NNT <- ref_high_risk / ref_cvd_prevented
 ref_NNT_boot <- ref_high_risk_boot / ref_cvd_prevented_boot
 
@@ -24,8 +24,8 @@ alt_cvd_high_risk <- boot_res[bootstrap == 0 & risk_group != "low" & status == "
 alt_cvd_high_risk_boot <- boot_res[bootstrap != 0 & risk_group != "low" & status == "case", .(N=sum(N)), by=bootstrap][,N]
 alt_cvd_prevented <- alt_cvd_high_risk/5
 alt_cvd_prevented_boot <- alt_cvd_high_risk_boot/5
-alt_NNS <- total_n / alt_cvd_prevented
-alt_NNS_boot <- total_n_boot / alt_cvd_prevented_boot
+alt_NNS <- 100000 / alt_cvd_prevented
+alt_NNS_boot <- 100000 / alt_cvd_prevented_boot
 alt_NNT <- alt_high_risk / alt_cvd_prevented
 alt_NNT_boot <- alt_high_risk_boot / alt_cvd_prevented_boot
 
@@ -42,9 +42,7 @@ delta_NNT_boot <- alt_NNT_boot - ref_NNT_boot
 
 # Build output table of statistics
 stats <- rbind(use.names=FALSE,
-	data.table(metric="total_n", estimate=total_n, se=sd(total_n_boot)),
-	data.table("total_cases", total_cases, sd(total_cases_boot)),
-	data.table("ref_high_risk", ref_high_risk, sd(ref_high_risk_boot)),
+	data.table(metric="ref_high_risk", estimate=ref_high_risk, se=sd(ref_high_risk_boot)),
 	data.table("ref_cvd_high_risk", ref_cvd_high_risk, sd(ref_cvd_high_risk_boot)),
 	data.table("ref_cvd_prevented", ref_cvd_prevented, sd(ref_cvd_prevented_boot)),
 	data.table("ref_NNS", ref_NNS, sd(ref_NNS_boot)),
