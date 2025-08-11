@@ -136,5 +136,5 @@ ons_pop[, status := ifelse(status == "cases", "case", "non-case")]
 res[ons_pop, on = .(sex, age_group, status), N := proportion * N]
 
 # Write out bootstrap statistics
-fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/discovery_standardised_risk_stratification_bootstraps.txt")
+fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/discovery_standardised_blanket_risk_stratification_bootstraps.txt")
 
