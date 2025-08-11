@@ -4,10 +4,10 @@ library(foreach)
 statin_modifier <- 1/5  # Assume statins prevent 1 in 5 cases, i.e. a 20% risk reduction over 10 years
 
 # Load bootstrapped demographic standardised risk stratification
-boot_res <- fread("analyses/public_health_modelling/pooled_standardised_risk_stratification_bootstraps.txt")
+boot_res <- fread("analyses/public_health_modelling/replication_standardised_blanket_risk_stratification_bootstraps.txt")
 
 # Aggregate into population modelling statistics
-res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
+res <- foreach(this_strategy = c("blanket"), .combine=rbind) %:%
   foreach(this_endpoint = c("cvd", "cvd_narrow"), .combine=rbind) %:%
     foreach(this_score = c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %:%
       foreach(this_model_sex = c("Sex-stratified", "Males", "Females"), .combine=rbind) %:%
@@ -105,5 +105,5 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					# Add model information and return
 					cbind(strategy=this_strategy, endpoint=this_endpoint, score=this_score, model_sex=this_model_sex, model=this_model, this_stats)
 }
-fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/pooled_screening.txt")
+fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/replication_blanket_screening.txt")
 
