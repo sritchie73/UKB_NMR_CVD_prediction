@@ -50,12 +50,6 @@ res <- foreach(this_strategy = c("blanket"), .combine=rbind) %:%
 					default="high")]
       }
 
-      # For QRISK3, set the medium risk group back to low: a medium risk group is not defined by
-      # the NICE 2023 guidelines, we just created our own one for targeted screening
-      if (this_score == "QRISK3") {
-        this_dat[risk_group == "medium", risk_group := "low"]
-      }
-
       # Get wide format for simultanous bootstrapping of all models
       this_dat <- dcast(this_dat, eid + sex + age_group + incident_cvd + incident_cvd_followup ~ model_colname, value.var="risk_group", fill="missing")
 
