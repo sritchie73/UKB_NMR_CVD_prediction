@@ -2,13 +2,16 @@ library(data.table)
 library(foreach)
 library(boot)
 options(boot.parallel="multicore")
-options(boot.ncpus=20) # Takes almost 6 hours on icelake with 20 cores
+options(boot.ncpus=20) # takes < 4.5 hours on sapphire with 20 cores
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
 
 # Load in predicted risks
-pred_risk <- fread("analyses/CVD_weight_training/phase3_CVD_linear_predictors_and_risk.txt")
+pred_risk <- rbind(
+  fread("analyses/CVD_weight_training/CVD_linear_predictors_and_risk.txt"),
+  fread("analyses/CVD_weight_training/phase3_CVD_linear_predictors_and_risk.txt")
+)
 
 # Create a mapping of model names to model numbers (which will be used as column names
 # during bootstrap)
@@ -25,7 +28,7 @@ model_map <- rbind(use.names=FALSE,
 pred_risk[model_map, on = .(model_type), model_colname := model_colname]
 
 # Run through all analyses
-res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
+res <- foreach(this_strategy = c("blanket"), .combine=rbind) %:%
 	foreach(this_endpoint = c("cvd", "cvd_narrow"), .combine=rbind) %:%
 		foreach(this_score = c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %do% {
 			# Extract all scores for this inner loop
@@ -47,12 +50,6 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					default="high")]
       }
 
-      # If we're doing targeted screening, only use the alternative models for risk stratification
-      # in the medium risk group
-      if (this_strategy == "targeted") {
-        this_dat[this_dat[model_type == "" & risk_group != "medium"], on = .(eid), risk_group := i.risk_group]
-      } 
- 
       # For QRISK3, set the medium risk group back to low: a medium risk group is not defined by
       # the NICE 2023 guidelines, we just created our own one for targeted screening
       if (this_score == "QRISK3") {
@@ -148,5 +145,5 @@ ons_pop[, status := ifelse(status == "cases", "case", "non-case")]
 res[ons_pop, on = .(sex, age_group, status), N := proportion * N]
 
 # Write out bootstrap statistics
-fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/replication_standardised_risk_stratification_bootstraps.txt")
+fwrite(res, sep="\t", quote=FALSE, file="analyses/public_health_modelling/pooled_standardised_risk_stratification_bootstraps.txt")
 

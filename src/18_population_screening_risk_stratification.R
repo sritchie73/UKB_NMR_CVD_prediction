@@ -2,7 +2,7 @@ library(data.table)
 library(foreach)
 library(boot)
 options(boot.parallel="multicore")
-options(boot.ncpus=20) # Takes almost 7 hours with 20 cores on icelake
+options(boot.ncpus=20) # Takes almost 3.5 hours with 20 cores on icelake
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
@@ -25,7 +25,7 @@ model_map <- rbind(use.names=FALSE,
 pred_risk[model_map, on = .(model_type), model_colname := model_colname]
 
 # Run through all analyses
-res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
+res <- foreach(this_strategy = c("blanket"), .combine=rbind) %:%
 	foreach(this_endpoint = c("cvd", "cvd_narrow"), .combine=rbind) %:%
 		foreach(this_score = c("SCORE2", "SCORE2_excl_UKB", "QRISK3"), .combine=rbind) %do% {
 			# Extract all scores for this inner loop
@@ -47,12 +47,6 @@ res <- foreach(this_strategy = c("blanket", "targeted"), .combine=rbind) %:%
 					default="high")]
       }
 
-      # If we're doing targeted screening, only use the alternative models for risk stratification
-      # in the medium risk group
-      if (this_strategy == "targeted") {
-        this_dat[this_dat[model_type == "" & risk_group != "medium"], on = .(eid), risk_group := i.risk_group]
-      } 
- 
       # For QRISK3, set the medium risk group back to low: a medium risk group is not defined by
       # the NICE 2023 guidelines, we just created our own one for targeted screening
       if (this_score == "QRISK3") {
