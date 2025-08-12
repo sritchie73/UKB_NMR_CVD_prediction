@@ -7,11 +7,23 @@ library(ggstance)
 library(patchwork)
 
 # Load and collate results
-res <- rbind(idcol="cohort",
-  "discovery"=fread("analyses/public_health_modelling/discovery_screening.txt"),
-  "replication"=fread("analyses/public_health_modelling/replication_screening.txt"),
-  "pooled"=fread("analyses/public_health_modelling/pooled_screening.txt")
+blanket <- rbind(idcol="cohort",
+  "discovery"=fread("analyses/public_health_modelling/discovery_blanket_screening.txt"),
+  "replication"=fread("analyses/public_health_modelling/replication_blanket_screening.txt"),
+  "pooled"=fread("analyses/public_health_modelling/pooled_blanket_screening.txt")
 )
+
+targeted <- rbind(idcol="cohort",
+  "discovery"=fread("analyses/public_health_modelling/discovery_targeted_screening.txt"),
+  "replication"=fread("analyses/public_health_modelling/replication_targeted_screening.txt"),
+  "pooled"=fread("analyses/public_health_modelling/pooled_targeted_screening.txt")
+)
+
+targeted_delta <- targeted[metric %in% c("delta_ref_high_risk", "delta_null_cvd_high_risk", "delta_null_cvd_prevented", "delta_null_NNS", "delta_null_NNT")]
+targeted_delta[, metric := gsub("_ref_", "_", metric)]
+targeted_delta[, metric := gsub("_null_", "_", metric)]
+
+res <- rbind(blanket, targeted, targeted_delta)
 
 # Build Figure 5
 ggdt <- res[cohort == "pooled" & endpoint == "cvd" & score == "SCORE2_excl_UKB" & model_sex == "Sex-stratified" & model != "Risk score"]
