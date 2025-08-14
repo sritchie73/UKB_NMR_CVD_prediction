@@ -118,7 +118,7 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
 							data.table("delta_ref_cvd_high_risk", delta_ref_cvd_high_risk, sd(delta_ref_cvd_high_risk_boot)),
 							data.table("delta_ref_cvd_prevented", delta_ref_cvd_prevented, sd(delta_ref_cvd_prevented_boot)),
 							data.table("delta_ref_NNS", delta_ref_NNS, sd(delta_ref_NNS_boot)),
-							data.table("delta_ref_NNT", delta_ref_NNT, sd(delta_ref_NNT_boot))
+							data.table("delta_ref_NNT", delta_ref_NNT, sd(delta_ref_NNT_boot)),
 							data.table("delta_null_high_risk", delta_null_high_risk, sd(delta_null_high_risk_boot)),
 							data.table("delta_null_cvd_high_risk", delta_null_cvd_high_risk, sd(delta_null_cvd_high_risk_boot)),
 							data.table("delta_null_cvd_prevented", delta_null_cvd_prevented, sd(delta_null_cvd_prevented_boot)),
