@@ -68,27 +68,38 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
 						null_NNT <- null_high_risk / null_cvd_prevented
 						null_NNT_boot <- null_high_risk_boot / null_cvd_prevented_boot
 
-						delta_ref_high_risk <- alt_high_risk - ref_high_risk
-						delta_ref_high_risk_boot <- alt_high_risk_boot - ref_high_risk_boot
-						delta_ref_cvd_high_risk <- alt_cvd_high_risk - ref_cvd_high_risk
-						delta_ref_cvd_high_risk_boot <- alt_cvd_high_risk_boot - ref_cvd_high_risk_boot
-						delta_ref_cvd_prevented <- alt_cvd_prevented - ref_cvd_prevented
-						delta_ref_cvd_prevented_boot <- alt_cvd_prevented_boot - ref_cvd_prevented_boot
-						delta_ref_NNS <- alt_NNS - ref_NNS
-						delta_ref_NNS_boot <- alt_NNS_boot - ref_NNS_boot
-						delta_ref_NNT <- alt_NNT - ref_NNT
-						delta_ref_NNT_boot <- alt_NNT_boot - ref_NNT_boot
+						alt_delta_ref_high_risk <- alt_high_risk - ref_high_risk
+						alt_delta_ref_high_risk_boot <- alt_high_risk_boot - ref_high_risk_boot
+						alt_delta_ref_cvd_high_risk <- alt_cvd_high_risk - ref_cvd_high_risk
+						alt_delta_ref_cvd_high_risk_boot <- alt_cvd_high_risk_boot - ref_cvd_high_risk_boot
+						alt_delta_ref_cvd_prevented <- alt_cvd_prevented - ref_cvd_prevented
+						alt_delta_ref_cvd_prevented_boot <- alt_cvd_prevented_boot - ref_cvd_prevented_boot
+						alt_delta_ref_NNS <- alt_NNS - ref_NNS
+						alt_delta_ref_NNS_boot <- alt_NNS_boot - ref_NNS_boot
+						alt_delta_ref_NNT <- alt_NNT - ref_NNT
+						alt_delta_ref_NNT_boot <- alt_NNT_boot - ref_NNT_boot
 
-						delta_null_high_risk <- alt_high_risk - null_high_risk
-						delta_null_high_risk_boot <- alt_high_risk_boot - null_high_risk_boot
-						delta_null_cvd_high_risk <- alt_cvd_high_risk - null_cvd_high_risk
-						delta_null_cvd_high_risk_boot <- alt_cvd_high_risk_boot - null_cvd_high_risk_boot
-						delta_null_cvd_prevented <- alt_cvd_prevented - null_cvd_prevented
-						delta_null_cvd_prevented_boot <- alt_cvd_prevented_boot - null_cvd_prevented_boot
-						delta_null_NNS <- alt_NNS - null_NNS
-						delta_null_NNS_boot <- alt_NNS_boot - null_NNS_boot
-						delta_null_NNT <- alt_NNT - null_NNT
-						delta_null_NNT_boot <- alt_NNT_boot - null_NNT_boot
+						alt_delta_null_high_risk <- alt_high_risk - null_high_risk
+						alt_delta_null_high_risk_boot <- alt_high_risk_boot - null_high_risk_boot
+						alt_delta_null_cvd_high_risk <- alt_cvd_high_risk - null_cvd_high_risk
+						alt_delta_null_cvd_high_risk_boot <- alt_cvd_high_risk_boot - null_cvd_high_risk_boot
+						alt_delta_null_cvd_prevented <- alt_cvd_prevented - null_cvd_prevented
+						alt_delta_null_cvd_prevented_boot <- alt_cvd_prevented_boot - null_cvd_prevented_boot
+						alt_delta_null_NNS <- alt_NNS - null_NNS
+						alt_delta_null_NNS_boot <- alt_NNS_boot - null_NNS_boot
+						alt_delta_null_NNT <- alt_NNT - null_NNT
+						alt_delta_null_NNT_boot <- alt_NNT_boot - null_NNT_boot
+
+						null_delta_ref_high_risk <- null_high_risk - ref_high_risk
+						null_delta_ref_high_risk_boot <- null_high_risk_boot - ref_high_risk_boot
+						null_delta_ref_cvd_high_risk <- null_cvd_high_risk - ref_cvd_high_risk
+						null_delta_ref_cvd_high_risk_boot <- null_cvd_high_risk_boot - ref_cvd_high_risk_boot
+						null_delta_ref_cvd_prevented <- null_cvd_prevented - ref_cvd_prevented
+						null_delta_ref_cvd_prevented_boot <- null_cvd_prevented_boot - ref_cvd_prevented_boot
+						null_delta_ref_NNS <- null_NNS - ref_NNS
+						null_delta_ref_NNS_boot <- null_NNS_boot - ref_NNS_boot
+						null_delta_ref_NNT <- null_NNT - ref_NNT
+						null_delta_ref_NNT_boot <- null_NNT_boot - ref_NNT_boot
 					}
 
 					# Build output table of statistics
@@ -114,16 +125,21 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
 							data.table("null_cvd_prevented", null_cvd_prevented, sd(null_cvd_prevented_boot)),
 							data.table("null_NNS", null_NNS, sd(null_NNS_boot)),
 							data.table("null_NNT", null_NNT, sd(null_NNT_boot)),
-							data.table("delta_ref_high_risk", delta_ref_high_risk, sd(delta_ref_high_risk_boot)),
-							data.table("delta_ref_cvd_high_risk", delta_ref_cvd_high_risk, sd(delta_ref_cvd_high_risk_boot)),
-							data.table("delta_ref_cvd_prevented", delta_ref_cvd_prevented, sd(delta_ref_cvd_prevented_boot)),
-							data.table("delta_ref_NNS", delta_ref_NNS, sd(delta_ref_NNS_boot)),
-							data.table("delta_ref_NNT", delta_ref_NNT, sd(delta_ref_NNT_boot)),
-							data.table("delta_null_high_risk", delta_null_high_risk, sd(delta_null_high_risk_boot)),
-							data.table("delta_null_cvd_high_risk", delta_null_cvd_high_risk, sd(delta_null_cvd_high_risk_boot)),
-							data.table("delta_null_cvd_prevented", delta_null_cvd_prevented, sd(delta_null_cvd_prevented_boot)),
-							data.table("delta_null_NNS", delta_null_NNS, sd(delta_null_NNS_boot)),
-							data.table("delta_null_NNT", delta_null_NNT, sd(delta_null_NNT_boot))
+							data.table("alt_delta_ref_high_risk", alt_delta_ref_high_risk, sd(alt_delta_ref_high_risk_boot)),
+							data.table("alt_delta_ref_cvd_high_risk", alt_delta_ref_cvd_high_risk, sd(alt_delta_ref_cvd_high_risk_boot)),
+							data.table("alt_delta_ref_cvd_prevented", alt_delta_ref_cvd_prevented, sd(alt_delta_ref_cvd_prevented_boot)),
+							data.table("alt_delta_ref_NNS", alt_delta_ref_NNS, sd(alt_delta_ref_NNS_boot)),
+							data.table("alt_delta_ref_NNT", alt_delta_ref_NNT, sd(alt_delta_ref_NNT_boot)),
+							data.table("alt_delta_null_high_risk", alt_delta_null_high_risk, sd(alt_delta_null_high_risk_boot)),
+							data.table("alt_delta_null_cvd_high_risk", alt_delta_null_cvd_high_risk, sd(alt_delta_null_cvd_high_risk_boot)),
+							data.table("alt_delta_null_cvd_prevented", alt_delta_null_cvd_prevented, sd(alt_delta_null_cvd_prevented_boot)),
+							data.table("alt_delta_null_NNS", alt_delta_null_NNS, sd(alt_delta_null_NNS_boot)),
+							data.table("alt_delta_null_NNT", alt_delta_null_NNT, sd(alt_delta_null_NNT_boot)),
+							data.table("null_delta_ref_high_risk", null_delta_ref_high_risk, sd(null_delta_ref_high_risk_boot)),
+							data.table("null_delta_ref_cvd_high_risk", null_delta_ref_cvd_high_risk, sd(null_delta_ref_cvd_high_risk_boot)),
+							data.table("null_delta_ref_cvd_prevented", null_delta_ref_cvd_prevented, sd(null_delta_ref_cvd_prevented_boot)),
+							data.table("null_delta_ref_NNS", null_delta_ref_NNS, sd(null_delta_ref_NNS_boot)),
+							data.table("null_delta_ref_NNT", null_delta_ref_NNT, sd(null_delta_ref_NNT_boot))
 						)
 					}
 
