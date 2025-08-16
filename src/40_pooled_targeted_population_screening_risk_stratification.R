@@ -2,7 +2,7 @@ library(data.table)
 library(foreach)
 library(boot)
 options(boot.parallel="multicore")
-options(boot.ncpus=20) # Takes almost 3.5 hours with 20 cores on icelake
+options(boot.ncpus=20) # Takes under 12 hours with 20 cores on sapphire
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
@@ -51,9 +51,12 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
       }
 
       # For targeted screening only use the alternative models for risk stratification
-      # in the medium risk group
-      this_dat[this_dat[model_type == "" & risk_group != "medium"], on = .(eid), risk_group := i.risk_group]
- 
+      # in the medium risk group, and only for increasing risk to high risk with targeted
+      # rescreening
+      this_dat[this_dat[model_type == ""], on = .(eid), pop_screen := i.risk_group]
+      this_dat[model_type != "" & pop_screen == "medium" & risk_group == "high", targeted_screen := "high"]
+      this_dat[is.na(targeted_screen), targeted_screen := pop_screen]
+
       # For QRISK3, set the medium risk group back to low: a medium risk group is not defined by
       # the NICE 2023 guidelines, we just created our own one for targeted screening
       if (this_score == "QRISK3") {
@@ -69,14 +72,23 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
       null_dat <- null_dat[order(-null_risk)]
 
       # Get wide format for simultanous bootstrapping of all models
-      this_dat <- dcast(this_dat, eid + sex + age_group + incident_cvd + incident_cvd_followup ~ model_colname, value.var="risk_group", fill="missing")
+      this_dat <- dcast(this_dat, eid + sex + age_group + incident_cvd + incident_cvd_followup ~ model_colname, value.var="targeted_screen", fill="missing")
+
+      # Missing data in the alternate model is only relevant in the re-screening group
+      this_dat[model2 == "missing" & model1 != "medium", model2 := model1]
+      this_dat[model3 == "missing" & model1 != "medium", model3 := model1]
+      this_dat[model4 == "missing" & model1 != "medium", model4 := model1]
+      this_dat[model5 == "missing" & model1 != "medium", model5 := model1]
+      this_dat[model6 == "missing" & model1 != "medium", model6 := model1]
+      this_dat[model7 == "missing" & model1 != "medium", model7 := model1]
+      this_dat[model8 == "missing" & model1 != "medium", model8 := model1]
 
       # Build null hypothesis risk stratification column for each model 
       for (this_model in model_map[model_type != "", model_colname]) {
         # How many people were additionally assinged to the high risk category when doing the targeted re-screening?
-        alt_high_risk <- this_dat[, .SD, .SDcols=c("sex", "age_group", "model1", this_model)]
-        setnames(alt_high_risk, c("sex", "age_group", "ref", "alt"))
-        alt_high_risk <- alt_high_risk[ref != "high" & alt == "high", .N, by=.(sex, age_group)]
+        alt_high_risk <- this_dat[, .SD, .SDcols=c("model1", this_model)]
+        setnames(alt_high_risk, c("ref", "alt"))
+        alt_high_risk <- alt_high_risk[ref != "high" & alt == "high", .N]
   
         # Adding that same number of people to high risk based on ranking of SCORE2/QRISK3 - while also dropping people who don't have data for 
         # this particular model
@@ -88,8 +100,8 @@ res <- foreach(this_strategy = c("targeted"), .combine=rbind) %:%
         this_null_dat <- this_null_dat[!this_missing, on = .(eid)]
 
 				this_null_dat[, rank := 0] 
-				this_null_dat[null_risk_group != "high", rank := 1:.N, by=.(sex, age_group)]
-        this_null_dat[alt_high_risk, on = .(sex, age_group, rank <= N), null_risk_group := "high"]
+				this_null_dat[null_risk_group != "high", rank := 1:.N]
+        this_null_dat[rank <= alt_high_risk, null_risk_group := "high"]
 
         # add null hypothesis risk grouping for this model to the main this_dat
         this_dat[this_null_dat, on = .(eid), null := null_risk_group]
