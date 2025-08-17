@@ -2,7 +2,7 @@ library(data.table)
 library(foreach)
 library(boot)
 options(boot.parallel="multicore")
-options(boot.ncpus=20) # Takes under 6.5 hours with 20 cores on sapphire
+options(boot.ncpus=20) # Takes under 7 hours with 20 cores on sapphire
 
 # create output directory
 system("mkdir -p analyses/public_health_modelling")
