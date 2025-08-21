@@ -212,7 +212,7 @@ qrisk3 <- function(
   ]
 
   if (type == "absolute risk") {
-    wip[, QRISK3 := 100 * 1 - ifelse(sex == "Female", 0.988876402378082, 0.977268040180206)^exp(QRISK3)]
+    wip[, QRISK3 := 1 - ifelse(sex == "Female", 0.988876402378082, 0.977268040180206)^exp(QRISK3)]
   }
   return(wip$QRISK3)
 }
