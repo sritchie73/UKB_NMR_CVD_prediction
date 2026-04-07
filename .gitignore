@@ -3,3 +3,6 @@ analyses/
 *.*.swp
 .ipynb_checkpoints/
 Rplots.pdf
+*.Rproj
+.Rproj.user/
+ext_src/NMR_metabolomics/src/01_sample_qc/samples_failing_qc.csv
